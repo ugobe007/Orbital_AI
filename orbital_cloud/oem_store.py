@@ -129,6 +129,32 @@ class OEMStore:
         with self._lock:
             return [rec.partner for rec in self._by_id.values()]
 
+    # ── Vendor → grants resolution (powers control-path scope enforcement) ───────
+    def partner_for_vendor(self, vendor: str) -> Optional[OEMPartner]:
+        """The active/most-recently-updated partner registered for a vendor, if any.
+
+        Robots carry a vendor, not an OEM id, so control enforcement resolves the owning
+        partner by vendor (case-insensitive). Prefers an ACTIVE partner over a pending one.
+        """
+        v = (vendor or "").strip().lower()
+        with self._lock:
+            matches = [r.partner for r in self._by_id.values() if r.partner.vendor.strip().lower() == v]
+        if not matches:
+            return None
+        active = [p for p in matches if p.status == OEMStatus.ACTIVE]
+        pool = active or matches
+        return max(pool, key=lambda p: p.updated_at)
+
+    def granted_scopes_for_vendor(self, vendor: str) -> Optional[set[APIScope]]:
+        """Granted scopes for a vendor's OEM, or None when the vendor is *unmanaged*
+        (no OEM registered) — the caller decides how to treat unmanaged robots."""
+        partner = self.partner_for_vendor(vendor)
+        if partner is None:
+            return None
+        if partner.status == OEMStatus.SUSPENDED:
+            return set()
+        return set(partner.granted_scopes)
+
     def profile(self, oem_id: str) -> Optional[IntegrationProfile]:
         with self._lock:
             rec = self._by_id.get(oem_id)

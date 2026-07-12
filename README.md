@@ -55,6 +55,29 @@ Scopes: telemetry.read · state.read · control.velocity · control.estop ·
         control.teleop · mission.dispatch · camera.read · map.read
 ```
 
+### Scope enforcement in the control path
+
+Grants aren't advisory — Orbital enforces them everywhere it issues a command:
+
+- **Cloud** — `POST /robot/{id}/estop`, `/resume`, and `POST /tasks` resolve the robot's
+  vendor → owning OEM → granted scopes and return **403** if the matching scope
+  (`control.estop`, `mission.dispatch`) isn't granted.
+- **ARIA edge** — the edge agent checks `control.velocity` before a corrective command and
+  `control.estop` before a physical halt; if ungranted it still raises the cloud alert but
+  reports `correct_blocked` / `halt_blocked` instead of commanding. Edges hydrate grants via
+  `GET /api/oem/grants/{vendor}`.
+- **Unmanaged vendors** (no OEM registered, e.g. the seed demo fleet) are **permissive** by
+  default so the demo works; set `ORBITAL_STRICT_OEM_SCOPES=1` to deny them too.
+
+### Rich telemetry (sensor / motor / spatial / thermal input)
+
+`POST /api/v1/telemetry` accepts an optional multi-modal payload alongside the required
+`delta_meters`: `battery` (pct/temp/voltage/current/cycles), per-joint `motors`
+(temp/current/torque/position/velocity), `imu` (accel/gyro), 6-DoF `spatial`
+(x/y/z + roll/pitch/yaw + velocities), a `temperatures_c` map, and vendor `extra` scalars.
+The latest snapshot surfaces on `RobotDetail` and at `GET /api/dashboard/robot/{id}/sensors`;
+battery % and floor pose also feed the live runtime.
+
 Zero-dependency onboarding client for OEMs:
 
 ```bash

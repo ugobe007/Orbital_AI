@@ -24,6 +24,7 @@ from .models import (
     RobotDetail,
     RobotState,
     RobotSummary,
+    SensorSnapshot,
     Task,
     TaskIn,
     TaskStatus,
@@ -85,6 +86,7 @@ class Store:
         self._lock = threading.RLock()
         self.robots: dict[str, RobotRuntime] = {}
         self.telemetry: dict[str, deque[tuple[float, float]]] = {}
+        self.sensors: dict[str, SensorSnapshot] = {}
         self.alerts: list[Alert] = []
         self.tasks: dict[str, Task] = {}
         self._seed()
@@ -100,10 +102,32 @@ class Store:
             robot = self.robots.get(t.robot_id)
             ts = t.ts or time.time()
             self.telemetry.setdefault(t.robot_id, deque(maxlen=5000)).append((ts, t.delta_meters))
+
+            # Capture the multi-modal snapshot (battery/motors/imu/spatial/temps) if present.
+            if any([t.battery, t.motors, t.imu, t.spatial, t.temperatures_c, t.extra]):
+                self.sensors[t.robot_id] = SensorSnapshot(
+                    ts=ts,
+                    battery=t.battery,
+                    motors=list(t.motors),
+                    imu=t.imu,
+                    spatial=t.spatial,
+                    temperatures_c=dict(t.temperatures_c),
+                    extra=dict(t.extra),
+                )
+
             if robot is None:
                 return
             robot.drift_delta_m = t.delta_meters
+            # A real edge can drive battery + floor pose straight from its sensor stream.
+            if t.battery and t.battery.pct is not None:
+                robot.battery_pct = t.battery.pct
+            if t.spatial is not None:
+                robot.pose_internal = Pose(x=t.spatial.x, y=t.spatial.y, theta=t.spatial.yaw)
             self._track_degradation(robot, t.delta_meters, ts)
+
+    def latest_sensors(self, robot_id: str) -> Optional[SensorSnapshot]:
+        with self._lock:
+            return self.sensors.get(robot_id)
 
     def _track_degradation(self, robot: RobotRuntime, delta: float, ts: float) -> None:
         """MTBD/recovery bookkeeping: a degradation event starts when drift crosses
@@ -207,6 +231,7 @@ class Store:
                 env_degradation_score=self._env_score(deltas),
                 oem_brief=VENDOR_BRIEFS.get(robot.vendor, ""),
                 uptime_seconds=round(robot.uptime_seconds, 1),
+                sensors=self.sensors.get(robot_id),
             )
 
     def benchmark(self, vendor: str) -> VendorBenchmark:

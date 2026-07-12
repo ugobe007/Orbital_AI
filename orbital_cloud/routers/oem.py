@@ -75,6 +75,18 @@ async def revoke_scopes(
     return partner
 
 
+@router.get("/grants/{vendor}")
+async def grants_for_vendor(vendor: str) -> dict:
+    """Resolve a vendor's effective granted scopes — used by ARIA edge nodes to hydrate
+    their local scope enforcement (so the edge blocks ungranted control locally)."""
+    granted = oem_store.granted_scopes_for_vendor(vendor)
+    return {
+        "vendor": vendor,
+        "managed": granted is not None,
+        "granted_scopes": sorted(s.value for s in (granted or set())),
+    }
+
+
 @router.get("/{oem_id}/profile", response_model=IntegrationProfile)
 async def integration_profile(oem_id: str) -> IntegrationProfile:
     profile = oem_store.profile(oem_id)

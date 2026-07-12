@@ -68,16 +68,77 @@ class RobotDetail(RobotSummary):
     env_degradation_score: Optional[float] = None
     oem_brief: str = ""
     uptime_seconds: float = 0.0
+    sensors: Optional["SensorSnapshot"] = None
+
+
+class BatteryTelemetry(BaseModel):
+    """Battery pack health — temperature is a leading indicator of thermal faults."""
+    pct: Optional[float] = None
+    temperature_c: Optional[float] = None
+    voltage_v: Optional[float] = None
+    current_a: Optional[float] = None
+    cycles: Optional[int] = None
+
+
+class MotorTelemetry(BaseModel):
+    """Per-joint/actuator input — current + temperature reveal binds, stalls, overheating."""
+    joint: str
+    temperature_c: Optional[float] = None
+    current_a: Optional[float] = None
+    torque_nm: Optional[float] = None
+    position_rad: Optional[float] = None
+    velocity_rad_s: Optional[float] = None
+
+
+class ImuTelemetry(BaseModel):
+    """Inertial sensor input (3-axis accel m/s^2, 3-axis gyro rad/s)."""
+    accel: list[float] = Field(default_factory=list)
+    gyro: list[float] = Field(default_factory=list)
+
+
+class SpatialTelemetry(BaseModel):
+    """Full 6-DoF spatial positioning (extends the 2D floor pose with z + orientation)."""
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    roll: float = 0.0
+    pitch: float = 0.0
+    yaw: float = 0.0
+    linear_velocity_mps: Optional[float] = None
+    angular_velocity_rps: Optional[float] = None
+
+
+class SensorSnapshot(BaseModel):
+    """Latest multi-modal reading for a robot (surfaced in RobotDetail + /sensors)."""
+    ts: Optional[float] = None
+    battery: Optional[BatteryTelemetry] = None
+    motors: list[MotorTelemetry] = Field(default_factory=list)
+    imu: Optional[ImuTelemetry] = None
+    spatial: Optional[SpatialTelemetry] = None
+    temperatures_c: dict[str, float] = Field(default_factory=dict)  # e.g. {"cpu": 61.2, "ambient": 24.0}
+    extra: dict[str, float] = Field(default_factory=dict)           # vendor-specific scalars
 
 
 class TelemetryIn(BaseModel):
-    """Edge -> cloud drift-delta telemetry (POST /api/v1/telemetry)."""
+    """Edge -> cloud telemetry (POST /api/v1/telemetry).
+
+    ``delta_meters`` (ARIA drift) is the one required signal; every other channel —
+    battery, motors, IMU, spatial pose, temperatures — is optional so a minimal edge can
+    still report drift while a full ARIA node streams the complete sensor/motor picture.
+    """
     robot_id: str
     vendor: str
     model: str
     facility_id: str
     delta_meters: float
     ts: Optional[float] = None      # epoch seconds; server-stamped if omitted
+    # Rich multi-modal channels (all optional).
+    battery: Optional[BatteryTelemetry] = None
+    motors: list[MotorTelemetry] = Field(default_factory=list)
+    imu: Optional[ImuTelemetry] = None
+    spatial: Optional[SpatialTelemetry] = None
+    temperatures_c: dict[str, float] = Field(default_factory=dict)
+    extra: dict[str, float] = Field(default_factory=dict)
 
 
 class AlertIn(BaseModel):
@@ -246,3 +307,8 @@ class IntegrationProfile(BaseModel):
     missing_scopes: list[APIScope]
     control_ready: bool   # can we run the TF-Hijack correction (velocity + estop granted)?
     monitor_ready: bool   # can we at least monitor (telemetry granted)?
+
+
+# RobotDetail forward-references SensorSnapshot (defined above but after RobotDetail);
+# rebuild so the reference resolves.
+RobotDetail.model_rebuild()

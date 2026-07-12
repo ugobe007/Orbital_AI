@@ -31,13 +31,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RobotBinding:
-    """What the edge knows about one robot: identity + how to command it."""
+    """What the edge knows about one robot: identity, how to command it, and which
+    control scopes its OEM has granted (mirrors the cloud enforcement locally)."""
     robot_id: str
     vendor: str
     model: str
     adapter: Any = None  # a fleet_adapters.FleetAdapter (optional in the scaffold)
+    # OEM scope enforcement: `managed` True means an OEM governs this vendor, so only
+    # `granted_scopes` may be exercised. False (unmanaged) is permissive, matching the cloud.
+    managed: bool = False
+    granted_scopes: set[str] = field(default_factory=set)
     last_external: Optional[Pose2D] = None
     last_internal: Optional[Pose2D] = None
+
+    def scope_ok(self, scope: str) -> bool:
+        return (not self.managed) or (scope in self.granted_scopes)
 
 
 @dataclass
@@ -118,7 +126,11 @@ class EdgeAgent:
 
             decision = self.safety.evaluate(drift, external_moved_m=external_moved, internal_moved_m=internal_moved)
             if decision.halt:
-                if binding.adapter is not None:
+                # Always raise the alert (awareness is not control-gated). Only the physical
+                # E-Stop is scope-gated: if the OEM hasn't granted control.estop, the edge
+                # can't command the robot — the operator/OEM must act on the alert.
+                estop_blocked = not binding.scope_ok("control.estop")
+                if binding.adapter is not None and not estop_blocked:
                     try:
                         binding.adapter.estop()
                     except Exception as exc:  # noqa: BLE001
@@ -126,12 +138,20 @@ class EdgeAgent:
                 self.cloud.post_alert({
                     "robot_id": rid, "type": decision.alert_type or "drift_exceeded",
                     "severity": "critical", "delta_meters": round(drift.delta_m, 3),
-                    "message": decision.reason,
+                    "message": decision.reason + (" [E-Stop not granted]" if estop_blocked else ""),
                 })
-                results.append({"robot_id": rid, "action": "halt", "reason": decision.reason})
+                results.append({
+                    "robot_id": rid,
+                    "action": "halt_blocked" if estop_blocked else "halt",
+                    "reason": decision.reason,
+                })
                 continue
 
             if drift.delta_m > edge_settings.drift_degraded_m:
+                if not binding.scope_ok("control.velocity"):
+                    results.append({"robot_id": rid, "action": "correct_blocked",
+                                    "reason": "control.velocity not granted", "delta_m": round(drift.delta_m, 4)})
+                    continue
                 correction = self.waypoints.compute_correction(rid, external, internal)
                 if binding.adapter is not None:
                     try:
@@ -143,3 +163,20 @@ class EdgeAgent:
                 results.append({"robot_id": rid, "action": "nominal", "delta_m": round(drift.delta_m, 4)})
 
         return results
+
+    def hydrate_scopes(self, cloud_base_url: str | None = None) -> None:
+        """Best-effort: pull each vendor's granted scopes from the cloud so local
+        enforcement matches. Safe to skip (stays permissive) if the cloud is unreachable."""
+        base = (cloud_base_url or edge_settings.cloud_url).rstrip("/")
+        try:
+            import httpx
+        except Exception:  # noqa: BLE001
+            return
+        for binding in self.bindings.values():
+            try:
+                resp = httpx.get(f"{base}/api/oem/grants/{binding.vendor}", timeout=5.0)
+                data = resp.json()
+                binding.managed = bool(data.get("managed"))
+                binding.granted_scopes = set(data.get("granted_scopes") or [])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[edge] scope hydrate failed for %s: %s", binding.vendor, exc)
