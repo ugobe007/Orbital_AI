@@ -19,8 +19,21 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__, orchestrator, simulator
 from .config import settings
 from .events import hub
+from .models import APIScope, ControlTransport
+from .oem_store import oem_store
 from .routers import dashboard, edge, oem
 from .store import store
+
+# Demo OEM partners with deliberately different grant levels so the governance table and
+# scope-aware controls are visibly meaningful: full control, monitor+command, monitor-only.
+_DEMO_OEMS = [
+    ("Unitree Robotics (demo)", "Unitree", ControlTransport.ROS2,
+     [APIScope.TELEMETRY, APIScope.STATE, APIScope.VELOCITY, APIScope.ESTOP, APIScope.MISSION, APIScope.MAP]),
+    ("Boston Dynamics (demo)", "Boston Dynamics", ControlTransport.GRPC,
+     [APIScope.TELEMETRY, APIScope.STATE, APIScope.ESTOP, APIScope.MISSION]),
+    ("Agility Robotics (demo)", "Agility Robotics", ControlTransport.CLOUD_REST,
+     [APIScope.TELEMETRY, APIScope.STATE]),
+]
 
 _sim_task: asyncio.Task | None = None
 _orch_task: asyncio.Task | None = None
@@ -29,6 +42,8 @@ _orch_task: asyncio.Task | None = None
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _sim_task, _orch_task
+    if settings.seed_oems:
+        oem_store.seed_demo(_DEMO_OEMS)
     if settings.simulator_enabled:
         _sim_task = asyncio.create_task(simulator.run())
     if settings.orchestrator_enabled:

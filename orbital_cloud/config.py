@@ -36,6 +36,10 @@ class Settings:
     llm_enabled: bool = _flag("ORBITAL_LLM_ENABLED", "0")
     llm_model: str = os.getenv("ORBITAL_LLM_MODEL", "gpt-4o-mini")
 
+    # Seed a few demo OEM partners at startup so the governance table + scope-aware
+    # controls render with data out of the box. Turn off for a clean production start.
+    seed_oems: bool = _flag("ORBITAL_SEED_OEMS", "1")
+
 
 settings = Settings()
 

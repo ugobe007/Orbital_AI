@@ -129,6 +129,23 @@ class OEMStore:
         with self._lock:
             return [rec.partner for rec in self._by_id.values()]
 
+    # ── Demo seeding ─────────────────────────────────────────────────────────────
+    def seed_demo(self, specs: list[tuple[str, str, "ControlTransport", list[APIScope]]]) -> None:
+        """Register demo OEM partners with varied grant levels (idempotent per vendor).
+
+        Each spec is (company_name, vendor, transport, scopes). Scopes outside the vendor's
+        capability ceiling are dropped by ``grant_scopes``, so the seeded readiness reflects
+        each protocol's real limits (e.g. Boston Dynamics can't be granted velocity)."""
+        for company_name, vendor, transport, scopes in specs:
+            if self.partner_for_vendor(vendor) is not None:
+                continue
+            partner, _ = self.register(OEMRegisterIn(
+                company_name=company_name, vendor=vendor,
+                contact_email=f"partners@{vendor.lower().replace(' ', '')}.example", transport=transport,
+            ))
+            if scopes:
+                self.grant_scopes(partner.id, scopes)
+
     # ── Vendor → grants resolution (powers control-path scope enforcement) ───────
     def partner_for_vendor(self, vendor: str) -> Optional[OEMPartner]:
         """The active/most-recently-updated partner registered for a vendor, if any.

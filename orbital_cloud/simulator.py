@@ -22,7 +22,17 @@ import random
 
 from .config import settings
 from .events import hub
-from .models import AlertIn, AlertSeverity, AlertType, RobotState, TelemetryIn
+from .models import (
+    AlertIn,
+    AlertSeverity,
+    AlertType,
+    BatteryTelemetry,
+    ImuTelemetry,
+    MotorTelemetry,
+    RobotState,
+    SpatialTelemetry,
+    TelemetryIn,
+)
 from .store import RobotRuntime, store
 
 _SPEED_MPS = 0.6
@@ -30,6 +40,57 @@ _DRIFT_DECAY = 0.90          # ARIA re-convergence per tick
 _DRIFT_NOISE = 0.015         # baseline odometric noise (m)
 _SPIKE_PROB = 0.01           # chance/tick a robot starts drifting badly
 _DRIFT_HALT = "DRIFT_HALT"   # sim-triggered halt (auto-recovers); vs manual "E_STOP"
+_JOINTS = ("hip_left", "hip_right", "knee_left", "knee_right")
+
+
+def _sensors(robot: RobotRuntime) -> dict:
+    """Synthesize a plausible multi-modal reading so the dashboard vitals panel is alive.
+
+    Values track the robot's actual sim state: temps/currents climb with activity and
+    drift, voltage tracks charge, and the spatial block mirrors the robot's *self-reported*
+    (internal) pose — so it stays consistent with the drift shown elsewhere.
+    """
+    active = robot.state == RobotState.ACTIVE
+    charging = robot.state == RobotState.CHARGING
+    load = 1.0 if active else (0.3 if charging else 0.15)
+    pct = robot.battery_pct
+
+    battery = BatteryTelemetry(
+        pct=round(pct, 1),
+        temperature_c=round(30.0 + load * 8.0 + (100.0 - pct) * 0.03 + random.gauss(0, 0.4), 1),
+        voltage_v=round(42.0 + (pct / 100.0) * 8.0, 1),                       # 42–50V pack
+        current_a=round((-3.0 if charging else 6.5 if active else 0.8) + random.gauss(0, 0.3), 1),
+        cycles=150 + (abs(hash(robot.id)) % 400),
+    )
+
+    motors = [
+        MotorTelemetry(
+            joint=joint,
+            temperature_c=round(45.0 + j * 3.0 + load * 15.0 + robot.drift_delta_m * 12.0 + random.gauss(0, 0.6), 1),
+            current_a=round((0.4 + load * 3.5) + random.gauss(0, 0.2), 2),
+            torque_nm=round((0.4 + load * 3.5) * 3.2 + random.gauss(0, 0.4), 1),
+            velocity_rad_s=round((_SPEED_MPS * 2.0 if active else 0.0) + random.gauss(0, 0.05), 2),
+        )
+        for j, joint in enumerate(_JOINTS)
+    ]
+
+    imu = ImuTelemetry(
+        accel=[round(random.gauss(0, 0.15), 3), round(random.gauss(0, 0.15), 3), round(9.81 + random.gauss(0, 0.05), 3)],
+        gyro=[round(random.gauss(0, 0.02), 3) for _ in range(3)],
+    )
+
+    spatial = SpatialTelemetry(
+        x=round(robot.pose_internal.x, 3), y=round(robot.pose_internal.y, 3), z=0.0,
+        yaw=round(robot.pose_internal.theta, 3),
+        linear_velocity_mps=round(_SPEED_MPS if active else 0.0, 2),
+        angular_velocity_rps=round(random.gauss(0, 0.05), 3),
+    )
+
+    temperatures_c = {
+        "cpu": round(55.0 + load * 12.0 + random.gauss(0, 0.8), 1),
+        "ambient": round(23.0 + random.gauss(0, 0.5), 1),
+    }
+    return dict(battery=battery, motors=motors, imu=imu, spatial=spatial, temperatures_c=temperatures_c)
 
 
 def _patrol(i: int) -> list[tuple[float, float]]:
@@ -126,6 +187,7 @@ async def _tick(dt: float) -> list[AlertIn]:
             TelemetryIn(
                 robot_id=robot.id, vendor=robot.vendor, model=robot.model,
                 facility_id=settings.facility_id, delta_meters=robot.drift_delta_m,
+                **_sensors(robot),
             )
         )
 
