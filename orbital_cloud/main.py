@@ -16,27 +16,31 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, simulator
+from . import __version__, orchestrator, simulator
 from .config import settings
 from .events import hub
 from .routers import dashboard, edge
 from .store import store
 
 _sim_task: asyncio.Task | None = None
+_orch_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _sim_task
+    global _sim_task, _orch_task
     if settings.simulator_enabled:
         _sim_task = asyncio.create_task(simulator.run())
+    if settings.orchestrator_enabled:
+        _orch_task = asyncio.create_task(orchestrator.run())
     try:
         yield
     finally:
-        if _sim_task is not None:
-            _sim_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await _sim_task
+        for task in (_sim_task, _orch_task):
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
 
 app = FastAPI(title="Orbital AI Cloud", version=__version__, lifespan=lifespan)

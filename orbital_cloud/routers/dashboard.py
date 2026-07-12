@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException
 from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, settings
 from ..events import hub
-from ..models import Alert, RobotDetail, RobotSummary, Task, TaskIn, VendorBenchmark
+from ..models import Alert, OrchestratorStatus, RobotDetail, RobotSummary, Task, TaskIn, VendorBenchmark
+from ..orchestrator import orchestrator
 from ..store import store
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -71,6 +72,21 @@ async def benchmark_report() -> dict:
 @router.get("/benchmark/{vendor}", response_model=VendorBenchmark)
 async def benchmark_for_vendor(vendor: str) -> VendorBenchmark:
     return store.benchmark(vendor)
+
+
+@router.get("/orchestrator", response_model=OrchestratorStatus)
+async def orchestrator_status() -> OrchestratorStatus:
+    return orchestrator.status()
+
+
+@router.post("/orchestrator/run", response_model=OrchestratorStatus)
+async def orchestrator_run() -> OrchestratorStatus:
+    """Trigger one supervisory pass on demand (useful for demos + tests)."""
+    status = orchestrator.evaluate()
+    await orchestrator.refresh_narrative()
+    status = orchestrator.status()
+    await _broadcast_fleet()
+    return status
 
 
 @router.post("/robot/{robot_id}/estop")

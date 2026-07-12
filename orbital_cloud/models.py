@@ -122,3 +122,44 @@ class VendorBenchmark(BaseModel):
     mean_recovery_latency_seconds: Optional[float] = None
     env_degradation_score: Optional[float] = None
     robots: int
+
+
+# ── Orchestrator (the autonomous supervisory brain) ───────────────────────────
+
+class OrchestratorAction(str, Enum):
+    AUTO_ESTOP = "auto_estop"            # safety halt executed on a critical anomaly
+    DISPATCH_CHARGE = "dispatch_charge"  # proactively sent a low-battery robot to charge
+    RECOMMEND_REVIEW = "recommend_review"  # advisory: operator should look (no action taken)
+    MONITOR = "monitor"                  # nominal — logged, no action
+
+
+class OrchestratorDecision(BaseModel):
+    id: str
+    ts: float
+    robot_id: Optional[str] = None
+    action: OrchestratorAction
+    severity: AlertSeverity = AlertSeverity.INFO
+    rationale: str = ""
+    auto_executed: bool = False
+
+
+class FleetSummary(BaseModel):
+    total: int
+    active: int
+    idle: int
+    charging: int
+    halted: int
+    offline: int
+    unacked_alerts: int
+    worst_drift_robot: Optional[str] = None
+    worst_drift_m: float = 0.0
+
+
+class OrchestratorStatus(BaseModel):
+    """GET /api/dashboard/orchestrator — the autonomy layer's current view."""
+    enabled: bool
+    llm_enabled: bool
+    last_run_ts: Optional[float] = None
+    summary: Optional[FleetSummary] = None
+    narrative: str = ""
+    decisions: list[OrchestratorDecision] = Field(default_factory=list)

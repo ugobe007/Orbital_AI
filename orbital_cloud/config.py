@@ -27,6 +27,15 @@ class Settings:
     drift_degraded_m: float = float(os.getenv("ORBITAL_DRIFT_DEGRADED_M", "0.1") or "0.1")
     halt_threshold_m: float = float(os.getenv("ORBITAL_HALT_THRESHOLD_M", "0.5") or "0.5")
 
+    # Autonomy layer: the orchestrator supervises the fleet on this cadence and can
+    # take safety-first actions (auto E-Stop, proactive charge dispatch). The LLM
+    # narrative is advisory only and never gates a safety action.
+    orchestrator_enabled: bool = _flag("ORBITAL_ORCHESTRATOR_ENABLED", "1")
+    orchestrator_interval_s: float = float(os.getenv("ORBITAL_ORCHESTRATOR_INTERVAL_S", "5") or "5")
+    low_battery_pct: float = float(os.getenv("ORBITAL_LOW_BATTERY_PCT", "25") or "25")
+    llm_enabled: bool = _flag("ORBITAL_LLM_ENABLED", "0")
+    llm_model: str = os.getenv("ORBITAL_LLM_MODEL", "gpt-4o-mini")
+
 
 settings = Settings()
 

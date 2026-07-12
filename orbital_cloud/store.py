@@ -136,6 +136,10 @@ class Store:
         with self._lock:
             return list(self.alerts[:limit])
 
+    def unacknowledged_alerts(self) -> list[Alert]:
+        with self._lock:
+            return [a for a in self.alerts if not a.acknowledged]
+
     # ── Tasks ──────────────────────────────────────────────────────────────────
     def create_task(self, t: TaskIn) -> Task:
         with self._lock:
@@ -173,6 +177,15 @@ class Store:
             robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
             robot.error_code = None
             robot.drift_bias = (0.0, 0.0)  # ARIA re-converges on resume
+            return True
+
+    def dispatch_charge(self, robot_id: str) -> bool:
+        """Send a robot to charge. Idempotent; refuses halted robots (operator owns those)."""
+        with self._lock:
+            robot = self.robots.get(robot_id)
+            if robot is None or robot.state == RobotState.HALTED:
+                return False
+            robot.state = RobotState.CHARGING
             return True
 
     # ── Reads ────────────────────────────────────────────────────────────────────
