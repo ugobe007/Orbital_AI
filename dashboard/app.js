@@ -18,10 +18,30 @@ const el = (html) => { const t = document.createElement("template"); t.innerHTML
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 async function getJSON(path) { const r = await fetch(API + path); if (!r.ok) throw new Error(path + " -> " + r.status); return r.json(); }
-async function postJSON(path, body) {
-  const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : null });
-  if (!r.ok) throw new Error(path + " -> " + r.status);
+async function reqJSON(method, path, body) {
+  const r = await fetch(API + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : null });
+  if (!r.ok) {
+    let detail = r.status; try { detail = (await r.json()).detail || detail; } catch (_) {}
+    const err = new Error(String(detail)); err.status = r.status; err.detail = detail; throw err;
+  }
   return r.json();
+}
+const postJSON = (path, body) => reqJSON("POST", path, body);
+const delJSON = (path, body) => reqJSON("DELETE", path, body);
+
+// Surface control failures (e.g. an OEM hasn't granted the scope) instead of failing silently.
+async function control(path, okMsg) {
+  try { await postJSON(path); }
+  catch (e) {
+    if (e.status === 403) toast(`Blocked: ${e.detail}`, "warn");
+    else toast(`Failed: ${e.detail}`, "warn");
+  }
+}
+function toast(msg, kind = "info") {
+  const c = kind === "warn" ? "bg-amber text-ink-900" : "bg-ink-700 text-slate-100";
+  const t = el(`<div class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm ${c}">${esc(msg)}</div>`);
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4200);
 }
 
 const STATE_STYLE = {
@@ -114,9 +134,9 @@ function renderFleet() {
       </div>`);
     card.querySelector('[data-act="details"]').onclick = () => openRobot(r.id);
     const estopBtn = card.querySelector('[data-act="estop"]');
-    if (estopBtn) estopBtn.onclick = () => postJSON(`/api/dashboard/robot/${r.id}/estop`).catch(console.error);
+    if (estopBtn) estopBtn.onclick = () => control(`/api/dashboard/robot/${r.id}/estop`);
     const resumeBtn = card.querySelector('[data-act="resume"]');
-    if (resumeBtn) resumeBtn.onclick = () => postJSON(`/api/dashboard/robot/${r.id}/resume`).catch(console.error);
+    if (resumeBtn) resumeBtn.onclick = () => control(`/api/dashboard/robot/${r.id}/resume`);
     grid.appendChild(card);
   }
 }
@@ -168,6 +188,96 @@ async function loadBenchmark() {
   } catch (e) { console.error(e); }
 }
 
+// ── OEM partners & scopes ──────────────────────────────────────────────────────
+const ALL_SCOPES = [
+  "telemetry.read", "state.read", "control.velocity", "control.estop",
+  "control.teleop", "mission.dispatch", "camera.read", "map.read",
+];
+const OEM_STATUS_STYLE = {
+  active: ["bg-emerald-500/15", "text-emerald-400"],
+  pending: ["bg-amber/15", "text-amber-400"],
+  suspended: ["bg-red-500/20", "text-red-400"],
+};
+async function loadOEMs() {
+  try {
+    const oems = await getJSON("/api/dashboard/oems");
+    const tb = $("#oems");
+    tb.innerHTML = "";
+    if (!oems.length) {
+      tb.appendChild(el(`<tr><td colspan="7" class="px-4 py-6 text-sm text-slate-500">No OEM partners yet. Onboard one with <code class="text-slate-400">scripts/oem_onboard.py register</code>.</td></tr>`));
+      return;
+    }
+    for (const o of oems) {
+      const [bg, fg] = OEM_STATUS_STYLE[o.status] || ["bg-ink-600", "text-slate-300"];
+      const readiness = `${o.monitor_ready ? '<span class="text-emerald-400">monitor</span>' : '<span class="text-slate-500">monitor</span>'} · ${o.control_ready ? '<span class="text-emerald-400">control</span>' : '<span class="text-slate-500">control</span>'}`;
+      const row = el(`
+        <tr class="border-b border-ink-700/60">
+          <td class="px-4 py-2 font-medium">${esc(o.company_name)}</td>
+          <td class="px-4 py-2 text-slate-400">${esc(o.vendor)}</td>
+          <td class="px-4 py-2 text-slate-400">${esc(o.transport)}</td>
+          <td class="px-4 py-2"><span class="text-xs px-2 py-0.5 rounded-full ${bg} ${fg}">${esc(o.status)}</span></td>
+          <td class="px-4 py-2 text-slate-300">${o.granted_scopes.length} / ${o.ceiling_scopes.length}</td>
+          <td class="px-4 py-2 text-xs">${readiness}</td>
+          <td class="px-4 py-2 text-right"><button class="px-3 py-1.5 rounded-lg bg-ink-700 hover:bg-ink-600 text-xs">Manage</button></td>
+        </tr>`);
+      row.querySelector("button").onclick = () => openOEM(o.oem_id);
+      tb.appendChild(row);
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function openOEM(oemId) {
+  const o = await getJSON(`/api/dashboard/oems/${oemId}`);
+  const ceiling = new Set(o.ceiling_scopes);
+  const granted = new Set(o.granted_scopes);
+  const rows = ALL_SCOPES.map((s) => {
+    const inCeiling = ceiling.has(s);
+    const checked = granted.has(s) ? "checked" : "";
+    const dis = inCeiling ? "" : "disabled";
+    const hint = inCeiling ? "" : `<span class="text-[11px] text-slate-600 ml-1">(outside ${esc(o.transport)} ceiling)</span>`;
+    return `<label class="flex items-center gap-2 py-1 ${inCeiling ? "" : "opacity-40"}">
+        <input type="checkbox" data-scope="${s}" ${checked} ${dis} class="accent-amber" />
+        <span class="text-sm">${s}</span>${hint}
+      </label>`;
+  }).join("");
+  const suspended = o.status === "suspended";
+  const card = $("#modal-oem .modal-card");
+  card.innerHTML = `
+    <div class="p-5">
+      <div class="text-lg font-bold">${esc(o.company_name)}</div>
+      <div class="text-xs text-slate-500">${esc(o.oem_id)} · ${esc(o.vendor)} · ${esc(o.transport)} · <span class="uppercase">${esc(o.status)}</span></div>
+      <p class="text-xs text-slate-400 mt-2">Toggle the API scopes this OEM has unlocked for Orbital. Scopes outside their protocol's capability ceiling can't be granted.</p>
+      <div class="mt-4 grid grid-cols-2 gap-x-6">${rows}</div>
+      <div class="mt-5 flex gap-2 justify-between items-center">
+        <button id="oem-suspend" class="px-3 py-2 rounded-lg text-sm ${suspended ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-ink-700 hover:bg-ink-600 text-red-400"}">${suspended ? "Reactivate" : "Suspend access"}</button>
+        <div class="flex gap-2">
+          <button id="oem-cancel" class="px-3 py-2 rounded-lg bg-ink-700 hover:bg-ink-600 text-sm">Cancel</button>
+          <button id="oem-save" class="px-3 py-2 rounded-lg bg-amber hover:bg-amber-600 text-ink-900 text-sm font-semibold">Save scopes</button>
+        </div>
+      </div>
+    </div>`;
+  card.querySelector("#oem-cancel").onclick = closeModals;
+  card.querySelector("#oem-suspend").onclick = async () => {
+    await postJSON(`/api/dashboard/oems/${oemId}/${suspended ? "reactivate" : "suspend"}`);
+    closeModals(); loadOEMs();
+    toast(suspended ? "OEM reactivated" : "OEM suspended");
+  };
+  card.querySelector("#oem-save").onclick = async () => {
+    const boxes = [...card.querySelectorAll("input[data-scope]")];
+    const want = new Set(boxes.filter((b) => b.checked).map((b) => b.dataset.scope));
+    const toGrant = [...want].filter((s) => !granted.has(s));
+    const toRevoke = [...granted].filter((s) => !want.has(s));
+    if (toGrant.length) await postJSON(`/api/dashboard/oems/${oemId}/grant`, { scopes: toGrant });
+    if (toRevoke.length) await postJSON(`/api/dashboard/oems/${oemId}/revoke`, { scopes: toRevoke });
+    closeModals(); loadOEMs(); loadFleetSoon();
+    toast("Scopes updated");
+  };
+  $("#modal-oem").classList.remove("hidden");
+}
+
+// Grants changed → refresh robot detail control chips by re-pulling fleet on next tick.
+function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; renderFleet(); }).catch(() => {}); }
+
 // ── robot detail (business card) ───────────────────────────────────────────────
 async function openRobot(id) {
   try {
@@ -197,22 +307,81 @@ async function openRobot(id) {
           <div>Self-report (robot): <span class="text-slate-300">x ${r.pose_internal.x.toFixed(2)}, y ${r.pose_internal.y.toFixed(2)}</span></div>
           <div>Task: <span class="text-slate-300">${esc(r.current_task || "—")}</span></div>
         </div>
+        ${vitalsBlock(r.sensors)}
+        ${controlNote(r.control)}
         <div class="mt-5 flex gap-2 justify-end">
           <button id="modal-close" class="px-3 py-2 rounded-lg bg-ink-700 hover:bg-ink-600 text-sm">Close</button>
-          ${r.state === "halted"
-            ? `<button id="modal-action" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">Resume</button>`
-            : `<button id="modal-action" class="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium">E-Stop</button>`}
+          ${actionButton(r)}
         </div>
       </div>`;
     card.querySelector("#modal-close").onclick = closeModals;
-    card.querySelector("#modal-action").onclick = async () => {
+    const actionBtn = card.querySelector("#modal-action");
+    if (actionBtn && !actionBtn.disabled) actionBtn.onclick = async () => {
       const action = r.state === "halted" ? "resume" : "estop";
-      await postJSON(`/api/dashboard/robot/${id}/${action}`);
+      await control(`/api/dashboard/robot/${id}/${action}`);
       closeModals();
     };
     $("#modal-robot").classList.remove("hidden");
   } catch (e) { console.error(e); }
 }
+
+// E-Stop/Resume both need control.estop; disable + explain when the OEM hasn't granted it.
+function actionButton(r) {
+  const allowed = !r.control || r.control.estop;
+  const resume = r.state === "halted";
+  const base = "px-3 py-2 rounded-lg text-white text-sm font-medium";
+  if (!allowed) {
+    return `<button id="modal-action" disabled title="OEM has not granted control.estop"
+      class="${base} bg-ink-600 text-slate-400 cursor-not-allowed">${resume ? "Resume" : "E-Stop"} 🔒</button>`;
+  }
+  return resume
+    ? `<button id="modal-action" class="${base} bg-emerald-600 hover:bg-emerald-500">Resume</button>`
+    : `<button id="modal-action" class="${base} bg-red-600 hover:bg-red-500">E-Stop</button>`;
+}
+
+function controlNote(c) {
+  if (!c || !c.managed) return "";
+  const chip = (ok, label) =>
+    `<span class="px-2 py-0.5 rounded-full text-[11px] ${ok ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}">${ok ? "✓" : "✕"} ${label}</span>`;
+  return `<div class="mt-4 flex items-center gap-2 flex-wrap">
+      <span class="text-xs text-slate-400">OEM grants:</span>
+      ${chip(c.estop, "E-Stop")} ${chip(c.velocity, "Velocity")} ${chip(c.mission, "Mission")}
+    </div>`;
+}
+
+function vitalsBlock(s) {
+  if (!s) return `<div class="mt-4 text-xs text-slate-500 italic">No live sensor telemetry yet.</div>`;
+  const cells = [];
+  if (s.battery) {
+    const b = s.battery;
+    cells.push(metric("Battery pack", `${b.pct != null ? Math.round(b.pct) + "%" : "—"}`, batteryTempColor(b.temperature_c)));
+    if (b.temperature_c != null) cells.push(metric("Batt temp", b.temperature_c.toFixed(1) + " °C", tempColor(b.temperature_c, 45, 55)));
+    if (b.voltage_v != null) cells.push(metric("Voltage", b.voltage_v.toFixed(1) + " V"));
+    if (b.current_a != null) cells.push(metric("Current", b.current_a.toFixed(1) + " A"));
+  }
+  if (s.motors && s.motors.length) {
+    const hottest = s.motors.reduce((m, x) => (x.temperature_c ?? -1) > (m.temperature_c ?? -1) ? x : m, s.motors[0]);
+    cells.push(metric(`Hottest motor (${s.motors.length})`, hottest.temperature_c != null ? `${esc(hottest.joint)} ${hottest.temperature_c.toFixed(0)}°C` : esc(hottest.joint), tempColor(hottest.temperature_c, 60, 75)));
+  }
+  if (s.spatial) {
+    const sp = s.spatial;
+    cells.push(metric("Spatial (x,y,z)", `${sp.x.toFixed(1)}, ${sp.y.toFixed(1)}, ${sp.z.toFixed(1)}`));
+    cells.push(metric("Yaw", (sp.yaw ?? 0).toFixed(2) + " rad"));
+    if (sp.linear_velocity_mps != null) cells.push(metric("Lin. vel", sp.linear_velocity_mps.toFixed(2) + " m/s"));
+  }
+  if (s.imu && s.imu.accel && s.imu.accel.length === 3) {
+    const mag = Math.hypot(...s.imu.accel);
+    cells.push(metric("IMU accel |a|", mag.toFixed(2) + " m/s²"));
+  }
+  for (const [k, v] of Object.entries(s.temperatures_c || {})) cells.push(metric(`Temp: ${esc(k)}`, Number(v).toFixed(1) + " °C", tempColor(v, 65, 80)));
+  for (const [k, v] of Object.entries(s.extra || {})) cells.push(metric(esc(k), typeof v === "number" ? v.toFixed(1) : esc(v)));
+  return `<div class="mt-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Live vitals ${s.ts ? `· ${fmtTime(s.ts)}` : ""}</div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">${cells.join("")}</div>
+    </div>`;
+}
+function tempColor(t, warn, hot) { if (t == null) return "text-slate-100"; return t >= hot ? "text-red-400" : t >= warn ? "text-amber-400" : "text-emerald-400"; }
+function batteryTempColor(t) { return tempColor(t, 45, 55); }
 function metric(label, val, cls = "text-slate-100") {
   return `<div class="bg-ink-700/50 rounded-lg px-3 py-2"><div class="text-xs text-slate-400">${label}</div><div class="font-semibold ${cls} mt-0.5">${val}</div></div>`;
 }
@@ -244,7 +413,7 @@ function openDispatch() {
   $("#modal-dispatch").classList.remove("hidden");
 }
 
-function closeModals() { $("#modal-robot").classList.add("hidden"); $("#modal-dispatch").classList.add("hidden"); }
+function closeModals() { document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden")); }
 
 // ── live connection ────────────────────────────────────────────────────────────
 function setConn(ok) {
@@ -286,7 +455,9 @@ async function init() {
   state.alerts = await getJSON("/api/dashboard/alerts");
   renderAlerts();
   await loadBenchmark();
+  await loadOEMs();
   setInterval(loadBenchmark, 5000);
+  setInterval(loadOEMs, 8000);
   connectWS();
 }
 

@@ -54,6 +54,44 @@ def test_mission_dispatch_requires_scope():
     assert r.status_code == 403 and "mission.dispatch" in r.json()["detail"]
 
 
+def test_robot_detail_exposes_control_grants():
+    # Boston Dynamics ceiling excludes cmd_vel velocity — so even after granting, velocity
+    # stays False while estop (in-ceiling) flips True. rbt-03 is a BD robot.
+    _register_and_grant("Boston Dynamics", ["telemetry.read", "control.estop", "mission.dispatch"])
+    detail = client.get("/api/dashboard/robot/rbt-03").json()
+    assert detail["control"]["managed"] is True
+    assert detail["control"]["estop"] is True
+    assert detail["control"]["velocity"] is False   # not grantable for BD
+
+
+def test_operator_oem_management_flow():
+    reg = client.post("/api/oem/register", json={
+        "company_name": "Ops Test Co", "vendor": "Deep Robotics",
+        "contact_email": "ops@example.com", "transport": "ros2",
+    }).json()
+    oem_id = reg["partner"]["id"]
+
+    # Operator grants without needing the partner key (operator RBAC surface).
+    p = client.post(f"/api/dashboard/oems/{oem_id}/grant", json={"scopes": ["telemetry.read", "control.estop"]}).json()
+    assert "control.estop" in p["granted_scopes"] and p["status"] == "active"
+
+    # Operator suspend → granted scopes resolve empty for the vendor.
+    client.post(f"/api/dashboard/oems/{oem_id}/suspend")
+    assert client.get(f"/api/dashboard/oems/{oem_id}").json()["status"] == "suspended"
+
+    # Reactivate restores ACTIVE (still holds scopes).
+    react = client.post(f"/api/dashboard/oems/{oem_id}/reactivate").json()
+    assert react["status"] == "active"
+
+    # Operator revoke drops the scope.
+    r = client.post(f"/api/dashboard/oems/{oem_id}/revoke", json={"scopes": ["control.estop"]}).json()
+    assert "control.estop" not in r["granted_scopes"]
+
+    # Appears in the operator list.
+    listed = client.get("/api/dashboard/oems").json()
+    assert any(o["oem_id"] == oem_id for o in listed)
+
+
 def test_grants_endpoint_reports_effective_scopes():
     _register_and_grant("AgiBot", ["telemetry.read", "control.velocity"])
     out = client.get("/api/oem/grants/AgiBot").json()

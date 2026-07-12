@@ -9,13 +9,17 @@ from ..events import hub
 from ..models import (
     Alert,
     APIScope,
+    IntegrationProfile,
+    OEMStatus,
     OrchestratorStatus,
     RobotDetail,
     RobotSummary,
+    ScopeGrantIn,
     Task,
     TaskIn,
     VendorBenchmark,
 )
+from ..oem_store import oem_store
 from ..orchestrator import orchestrator
 from .. import scope_guard
 from ..store import store
@@ -133,3 +137,57 @@ async def resume(robot_id: str) -> dict:
         raise HTTPException(status_code=404, detail="robot not found")
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id}
+
+
+# ── OEM governance (operator surface) ─────────────────────────────────────────
+# Operators view every partner and can revoke/suspend defensively. Granting stays
+# OEM-initiated in production (POST /api/oem/{id}/scopes with the partner's key); the
+# operator grant here is a convenience for the console/demo. Open in v0 — production
+# gates this behind operator RBAC.
+
+def _profile_or_404(oem_id: str) -> IntegrationProfile:
+    profile = oem_store.profile(oem_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="OEM not found")
+    return profile
+
+
+@router.get("/oems", response_model=list[IntegrationProfile])
+async def list_oems() -> list[IntegrationProfile]:
+    return [p for p in (oem_store.profile(o.id) for o in oem_store.list()) if p is not None]
+
+
+@router.get("/oems/{oem_id}", response_model=IntegrationProfile)
+async def get_oem(oem_id: str) -> IntegrationProfile:
+    return _profile_or_404(oem_id)
+
+
+@router.post("/oems/{oem_id}/grant", response_model=IntegrationProfile)
+async def operator_grant(oem_id: str, body: ScopeGrantIn) -> IntegrationProfile:
+    if oem_store.grant_scopes(oem_id, body.scopes) is None:
+        raise HTTPException(status_code=404, detail="OEM not found")
+    return _profile_or_404(oem_id)
+
+
+@router.post("/oems/{oem_id}/revoke", response_model=IntegrationProfile)
+async def operator_revoke(oem_id: str, body: ScopeGrantIn) -> IntegrationProfile:
+    if oem_store.revoke_scopes(oem_id, body.scopes) is None:
+        raise HTTPException(status_code=404, detail="OEM not found")
+    return _profile_or_404(oem_id)
+
+
+@router.post("/oems/{oem_id}/suspend", response_model=IntegrationProfile)
+async def suspend_oem(oem_id: str) -> IntegrationProfile:
+    if oem_store.set_status(oem_id, OEMStatus.SUSPENDED) is None:
+        raise HTTPException(status_code=404, detail="OEM not found")
+    return _profile_or_404(oem_id)
+
+
+@router.post("/oems/{oem_id}/reactivate", response_model=IntegrationProfile)
+async def reactivate_oem(oem_id: str) -> IntegrationProfile:
+    partner = oem_store.get(oem_id)
+    if partner is None:
+        raise HTTPException(status_code=404, detail="OEM not found")
+    # Back to ACTIVE if it still holds scopes, otherwise PENDING (awaiting a grant).
+    oem_store.set_status(oem_id, OEMStatus.ACTIVE if partner.granted_scopes else OEMStatus.PENDING)
+    return _profile_or_404(oem_id)

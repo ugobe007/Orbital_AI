@@ -60,6 +60,15 @@ class RobotSummary(BaseModel):
     error_code: Optional[str] = None
 
 
+class ControlGrants(BaseModel):
+    """Whether the robot's owning OEM has granted each control action — lets the UI show
+    scope-aware controls (disable + explain) instead of firing a command that 403s."""
+    managed: bool = False   # is an OEM registered for this vendor?
+    estop: bool = True
+    velocity: bool = True
+    mission: bool = True
+
+
 class RobotDetail(RobotSummary):
     """The "business card" panel (GET /api/dashboard/robot/{id})."""
     facility_id: str
@@ -69,6 +78,7 @@ class RobotDetail(RobotSummary):
     oem_brief: str = ""
     uptime_seconds: float = 0.0
     sensors: Optional["SensorSnapshot"] = None
+    control: ControlGrants = Field(default_factory=ControlGrants)
 
 
 class BatteryTelemetry(BaseModel):

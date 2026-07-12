@@ -232,7 +232,20 @@ class Store:
                 oem_brief=VENDOR_BRIEFS.get(robot.vendor, ""),
                 uptime_seconds=round(robot.uptime_seconds, 1),
                 sensors=self.sensors.get(robot_id),
+                control=self._control_grants(robot.vendor),
             )
+
+    @staticmethod
+    def _control_grants(vendor: str) -> "ControlGrants":
+        # Lazy import avoids a circular import (scope_guard imports store).
+        from . import scope_guard
+        from .models import APIScope, ControlGrants
+        return ControlGrants(
+            managed=scope_guard.check_vendor(vendor, APIScope.ESTOP).managed,
+            estop=scope_guard.check_vendor(vendor, APIScope.ESTOP).allowed,
+            velocity=scope_guard.check_vendor(vendor, APIScope.VELOCITY).allowed,
+            mission=scope_guard.check_vendor(vendor, APIScope.MISSION).allowed,
+        )
 
     def benchmark(self, vendor: str) -> VendorBenchmark:
         with self._lock:

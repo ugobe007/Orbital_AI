@@ -78,6 +78,21 @@ Grants aren't advisory — Orbital enforces them everywhere it issues a command:
 The latest snapshot surfaces on `RobotDetail` and at `GET /api/dashboard/robot/{id}/sensors`;
 battery % and floor pose also feed the live runtime.
 
+### Where it renders
+
+Both operator surfaces now render the new data:
+
+- **Standalone Fleet Dashboard** (`dashboard/`, served at the cloud root) — the robot detail
+  modal shows a **Live vitals** panel (battery/motor temps, spatial pose, IMU, thermal) and
+  scope-aware controls (E-Stop disables with a lock when the OEM hasn't granted it); a new
+  **OEM Partners & API Scopes** table lists partners with a Manage dialog to grant/revoke
+  scopes and suspend/reactivate access.
+- **StageGate `/admin/orbital`** — the same vitals panel, scope grant chips, scope-aware
+  controls, and an OEM governance table, proxied same-origin via `/api/orbital/*`.
+
+Operator OEM management lives under `GET/POST /api/dashboard/oems*` (operator RBAC in prod);
+partner self-service grant/revoke stays on `/api/oem/{id}/scopes` with the partner's key.
+
 Zero-dependency onboarding client for OEMs:
 
 ```bash
