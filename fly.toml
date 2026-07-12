@@ -1,0 +1,27 @@
+# Orbital AI Cloud — Fleet monitor/control API + dashboard (Modules 6 & 7).
+# Stateful service (in-memory store + simulator + orchestrator loops + websockets),
+# so it runs as a long-lived Fly machine rather than a serverless function.
+app = "orbital-ai"
+primary_region = "sjc"   # SF Bay — matches the seed facility (facility-sf-001)
+
+[build]
+
+[http_service]
+  internal_port = 8090
+  force_https = true
+  # Idle machines sleep to save cost; the next request (StageGate poll) wakes them.
+  # The dashboard re-seeds the simulated fleet on start, so a cold start is harmless.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
