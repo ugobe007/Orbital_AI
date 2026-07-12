@@ -1,0 +1,9 @@
+# Orbital AI Cloud — software monitor+control layer (Modules 6 & 7 + Benchmark)
+# Pinned loosely; this service is intentionally dependency-light so it can run
+# with a single `uvicorn` command and no build step.
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0
+pydantic>=2.6,<3.0
+httpx>=0.27,<1.0          # test client + future edge<->cloud calls
+pytest>=8.0,<9.0
+pytest-asyncio>=0.23,<1.0

@@ -1,0 +1,124 @@
+"""API + domain models for the Orbital AI Cloud.
+
+Pydantic models double as the API contract (Module 6 & 7) and the shared schema
+that StageGate (TS) and ReadyForRobots (Py) clients code against.
+"""
+from __future__ import annotations
+
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class RobotState(str, Enum):
+    ACTIVE = "active"            # executing a task under ARIA correction
+    IDLE = "idle"               # connected, no task
+    CHARGING = "charging"
+    HALTED = "halted"           # safety E-Stop engaged
+    OFFLINE = "offline"
+
+
+class AlertType(str, Enum):
+    DRIFT_EXCEEDED = "drift_exceeded"        # delta > halt threshold
+    HIJACK_SUSPECTED = "hijack_suspected"    # cameras see motion, robot reports still
+    GHOST_COMMAND = "ghost_command"          # robot reports motion, cameras see still
+    LOW_BATTERY = "low_battery"
+
+
+class AlertSeverity(str, Enum):
+    CRITICAL = "critical"
+    WARNING = "warning"
+    INFO = "info"
+
+
+class TaskStatus(str, Enum):
+    QUEUED = "queued"
+    ACTIVE = "active"
+    COMPLETE = "complete"
+    CANCELLED = "cancelled"
+
+
+class Pose(BaseModel):
+    x: float
+    y: float
+    theta: float = 0.0
+
+
+class RobotSummary(BaseModel):
+    """The 2s-refresh fleet payload (GET /api/dashboard/fleet)."""
+    id: str
+    vendor: str
+    model: str
+    industry: str
+    state: RobotState
+    battery_pct: float
+    pose_external: Pose            # ARIA ground truth (overhead cameras)
+    pose_internal: Pose            # robot self-report
+    drift_delta_m: float           # euclidean(external, internal)
+    current_task: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+class RobotDetail(RobotSummary):
+    """The "business card" panel (GET /api/dashboard/robot/{id})."""
+    facility_id: str
+    mtbd_seconds: Optional[float] = None
+    recovery_latency_seconds: Optional[float] = None
+    env_degradation_score: Optional[float] = None
+    oem_brief: str = ""
+    uptime_seconds: float = 0.0
+
+
+class TelemetryIn(BaseModel):
+    """Edge -> cloud drift-delta telemetry (POST /api/v1/telemetry)."""
+    robot_id: str
+    vendor: str
+    model: str
+    facility_id: str
+    delta_meters: float
+    ts: Optional[float] = None      # epoch seconds; server-stamped if omitted
+
+
+class AlertIn(BaseModel):
+    """Edge -> cloud safety-halt / anomaly event (POST /api/v1/alerts)."""
+    robot_id: str
+    type: AlertType
+    severity: AlertSeverity = AlertSeverity.CRITICAL
+    delta_meters: Optional[float] = None
+    message: str = ""
+    ts: Optional[float] = None
+
+
+class Alert(AlertIn):
+    id: str
+    acknowledged: bool = False
+
+
+class Waypoint(BaseModel):
+    x: float
+    y: float
+
+
+class TaskIn(BaseModel):
+    robot_id: str
+    description: str
+    waypoints: list[Waypoint] = Field(default_factory=list)
+
+
+class Task(TaskIn):
+    id: str
+    status: TaskStatus = TaskStatus.QUEUED
+    created_at: float
+
+
+class VendorBenchmark(BaseModel):
+    """Benchmark Library rollup per OEM (GET /api/dashboard/benchmark/{vendor})."""
+    vendor: str
+    samples: int
+    mean_drift_m: float
+    p95_drift_m: float
+    mtbd_seconds: Optional[float] = None
+    mean_recovery_latency_seconds: Optional[float] = None
+    env_degradation_score: Optional[float] = None
+    robots: int

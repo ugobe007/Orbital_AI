@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbital AI — Fleet Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            amber: { DEFAULT: "#F59E0B", 500: "#F59E0B", 600: "#D97706", 400: "#FBBF24" },
+            ink: { 900: "#0B0F14", 800: "#111827", 700: "#1B2430", 600: "#26313F" },
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="bg-ink-900 text-slate-200 min-h-screen">
+  <!-- Top nav -->
+  <header class="sticky top-0 z-20 bg-ink-800/95 backdrop-blur border-b border-ink-600">
+    <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-amber flex items-center justify-center font-black text-ink-900 text-lg">◎</div>
+        <div>
+          <div class="font-bold text-lg leading-none">Orbital AI</div>
+          <div class="text-xs text-slate-400 leading-none mt-1">Active Robot Intelligence · ARIA</div>
+        </div>
+      </div>
+      <div class="ml-2 pl-4 border-l border-ink-600">
+        <div class="text-xs text-slate-400 leading-none">Facility</div>
+        <div id="facility-name" class="text-sm font-medium leading-none mt-1">—</div>
+      </div>
+      <div class="flex-1"></div>
+      <button id="btn-dispatch" class="px-3 py-2 rounded-lg bg-amber hover:bg-amber-600 text-ink-900 text-sm font-semibold transition">+ Dispatch Task</button>
+      <div class="flex items-center gap-2 text-sm">
+        <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+        <span id="conn-label" class="text-slate-400">connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stat strip -->
+  <section class="max-w-[1600px] mx-auto px-6 pt-5">
+    <div id="stats" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
+  </section>
+
+  <!-- Main -->
+  <main class="max-w-[1600px] mx-auto px-6 py-5 grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
+    <!-- Fleet -->
+    <section>
+      <div id="tabs" class="flex flex-wrap gap-2 mb-4"></div>
+      <div id="fleet" class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- Alerts -->
+    <aside class="xl:sticky xl:top-[76px] self-start">
+      <div class="bg-ink-800 border border-ink-600 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-ink-600 flex items-center justify-between">
+          <h2 class="font-semibold">Safety &amp; Drift Alerts</h2>
+          <span id="alert-count" class="text-xs px-2 py-0.5 rounded-full bg-ink-600 text-slate-300">0</span>
+        </div>
+        <div id="alerts" class="max-h-[70vh] overflow-y-auto divide-y divide-ink-700"></div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Benchmark -->
+  <section class="max-w-[1600px] mx-auto px-6 pb-10">
+    <div class="bg-ink-800 border border-ink-600 rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-ink-600 flex items-center gap-2">
+        <h2 class="font-semibold">Benchmark Library</h2>
+        <span class="text-xs text-slate-400">cross-vendor drift performance (licensed to OEMs)</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-slate-400 text-left">
+            <tr class="border-b border-ink-700">
+              <th class="px-4 py-2 font-medium">Vendor</th>
+              <th class="px-4 py-2 font-medium">Robots</th>
+              <th class="px-4 py-2 font-medium">Samples</th>
+              <th class="px-4 py-2 font-medium">Mean drift</th>
+              <th class="px-4 py-2 font-medium">p95 drift</th>
+              <th class="px-4 py-2 font-medium">MTBD</th>
+              <th class="px-4 py-2 font-medium">Recovery</th>
+              <th class="px-4 py-2 font-medium">Env score</th>
+            </tr>
+          </thead>
+          <tbody id="benchmark"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Robot detail modal -->
+  <div id="modal-robot" class="modal hidden">
+    <div class="modal-card"></div>
+  </div>
+
+  <!-- Dispatch modal -->
+  <div id="modal-dispatch" class="modal hidden">
+    <div class="modal-card"></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

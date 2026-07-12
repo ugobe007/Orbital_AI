@@ -1,0 +1,86 @@
+"""Orbital AI Cloud — FastAPI entrypoint.
+
+Run locally:
+    uvicorn orbital_cloud.main:app --reload --port 8090
+
+Then open http://localhost:8090 for the Fleet Management Dashboard.
+"""
+from __future__ import annotations
+
+import asyncio
+import contextlib
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from . import __version__, simulator
+from .config import settings
+from .events import hub
+from .routers import dashboard, edge
+from .store import store
+
+_sim_task: asyncio.Task | None = None
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _sim_task
+    if settings.simulator_enabled:
+        _sim_task = asyncio.create_task(simulator.run())
+    try:
+        yield
+    finally:
+        if _sim_task is not None:
+            _sim_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await _sim_task
+
+
+app = FastAPI(title="Orbital AI Cloud", version=__version__, lifespan=lifespan)
+
+# StageGate (TS) and ReadyForRobots (Py) frontends embed this dashboard/API cross-origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(dashboard.router)
+app.include_router(edge.router)
+
+
+@app.get("/health")
+async def health() -> dict:
+    return {
+        "ok": True,
+        "version": __version__,
+        "facility": settings.facility_id,
+        "robots": len(store.robots),
+        "simulator": settings.simulator_enabled,
+    }
+
+
+@app.websocket("/ws")
+async def ws(websocket: WebSocket) -> None:
+    await hub.connect(websocket)
+    # Prime the newly-connected dashboard with the current fleet immediately.
+    await websocket.send_json({"type": "fleet", "robots": [r.model_dump(mode="json") for r in store.fleet()]})
+    try:
+        while True:
+            # We don't expect inbound messages; this keeps the socket open and
+            # detects disconnects.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await hub.disconnect(websocket)
+
+
+# Serve the dashboard SPA at "/" (registered last so it doesn't shadow the API).
+_DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
+if _DASHBOARD_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="dashboard")
