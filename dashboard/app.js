@@ -10,6 +10,8 @@ const state = {
   alerts: [],
   activeTab: "All",
   ws: null,
+  map: null,
+  selectedRobot: null,
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -139,6 +141,131 @@ function renderFleet() {
     if (resumeBtn) resumeBtn.onclick = () => control(`/api/dashboard/robot/${r.id}/resume`);
     grid.appendChild(card);
   }
+}
+
+// ── warehouse map ──────────────────────────────────────────────────────────────
+const ROBOT_FILL = {
+  active: "#10b981", idle: "#94a3b8", charging: "#38bdf8", halted: "#ef4444", offline: "#475569",
+};
+
+async function loadMap() {
+  try { state.map = await getJSON("/api/dashboard/map"); renderMap(); }
+  catch (e) { console.error(e); }
+}
+
+// Convert a pointer event to warehouse-world coordinates (meters, y-up).
+function clickToWorld(evt, svg) {
+  const m = state.map, rect = svg.getBoundingClientRect();
+  const fx = (evt.clientX - rect.left) / rect.width;
+  const fy = (evt.clientY - rect.top) / rect.height;
+  return { x: fx * m.width_m, y: (1 - fy) * m.height_m };
+}
+
+function renderMap() {
+  const svg = $("#map"), m = state.map;
+  if (!svg || !m) return;
+  const W = m.width_m, H = m.height_m;
+  const Y = (y) => H - y;                    // flip world y-up to SVG y-down
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.aspectRatio = `${W} / ${H}`;
+
+  const parts = [];
+  parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#0b1220" stroke="#1e293b" stroke-width="0.06"/>`);
+  for (let gx = 2; gx < W; gx += 2) parts.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#111a2e" stroke-width="0.02"/>`);
+  for (let gy = 2; gy < H; gy += 2) parts.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#111a2e" stroke-width="0.02"/>`);
+
+  if (m.dock) {
+    const d = m.dock;
+    parts.push(`<rect x="${d.x}" y="${Y(d.y + d.h)}" width="${d.w}" height="${d.h}" fill="#1e3a5f" stroke="#38bdf8" stroke-width="0.04" opacity="0.8"/>`);
+    parts.push(`<text x="${d.x + d.w / 2}" y="${Y(d.y + d.h) + d.h / 2 + 0.2}" fill="#7dd3fc" font-size="0.5" text-anchor="middle">DOCK</text>`);
+  }
+  for (const r of m.racks) {
+    parts.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.1" fill="#334155" stroke="#475569" stroke-width="0.04"/>`);
+    parts.push(`<text x="${r.x + r.w / 2}" y="${Y(r.y + r.h / 2) + 0.18}" fill="#94a3b8" font-size="0.55" text-anchor="middle">${esc(r.id)}</text>`);
+  }
+  for (const c of (m.charge_stations || [])) {
+    parts.push(`<circle cx="${c.x}" cy="${Y(c.y)}" r="0.5" fill="#0ea5e9" opacity="0.2"/>`);
+    parts.push(`<text x="${c.x}" y="${Y(c.y) + 0.2}" fill="#38bdf8" font-size="0.6" text-anchor="middle">⚡</text>`);
+  }
+
+  for (const r of state.robots) {
+    const ex = r.pose_external, ins = r.pose_internal;
+    const selected = r.id === state.selectedRobot;
+    // visual-nav path: robot → waypoints (amber dashed), with camera-marked waypoint nodes
+    if (r.waypoints && r.waypoints.length) {
+      const pts = [`${ex.x},${Y(ex.y)}`, ...r.waypoints.map((w) => `${w.x},${Y(w.y)}`)].join(" ");
+      parts.push(`<polyline points="${pts}" fill="none" stroke="#f5a623" stroke-width="0.06" stroke-dasharray="0.3 0.2" opacity="0.9"/>`);
+      r.waypoints.forEach((w, i) => {
+        const last = i === r.waypoints.length - 1;
+        parts.push(`<circle cx="${w.x}" cy="${Y(w.y)}" r="${last ? 0.32 : 0.22}" fill="${last ? "#f5a623" : "none"}" stroke="#f5a623" stroke-width="0.06"/>`);
+        parts.push(`<line x1="${w.x - 0.18}" y1="${Y(w.y)}" x2="${w.x + 0.18}" y2="${Y(w.y)}" stroke="${last ? "#0b1220" : "#f5a623"}" stroke-width="0.05"/>`);
+        parts.push(`<line x1="${w.x}" y1="${Y(w.y) - 0.18}" x2="${w.x}" y2="${Y(w.y) + 0.18}" stroke="${last ? "#0b1220" : "#f5a623"}" stroke-width="0.05"/>`);
+      });
+    }
+    // drift link (self-report vs ground truth)
+    if (r.drift_delta_m > 0.05) {
+      parts.push(`<line x1="${ins.x}" y1="${Y(ins.y)}" x2="${ex.x}" y2="${Y(ex.y)}" stroke="#64748b" stroke-width="0.03" stroke-dasharray="0.15 0.15" opacity="0.7"/>`);
+      parts.push(`<circle cx="${ins.x}" cy="${Y(ins.y)}" r="0.26" fill="none" stroke="#94a3b8" stroke-width="0.05" opacity="0.6"/>`);
+    }
+    if (selected) parts.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.6" fill="none" stroke="#f5a623" stroke-width="0.08"/>`);
+    const fill = ROBOT_FILL[r.state] || ROBOT_FILL.offline;
+    parts.push(`<g data-robot="${esc(r.id)}" style="cursor:pointer">`);
+    parts.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.36" fill="${fill}" stroke="#0b1220" stroke-width="0.06"/>`);
+    const hx = ex.x + Math.cos(ex.theta) * 0.6, hy = ex.y + Math.sin(ex.theta) * 0.6;
+    parts.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${hx}" y2="${Y(hy)}" stroke="#e2e8f0" stroke-width="0.07"/>`);
+    parts.push(`<text x="${ex.x + 0.5}" y="${Y(ex.y) - 0.35}" fill="#cbd5e1" font-size="0.5">${esc(r.id)}</text>`);
+    parts.push(`</g>`);
+  }
+  svg.innerHTML = parts.join("");
+  renderMapSelection();
+}
+
+function renderMapSelection() {
+  const box = $("#map-selection");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!state.selectedRobot) return;
+  const r = state.robots.find((x) => x.id === state.selectedRobot);
+  const navigating = r && r.waypoints && r.waypoints.length;
+  const chip = el(`<span class="text-xs px-2 py-1 rounded-full bg-amber/15 text-amber-400">Selected: ${esc(state.selectedRobot)}${navigating ? " · en route" : ""}</span>`);
+  box.appendChild(chip);
+  if (navigating) {
+    const clr = el(`<button class="text-xs px-2 py-1 rounded-lg bg-ink-700 hover:bg-ink-600">Clear route</button>`);
+    clr.onclick = () => control(`/api/dashboard/robot/${state.selectedRobot}/navigate/clear`);
+    box.appendChild(clr);
+  }
+  const desel = el(`<button class="text-xs px-2 py-1 rounded-lg bg-ink-700 hover:bg-ink-600">Deselect</button>`);
+  desel.onclick = () => { state.selectedRobot = null; renderMap(); };
+  box.appendChild(desel);
+}
+
+async function setWaypoint(id, x, y, append) {
+  let waypoints = [{ x, y }];
+  if (append) {
+    const r = state.robots.find((rr) => rr.id === id);
+    const existing = (r && r.waypoints) ? r.waypoints.map((w) => ({ x: w.x, y: w.y })) : [];
+    waypoints = [...existing, { x, y }];
+  }
+  try {
+    await postJSON(`/api/dashboard/robot/${id}/navigate`, { waypoints });
+    toast(`Visual waypoint set for ${id}`);
+  } catch (e) {
+    if (e.status === 403) toast(`Blocked: ${e.detail} — grant control.velocity to this OEM`, "warn");
+    else toast(`Failed: ${e.detail}`, "warn");
+  }
+}
+
+function wireMap() {
+  const svg = $("#map");
+  if (!svg) return;
+  svg.addEventListener("click", (e) => {
+    const hit = e.target.closest("[data-robot]");
+    if (hit) { state.selectedRobot = hit.getAttribute("data-robot"); renderMap(); return; }
+    if (state.selectedRobot) {
+      const p = clickToWorld(e, svg);
+      setWaypoint(state.selectedRobot, +p.x.toFixed(2), +p.y.toFixed(2), e.shiftKey);
+    }
+  });
 }
 
 // ── alerts ────────────────────────────────────────────────────────────────────
@@ -429,7 +556,7 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "fleet") { state.robots = msg.robots; renderFleet(); renderStats(); }
+    if (msg.type === "fleet") { state.robots = msg.robots; renderFleet(); renderStats(); renderMap(); }
     else if (msg.type === "alert") {
       state.alerts.unshift(msg.alert); state.alerts = state.alerts.slice(0, 200);
       renderAlerts(); renderStats();
@@ -451,6 +578,9 @@ async function init() {
   state.robots = fleet.robots;
   $("#facility-name").textContent = fleet.facility.name;
   renderTabs(); renderFleet(); renderStats();
+
+  wireMap();
+  await loadMap();
 
   state.alerts = await getJSON("/api/dashboard/alerts");
   renderAlerts();

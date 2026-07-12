@@ -4,12 +4,13 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from ..benchmark import render_benchmark_report
-from ..config import INDUSTRIES, settings
+from ..config import INDUSTRIES, WAREHOUSE, settings
 from ..events import hub
 from ..models import (
     Alert,
     APIScope,
     IntegrationProfile,
+    NavigateIn,
     OEMStatus,
     OrchestratorStatus,
     RobotDetail,
@@ -55,6 +56,34 @@ async def get_robot_sensors(robot_id: str) -> dict:
         raise HTTPException(status_code=404, detail="robot not found")
     snapshot = store.latest_sensors(robot_id)
     return {"robot_id": robot_id, "sensors": snapshot.model_dump(mode="json") if snapshot else None}
+
+
+@router.get("/map")
+async def get_map() -> dict:
+    """The warehouse floor plan operators drop waypoints on (Global Spatial Map)."""
+    return WAREHOUSE
+
+
+@router.post("/robot/{robot_id}/navigate")
+async def navigate(robot_id: str, body: NavigateIn) -> dict:
+    """Set operator waypoints — Orbital drives the robot there via visual control, bypassing
+    its onboard SLAM. Gated on control.velocity (the visual servo issues velocity commands)."""
+    if not body.waypoints:
+        raise HTTPException(status_code=400, detail="at least one waypoint required")
+    _enforce(robot_id, APIScope.VELOCITY)
+    ok = store.set_waypoints(robot_id, [(p.x, p.y) for p in body.waypoints])
+    if not ok:
+        raise HTTPException(status_code=404, detail="robot not found")
+    await _broadcast_fleet()
+    return {"ok": True, "robot_id": robot_id, "waypoints": [p.model_dump() for p in body.waypoints]}
+
+
+@router.post("/robot/{robot_id}/navigate/clear")
+async def navigate_clear(robot_id: str) -> dict:
+    if not store.clear_waypoints(robot_id):
+        raise HTTPException(status_code=404, detail="robot not found")
+    await _broadcast_fleet()
+    return {"ok": True, "robot_id": robot_id}
 
 
 @router.get("/tasks", response_model=list[Task])

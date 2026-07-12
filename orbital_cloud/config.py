@@ -61,6 +61,35 @@ SEED_FLEET: list[dict] = [
     {"id": "rbt-09", "vendor": "AgiBot", "model": "A2-W", "industry": "Delivery"},
 ]
 
+# ── Warehouse map (Global Spatial Map for the operator console) ───────────────
+# A simple, obstacle-annotated floor plan (meters). Orbital's overhead camera rig
+# localizes robots against THIS map; operators drop waypoints on it and Orbital drives
+# the robot there via visual control — no reliance on the robot's onboard SLAM.
+WAREHOUSE: dict = {
+    "name": "StageGate SF Fulfillment",
+    "width_m": 24.0,
+    "height_m": 16.0,
+    # Storage racks (visual obstacles): x, y = bottom-left corner; w, h in meters.
+    "racks": [
+        {"id": "A", "x": 3.0, "y": 2.0, "w": 1.2, "h": 5.0},
+        {"id": "B", "x": 6.5, "y": 2.0, "w": 1.2, "h": 5.0},
+        {"id": "C", "x": 10.0, "y": 2.0, "w": 1.2, "h": 5.0},
+        {"id": "D", "x": 3.0, "y": 9.0, "w": 1.2, "h": 5.0},
+        {"id": "E", "x": 6.5, "y": 9.0, "w": 1.2, "h": 5.0},
+        {"id": "F", "x": 10.0, "y": 9.0, "w": 1.2, "h": 5.0},
+        {"id": "G", "x": 16.0, "y": 3.0, "w": 5.0, "h": 1.2},
+        {"id": "H", "x": 16.0, "y": 6.0, "w": 5.0, "h": 1.2},
+        {"id": "I", "x": 16.0, "y": 9.0, "w": 5.0, "h": 1.2},
+    ],
+    # Charging pads.
+    "charge_stations": [
+        {"id": "chg-1", "x": 1.2, "y": 15.0},
+        {"id": "chg-2", "x": 22.8, "y": 15.0},
+    ],
+    # Inbound/outbound dock.
+    "dock": {"x": 12.0, "y": 15.2, "w": 6.0, "h": 0.8},
+}
+
 # Short OEM briefs powering the dashboard "business card" panel (Module 7 CRM panel).
 # Real deployments would source these from the Orbital AI Cloud CRM; static for the demo.
 VENDOR_BRIEFS: dict[str, str] = {

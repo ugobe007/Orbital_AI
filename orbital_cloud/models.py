@@ -45,6 +45,17 @@ class Pose(BaseModel):
     theta: float = 0.0
 
 
+class Point(BaseModel):
+    x: float
+    y: float
+
+
+class NavigateIn(BaseModel):
+    """Operator waypoint order: drive the robot through these points via visual control
+    (Orbital's cameras localize + steer), bypassing the robot's onboard SLAM."""
+    waypoints: list[Point]
+
+
 class RobotSummary(BaseModel):
     """The 2s-refresh fleet payload (GET /api/dashboard/fleet)."""
     id: str
@@ -58,6 +69,10 @@ class RobotSummary(BaseModel):
     drift_delta_m: float           # euclidean(external, internal)
     current_task: Optional[str] = None
     error_code: Optional[str] = None
+    # Visual-nav state (operator waypoints set on the map; drives external pose).
+    visual_nav: bool = False
+    nav_goal: Optional[Point] = None
+    waypoints: list[Point] = Field(default_factory=list)
 
 
 class ControlGrants(BaseModel):

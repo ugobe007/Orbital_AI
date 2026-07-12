@@ -19,6 +19,7 @@ from typing import Optional
 
 from fleet_adapters import capability_ceiling_for
 
+from . import persistence
 from .models import (
     APIScope,
     ControlTransport,
@@ -51,6 +52,23 @@ class OEMStore:
         self._lock = threading.RLock()
         self._by_id: dict[str, _OEMRecord] = {}
         self._id_by_hash: dict[str, str] = {}
+        self._load_from_db()
+
+    # ── Persistence (no-op unless ORBITAL_DB_PATH is set) ────────────────────────
+    def _load_from_db(self) -> None:
+        persistence.init_db()
+        for oem_id, key_hash, data in persistence.load_oems():
+            try:
+                partner = OEMPartner.model_validate_json(data)
+            except Exception:  # noqa: BLE001 — skip a corrupt row rather than crash boot
+                continue
+            self._by_id[oem_id] = _OEMRecord(partner, key_hash)
+            self._id_by_hash[key_hash] = oem_id
+
+    def _persist(self, oem_id: str) -> None:
+        rec = self._by_id.get(oem_id)
+        if rec is not None:
+            persistence.save_oem(oem_id, rec.key_hash, rec.partner.model_dump_json())
 
     # ── Registration ────────────────────────────────────────────────────────────
     def register(self, body: OEMRegisterIn) -> tuple[OEMPartner, OEMCredential]:
@@ -73,6 +91,7 @@ class OEMStore:
             )
             self._by_id[oem_id] = _OEMRecord(partner, key_hash)
             self._id_by_hash[key_hash] = oem_id
+            self._persist(oem_id)
             return partner, OEMCredential(api_key=raw_key, key_prefix=prefix)
 
     # ── Auth ────────────────────────────────────────────────────────────────────
@@ -96,6 +115,7 @@ class OEMStore:
             if merged and rec.partner.status == OEMStatus.PENDING:
                 rec.partner.status = OEMStatus.ACTIVE
             rec.partner.updated_at = time.time()
+            self._persist(oem_id)
             return rec.partner
 
     def revoke_scopes(self, oem_id: str, scopes: list[APIScope]) -> Optional[OEMPartner]:
@@ -108,6 +128,7 @@ class OEMStore:
             if not rec.partner.granted_scopes and rec.partner.status == OEMStatus.ACTIVE:
                 rec.partner.status = OEMStatus.PENDING
             rec.partner.updated_at = time.time()
+            self._persist(oem_id)
             return rec.partner
 
     def set_status(self, oem_id: str, status: OEMStatus) -> Optional[OEMPartner]:
@@ -117,6 +138,7 @@ class OEMStore:
                 return None
             rec.partner.status = status
             rec.partner.updated_at = time.time()
+            self._persist(oem_id)
             return rec.partner
 
     # ── Reads ────────────────────────────────────────────────────────────────────

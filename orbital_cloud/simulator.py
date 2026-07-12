@@ -20,6 +20,7 @@ import asyncio
 import math
 import random
 
+from . import persistence
 from .config import settings
 from .events import hub
 from .models import (
@@ -120,6 +121,8 @@ def prime() -> None:
         if idx % 5 != 4:
             robot.state = RobotState.ACTIVE
             robot.current_task = "Autonomous patrol"
+    # Re-apply any operator waypoints that were set before a restart.
+    store.restore_waypoints()
 
 
 def _advance_external(robot: RobotRuntime, dt: float) -> None:
@@ -138,6 +141,31 @@ def _advance_external(robot: RobotRuntime, dt: float) -> None:
         nx, ny = x + dx / dist * step, y + dy / dist * step
         theta = math.atan2(dy, dx)
     robot.pose_external = robot.pose_external.model_copy(update={"x": nx, "y": ny, "theta": theta})
+
+
+def _advance_nav(robot: RobotRuntime, dt: float) -> None:
+    """Visual-control navigation: drive the camera-observed (external) pose straight to the
+    operator's waypoint. This deliberately ignores the robot's onboard SLAM — Orbital's
+    overhead cameras localize the robot and steer it, so odometric drift can't send it off
+    course. Advances the queue on arrival; clears back to patrol when the queue empties.
+    """
+    tx, ty = robot.nav_queue[0]
+    x, y = robot.pose_external.x, robot.pose_external.y
+    dx, dy = tx - x, ty - y
+    dist = math.hypot(dx, dy)
+    step = _SPEED_MPS * dt
+    if dist <= step or dist == 0.0:
+        theta = math.atan2(dy, dx) if dist else robot.pose_external.theta
+        robot.pose_external = robot.pose_external.model_copy(update={"x": tx, "y": ty, "theta": theta})
+        robot.nav_queue.pop(0)
+        if not robot.nav_queue:
+            robot.current_task = "Autonomous patrol"
+            persistence.save_waypoints(robot.id, [])   # mission complete — drop persisted goal
+    else:
+        nx, ny = x + dx / dist * step, y + dy / dist * step
+        robot.pose_external = robot.pose_external.model_copy(
+            update={"x": nx, "y": ny, "theta": math.atan2(dy, dx)}
+        )
 
 
 def _update_drift(robot: RobotRuntime) -> None:
@@ -177,7 +205,10 @@ async def _tick(dt: float) -> list[AlertIn]:
             continue
 
         if robot.state == RobotState.ACTIVE:
-            _advance_external(robot, dt)
+            if robot.nav_queue:
+                _advance_nav(robot, dt)          # operator waypoint via visual control
+            else:
+                _advance_external(robot, dt)     # default autonomous patrol
             robot.battery_pct = max(0.0, robot.battery_pct - 0.05)
             if robot.battery_pct < 15.0:
                 robot.state = RobotState.CHARGING

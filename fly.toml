@@ -6,6 +6,16 @@ primary_region = "sjc"   # SF Bay — matches the seed facility (facility-sf-001
 
 [build]
 
+[env]
+  # Persist operator-mutable state (OEM grants + waypoints) to the mounted volume.
+  ORBITAL_DB_PATH = "/data/orbital.db"
+  ORBITAL_SEED_OEMS = "1"
+
+# SQLite lives on a volume so operator changes survive machine restarts/redeploys.
+[mounts]
+  source = "orbital_data"
+  destination = "/data"
+
 [http_service]
   internal_port = 8090
   force_https = true

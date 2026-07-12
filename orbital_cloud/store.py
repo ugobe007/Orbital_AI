@@ -16,10 +16,12 @@ import uuid
 from collections import deque
 from typing import Optional
 
-from .config import SEED_FLEET, VENDOR_BRIEFS, settings
+from .config import SEED_FLEET, VENDOR_BRIEFS, WAREHOUSE, settings
+from . import persistence
 from .models import (
     Alert,
     AlertIn,
+    Point,
     Pose,
     RobotDetail,
     RobotState,
@@ -56,6 +58,10 @@ class RobotRuntime:
         self.drift_bias: tuple[float, float] = (0.0, 0.0)
         self.spike_ticks: int = 0
 
+        # Visual-nav: operator waypoints (map coords). When non-empty, the robot is driven
+        # to them via Orbital's camera-based control, overriding the patrol/SLAM path.
+        self.nav_queue: list[tuple[float, float]] = []
+
         # Benchmark tracking.
         self.degradation_events: int = 0
         self._degraded_since: Optional[float] = None
@@ -78,6 +84,9 @@ class RobotRuntime:
             drift_delta_m=round(self.drift_delta_m, 4),
             current_task=self.current_task,
             error_code=self.error_code,
+            visual_nav=bool(self.nav_queue),
+            nav_goal=Point(x=self.nav_queue[0][0], y=self.nav_queue[0][1]) if self.nav_queue else None,
+            waypoints=[Point(x=x, y=y) for x, y in self.nav_queue],
         )
 
 
@@ -202,6 +211,41 @@ class Store:
             robot.error_code = None
             robot.drift_bias = (0.0, 0.0)  # ARIA re-converges on resume
             return True
+
+    # ── Visual-nav waypoints ─────────────────────────────────────────────────────
+    def set_waypoints(self, robot_id: str, points: list[tuple[float, float]], persist: bool = True) -> bool:
+        """Queue operator waypoints and put the robot into visual-nav (active) state.
+        Coordinates are clamped to the warehouse bounds. Returns False for unknown robots."""
+        with self._lock:
+            robot = self.robots.get(robot_id)
+            if robot is None:
+                return False
+            w = float(WAREHOUSE["width_m"]); h = float(WAREHOUSE["height_m"])
+            clamped = [(min(max(x, 0.0), w), min(max(y, 0.0), h)) for x, y in points]
+            robot.nav_queue = clamped
+            if clamped and robot.state in (RobotState.IDLE, RobotState.ACTIVE):
+                robot.state = RobotState.ACTIVE
+                robot.current_task = "Visual waypoint nav (SLAM bypass)"
+            if persist:
+                persistence.save_waypoints(robot_id, [[x, y] for x, y in clamped])
+            return True
+
+    def clear_waypoints(self, robot_id: str, persist: bool = True) -> bool:
+        with self._lock:
+            robot = self.robots.get(robot_id)
+            if robot is None:
+                return False
+            robot.nav_queue = []
+            if robot.current_task and "Visual waypoint nav" in robot.current_task:
+                robot.current_task = "Autonomous patrol"
+            if persist:
+                persistence.save_waypoints(robot_id, [])
+            return True
+
+    def restore_waypoints(self) -> None:
+        """Re-apply operator waypoints saved before a restart (no re-persist)."""
+        for robot_id, pts in persistence.load_waypoints().items():
+            self.set_waypoints(robot_id, [(float(x), float(y)) for x, y in pts], persist=False)
 
     def dispatch_charge(self, robot_id: str) -> bool:
         """Send a robot to charge. Idempotent; refuses halted robots (operator owns those)."""

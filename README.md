@@ -37,6 +37,8 @@ Robot Network (VLAN) ── ARIA Edge Node (aria_edge/) ──outbound──► 
 | **ARIA Edge scaffold** | `aria_edge/` — CV → drift → safety-halt → TF-Hijack correction → cloud sync (`edge_agent`) |
 | **Fleet Adapters** | `fleet_adapters/` — per-OEM capability ceilings (ROS 2 cmd_vel vs BD gRPC vs Agility cloud) |
 | **OEM Onboarding** | `/api/oem/*` — 3rd-party robot companies register + unlock scoped access to their API |
+| **Warehouse map + visual nav** | `GET /api/dashboard/map`, `POST /robot/{id}/navigate[/clear]` — click-to-set waypoints, SLAM-bypass steering |
+| **Persistence (optional)** | `ORBITAL_DB_PATH` → SQLite; OEM grants + waypoints survive restarts (live motion stays ephemeral) |
 
 ## OEM onboarding (3rd-party robot companies)
 
@@ -92,6 +94,26 @@ Both operator surfaces now render the new data:
 
 Operator OEM management lives under `GET/POST /api/dashboard/oems*` (operator RBAC in prod);
 partner self-service grant/revoke stays on `/api/oem/{id}/scopes` with the partner's key.
+
+### Warehouse map + visual-control waypoints
+
+The standalone dashboard renders an interactive **Global Spatial Map** of the warehouse floor
+(`GET /api/dashboard/map`): storage racks, charge pads, dock, and every robot drawn at its
+**camera-observed (ground-truth) pose** with a faint self-report (SLAM) ghost + drift link.
+
+Click a robot to select it, then click the floor to drop a waypoint — Orbital drives the robot
+there via **visual control** (the overhead camera rig localizes + steers the external pose),
+deliberately **bypassing the robot's onboard SLAM**, so odometric drift can't send it off course.
+Shift-click appends waypoints to build a multi-stop route. This posts to
+`POST /api/dashboard/robot/{id}/navigate` and is **gated on `control.velocity`** — robots whose
+OEM hasn't granted velocity control return 403 (surfaced as a toast). `…/navigate/clear` cancels.
+
+### Persistence
+
+By default the service is fully in-memory (great for local dev + tests). Set `ORBITAL_DB_PATH`
+(e.g. `/data/orbital.db` on a Fly volume) to persist the state operators actually change —
+**OEM registrations/grants** and **per-robot waypoints** — so they survive restarts and redeploys.
+Uses only stdlib `sqlite3`; live fleet motion is intentionally not persisted (it re-seeds).
 
 Zero-dependency onboarding client for OEMs:
 
