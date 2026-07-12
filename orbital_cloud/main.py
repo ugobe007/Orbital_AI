@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__, orchestrator, simulator
 from .config import settings
 from .events import hub
-from .routers import dashboard, edge
+from .routers import dashboard, edge, oem
 from .store import store
 
 _sim_task: asyncio.Task | None = None
@@ -55,6 +55,7 @@ app.add_middleware(
 
 app.include_router(dashboard.router)
 app.include_router(edge.router)
+app.include_router(oem.router)
 
 
 @app.get("/health")

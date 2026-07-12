@@ -163,3 +163,86 @@ class OrchestratorStatus(BaseModel):
     summary: Optional[FleetSummary] = None
     narrative: str = ""
     decisions: list[OrchestratorDecision] = Field(default_factory=list)
+
+
+# ── OEM onboarding (3rd-party robot companies unlock parts of their API to us) ─
+
+class APIScope(str, Enum):
+    """A slice of an OEM's robot API that they grant Orbital access to.
+
+    Kept 1:1 with ``fleet_adapters.base.Capability`` — an OEM can only grant scopes their
+    protocol actually supports (the adapter capability ceiling).
+    """
+    TELEMETRY = "telemetry.read"
+    STATE = "state.read"
+    VELOCITY = "control.velocity"
+    ESTOP = "control.estop"
+    TELEOP = "control.teleop"
+    MISSION = "mission.dispatch"
+    CAMERA = "camera.read"
+    MAP = "map.read"
+
+
+class OEMStatus(str, Enum):
+    PENDING = "pending"      # registered, no scopes granted yet
+    ACTIVE = "active"        # at least one scope granted
+    SUSPENDED = "suspended"  # access paused by an operator
+
+
+class ControlTransport(str, Enum):
+    ROS2 = "ros2"
+    GRPC = "grpc"
+    CLOUD_REST = "cloud_rest"
+    UDP = "udp"
+
+
+class OEMRegisterIn(BaseModel):
+    company_name: str
+    vendor: str                         # OEM/vendor key (ideally a known fleet-adapter vendor)
+    contact_email: str
+    transport: ControlTransport = ControlTransport.ROS2
+    website: Optional[str] = None
+
+
+class OEMPartner(BaseModel):
+    """Public OEM record (never carries the raw API key)."""
+    id: str
+    company_name: str
+    vendor: str
+    contact_email: str
+    transport: ControlTransport
+    status: OEMStatus
+    ceiling_scopes: list[APIScope] = Field(default_factory=list)
+    granted_scopes: list[APIScope] = Field(default_factory=list)
+    api_key_prefix: str = ""
+    created_at: float
+    updated_at: float
+
+
+class OEMCredential(BaseModel):
+    """Returned exactly once, at registration — the OEM stores it; we keep only a hash."""
+    api_key: str
+    key_prefix: str
+
+
+class OEMRegistered(BaseModel):
+    partner: OEMPartner
+    credential: OEMCredential
+
+
+class ScopeGrantIn(BaseModel):
+    scopes: list[APIScope]
+
+
+class IntegrationProfile(BaseModel):
+    """What Orbital can actually do with this OEM's fleet right now."""
+    oem_id: str
+    company_name: str
+    vendor: str
+    transport: ControlTransport
+    status: OEMStatus
+    ceiling_scopes: list[APIScope]
+    granted_scopes: list[APIScope]
+    missing_scopes: list[APIScope]
+    control_ready: bool   # can we run the TF-Hijack correction (velocity + estop granted)?
+    monitor_ready: bool   # can we at least monitor (telemetry granted)?

@@ -1,19 +1,27 @@
-# Orbital AI — Cloud + Fleet Dashboard
+# Orbital AI — Cloud + Edge + Fleet Dashboard
 
-The shared **monitor & control** layer of the Orbital AI / ARIA platform, built to be
-consumed by **StageGate first, then ReadyForRobots** — one service, two clients.
+The shared **monitor & control** platform of Orbital AI / ARIA, built to be consumed by
+**StageGate first, then ReadyForRobots** — one platform, two clients.
 
-This repo is the *software* half of the platform (Modules 6 & 7 + the Benchmark
-Library). The patent-core **ARIA Edge Node** (CV pipeline, TF Hijack, fleet adapters,
-safety-halt controller) is hardware/ROS 2-bound and lives in a separate `aria-core`
-repo on the lab bench. A built-in **simulated edge** stands in for that hardware so the
-entire stack is demoable today — no cameras, no robots.
+This repo now scaffolds **all three runtime layers** of the platform behind clean
+interfaces, with deterministic *simulated* backends so the full edge→cloud loop runs and
+tests today — no cameras, no robots, no ROS 2 graph.
 
 ```
-StageGate (TS)  ─┐
-                 ├─►  Orbital AI Cloud (this repo, FastAPI)  ◄── ARIA Edge Node(s)
-ReadyForRobots ─┘        REST + WebSocket + Fleet Dashboard        (real, or simulated)
+Robot Network (VLAN) ── ARIA Edge Node (aria_edge/) ──outbound──► Orbital AI Cloud (orbital_cloud/)
+     robots              CV • TF-Hijack • Safety-Halt              REST + WS + Dashboard + Orchestrator
+        ▲                        │                                          ▲
+        └──── Fleet Adapters (fleet_adapters/) ────┘             StageGate ─┤  (embeds dashboard,
+             Unitree/BD/Agility/… normalized                  ReadyForRobots┘   proxies the API)
 ```
+
+### Packages
+
+| Package | Layer | Modules |
+|---|---|---|
+| `orbital_cloud/` | Cloud | 6 Orchestration API, 7 Fleet Dashboard, Benchmark Library, **Orchestrator** (autonomy), **OEM onboarding** |
+| `aria_edge/` | Edge (on-prem GPU) | 1 CV pipeline, 2 Micro-Waypoint Generator / TF-Hijack, 4 Safety-Halt Controller, `edge_agent` |
+| `fleet_adapters/` | Edge/Cloud | 3 Fleet Adapters — one interface over ROS 2 / gRPC / cloud-REST OEMs |
 
 ## What's implemented
 
@@ -25,6 +33,37 @@ ReadyForRobots ─┘        REST + WebSocket + Fleet Dashboard        (real, or
 | **Benchmark Library** | drift delta, MTBD, recovery latency, environmental degradation score |
 | **Fleet Dashboard UI** | amber theme, industry tabs, robot business cards, live alerts, benchmark table |
 | **Simulated ARIA edge** | pose/drift generation, degradation spikes, safety-halt E-Stops |
+| **Orchestrator (autonomy)** | `/api/dashboard/orchestrator[/run]` — auto E-Stop, charge dispatch, review flags, optional LLM narrative |
+| **ARIA Edge scaffold** | `aria_edge/` — CV → drift → safety-halt → TF-Hijack correction → cloud sync (`edge_agent`) |
+| **Fleet Adapters** | `fleet_adapters/` — per-OEM capability ceilings (ROS 2 cmd_vel vs BD gRPC vs Agility cloud) |
+| **OEM Onboarding** | `/api/oem/*` — 3rd-party robot companies register + unlock scoped access to their API |
+
+## OEM onboarding (3rd-party robot companies)
+
+Robot OEMs join Orbital AI and choose exactly which parts of their robot API to unlock for
+us. Each grant is bounded by the OEM's fleet-adapter **capability ceiling**, so an OEM can
+only grant control their protocol supports (e.g. Boston Dynamics can grant E-Stop + missions
+but not a cmd_vel override).
+
+```
+API:  POST /api/oem/register        → { partner, credential.api_key }   # key shown once
+      POST /api/oem/{id}/scopes      → unlock scopes (Bearer api_key)     # telemetry/control/…
+      GET  /api/oem/{id}/profile     → monitor_ready / control_ready
+      DELETE /api/oem/{id}/scopes    → revoke
+
+Scopes: telemetry.read · state.read · control.velocity · control.estop ·
+        control.teleop · mission.dispatch · camera.read · map.read
+```
+
+Zero-dependency onboarding client for OEMs:
+
+```bash
+python3 scripts/oem_onboard.py register --url https://orbital.onstage.bot \
+    --company "Acme Robotics" --vendor "Unitree" --email ops@acme.com --transport ros2
+python3 scripts/oem_onboard.py unlock  --url ... --oem-id oem-xxxx --api-key orb_xxx \
+    --scopes telemetry.read,control.velocity,control.estop
+python3 scripts/oem_onboard.py profile --url ... --oem-id oem-xxxx
+```
 
 ## Run it
 
