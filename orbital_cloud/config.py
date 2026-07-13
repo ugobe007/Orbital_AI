@@ -99,7 +99,77 @@ WAREHOUSE: dict = {
     ],
     # Inbound/outbound dock.
     "dock": {"x": 12.0, "y": 15.2, "w": 6.0, "h": 0.8},
+    # Named work points the fleet shuttles payloads between. Missions reference these by
+    # name ("Move tote: Aisle AB → Dock"), so the operator can read the goal off the map.
+    "stations": [
+        {"id": "Dock", "x": 12.0, "y": 14.0, "kind": "dock"},
+        {"id": "Aisle AB", "x": 5.2, "y": 5.5, "kind": "aisle"},
+        {"id": "Aisle BC", "x": 8.7, "y": 5.5, "kind": "aisle"},
+        {"id": "Aisle DE", "x": 5.2, "y": 12.0, "kind": "aisle"},
+        {"id": "Aisle EF", "x": 8.7, "y": 12.0, "kind": "aisle"},
+        {"id": "Bay G", "x": 14.6, "y": 3.6, "kind": "bay"},
+        {"id": "Bay H", "x": 14.6, "y": 6.6, "kind": "bay"},
+        {"id": "Bay I", "x": 14.6, "y": 9.6, "kind": "bay"},
+        {"id": "Stage", "x": 13.0, "y": 11.5, "kind": "stage"},
+    ],
+    # Overhead camera rig — Orbital's cameras localize robots against this map (the ARIA
+    # ground-truth pose). Rendered distinctly from waypoints so the two are never confused.
+    "cameras": [
+        {"id": "cam-1", "x": 4.0, "y": 4.0, "coverage_m": 4.5},
+        {"id": "cam-2", "x": 12.0, "y": 4.0, "coverage_m": 4.5},
+        {"id": "cam-3", "x": 20.0, "y": 4.0, "coverage_m": 4.5},
+        {"id": "cam-4", "x": 4.0, "y": 12.0, "coverage_m": 4.5},
+        {"id": "cam-5", "x": 12.0, "y": 12.0, "coverage_m": 4.5},
+        {"id": "cam-6", "x": 20.0, "y": 12.0, "coverage_m": 4.5},
+    ],
 }
+
+# Fleet mission choreography. Every SEQUENCE_PERIOD_S the whole fleet adopts a new theme
+# and each robot gets a fresh pick→drop assignment, so the floor never looks stale. Each
+# theme names a verb, an objective sentence, and which stations are sources vs. destinations.
+SEQUENCE_PERIOD_S: float = float(os.getenv("ORBITAL_SEQUENCE_PERIOD_S", "30") or "30")
+SEQUENCE_THEMES: list[dict] = [
+    {
+        "id": "inbound",
+        "label": "Inbound unload",
+        "objective": "Clear the inbound dock — carry totes from the dock into the storage aisles.",
+        "verb": "Move tote",
+        "pickup": ["Dock"],
+        "dropoff": ["Aisle AB", "Aisle BC", "Aisle DE", "Aisle EF"],
+    },
+    {
+        "id": "picking",
+        "label": "Order picking",
+        "objective": "Pick for outbound — pull items from the storage aisles to the stage.",
+        "verb": "Pick & carry",
+        "pickup": ["Aisle AB", "Aisle BC", "Aisle DE", "Aisle EF"],
+        "dropoff": ["Stage"],
+    },
+    {
+        "id": "replen",
+        "label": "Replenishment",
+        "objective": "Replenish forward pick faces from the reserve bays.",
+        "verb": "Replenish",
+        "pickup": ["Bay G", "Bay H", "Bay I"],
+        "dropoff": ["Aisle AB", "Aisle BC", "Aisle DE", "Aisle EF"],
+    },
+    {
+        "id": "crossdock",
+        "label": "Cross-dock",
+        "objective": "Cross-dock inbound freight straight through to the outbound bays.",
+        "verb": "Cross-dock",
+        "pickup": ["Dock"],
+        "dropoff": ["Bay G", "Bay H", "Bay I"],
+    },
+    {
+        "id": "cyclecount",
+        "label": "Cycle count",
+        "objective": "Audit stock — scan racks to verify counts, then stage any discrepancies.",
+        "verb": "Cycle count",
+        "pickup": ["Aisle AB", "Aisle BC", "Aisle DE", "Aisle EF"],
+        "dropoff": ["Stage", "Dock"],
+    },
+]
 
 # Short OEM briefs powering the dashboard "business card" panel (Module 7 CRM panel).
 # Real deployments would source these from the Orbital AI Cloud CRM; static for the demo.

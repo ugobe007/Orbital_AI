@@ -32,6 +32,46 @@ def test_sensor_spatial_mirrors_internal_pose_keeps_drift():
     assert store.robots[robot.id].drift_delta_m == 0.3
 
 
+def test_prime_sets_a_sequence_and_missions():
+    simulator.prime()
+    seq = simulator.store.sequence
+    assert seq["theme"] in {t["id"] for t in simulator.SEQUENCE_THEMES}
+    goals = [r.mission_goal for r in simulator.store.robots.values() if r.mission_goal]
+    assert goals and all("→" in g for g in goals)  # "Verb: A → B"
+
+
+def test_new_sequence_rotates_theme_and_wakes_controllable_robots():
+    simulator.prime()
+    first = simulator.store.sequence["theme"]
+    first_id = simulator.store.sequence["id"]
+    simulator._new_sequence()
+    assert simulator.store.sequence["theme"] != first          # avoids an immediate repeat
+    assert simulator.store.sequence["id"] == first_id + 1
+    for r in simulator.store.robots.values():
+        if r.error_code == "E_STOP" or r.state.name == "CHARGING":
+            continue
+        assert r.mission_goal is not None                       # nothing left stale/idle
+
+
+def test_mission_lifecycle_pickup_then_work_then_carry():
+    simulator.prime()
+    r = next(iter(simulator.store.robots.values()))
+    simulator._assign_task(r)
+    assert r.mission_phase == "en_route_pickup" and r.task_target is not None
+    simulator._begin_work(r)
+    assert r.mission_phase == "working" and r.task_target is None and r.work_until is not None
+    simulator._begin_carry(r)
+    assert r.mission_phase == "carrying"
+    assert r.task_target == (r.mission_dropoff[1], r.mission_dropoff[2])
+
+
+def test_sequence_public_reports_countdown_and_assignments():
+    simulator.prime()
+    pub = simulator.store.sequence_public()
+    assert pub["label"] and pub["objective"] and pub["ends_in_s"] >= 0
+    assert any(a["goal"] for a in pub["assignments"])
+
+
 def test_seed_demo_is_idempotent_and_respects_ceiling():
     store = OEMStore()
     specs = [

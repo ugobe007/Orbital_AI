@@ -81,6 +81,10 @@ class RobotSummary(BaseModel):
     pose_internal: Pose            # robot self-report
     drift_delta_m: float           # euclidean(external, internal)
     current_task: Optional[str] = None
+    # Mission narration: the fleet-sequence goal this robot is executing ("Move tote:
+    # Aisle AB → Dock") and which leg it's on (en_route_pickup | working | carrying | idle).
+    mission: Optional[str] = None
+    mission_phase: Optional[str] = None
     error_code: Optional[str] = None
     # Autonomous task cycle: the robot this one just handed its payload off to (drawn as a
     # transient link on the map during the cooldown pause). None outside a hand-off.

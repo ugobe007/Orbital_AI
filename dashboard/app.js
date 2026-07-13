@@ -8,6 +8,7 @@ const state = {
   industries: [],
   vendors: [],
   robots: [],
+  sequence: null,       // current fleet mission sequence (theme + objective + per-robot goals)
   alerts: [],
   activeTab: "All",
   statusFilter: null,   // fleet filter by robot state (set from the overview chips)
@@ -140,6 +141,49 @@ function renderStats() {
   renderTicker(m);
 }
 
+// Human labels for the mission leg each robot is on.
+const PHASE_LABEL = {
+  en_route_pickup: "→ pickup",
+  working: "working",
+  carrying: "carrying",
+  idle: "idle",
+};
+const PHASE_COLOR = {
+  en_route_pickup: "#00a5da",
+  working: "#ffa01f",
+  carrying: "#00be7d",
+  idle: "#5b667a",
+};
+
+function renderSequence() {
+  const bar = $("#sequence-bar");
+  if (!bar) return;
+  const s = state.sequence;
+  if (!s || !s.label) {
+    bar.innerHTML = `<div class="text-[11px] text-ink-dim">Waiting for the fleet to pick up its first sequence…</div>`;
+    return;
+  }
+  const goals = (s.assignments || []).filter((a) => a.goal);
+  const chips = goals.slice(0, 9).map((a) => {
+    const ph = a.phase || "idle";
+    return `<span class="inline-flex items-center gap-1 rounded-md bg-surface-input border border-line px-1.5 py-0.5">
+        <span class="mono text-ink-mut">${esc(a.robot_id)}</span>
+        <span class="text-ink-dim">${esc(a.goal)}</span>
+        <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#5b667a"}">${PHASE_LABEL[ph] || ph}</span>
+      </span>`;
+  }).join("");
+  const ends = Math.max(0, Math.round(s.ends_in_s ?? 0));
+  bar.innerHTML = `
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="tag" style="background:#1b1533;color:#b7a6ff;border-color:#7c5cff">SEQUENCE ${esc(String(s.id ?? ""))}</span>
+      <span class="font-semibold text-[13px]">${esc(s.label)}</span>
+      <span class="text-[11.5px] text-ink-dim">${esc(s.objective || "")}</span>
+      <span class="flex-1"></span>
+      <span class="text-[10.5px] text-ink-dim mono">new sequence in <span style="color:#b7a6ff">${ends}s</span></span>
+    </div>
+    <div class="mt-2 flex items-center gap-1.5 flex-wrap text-[10px]">${chips}</div>`;
+}
+
 function renderFleetStatus(m) {
   const box = $("#fleet-status");
   if (!box) return;
@@ -242,6 +286,10 @@ function renderFleet() {
         <div class="mt-2.5 flex items-center gap-1.5 text-[11px] ${MODE_STYLE[r.control_mode] || "text-ink-mut"}">
           <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>${esc(MODE_LABEL[r.control_mode] || r.control_mode)}
         </div>
+        ${r.mission ? `<div class="mt-1.5 text-[10.5px] text-ink-dim truncate" title="${esc(r.mission)}">
+          <span style="color:${PHASE_COLOR[r.mission_phase] || "#5b667a"}">●</span> ${esc(r.mission)}
+          ${r.current_task ? `<span class="text-ink-mut">· ${esc(r.current_task)}</span>` : ""}
+        </div>` : ""}
         <div class="mt-2.5 grid grid-cols-2 gap-3 text-[13px]">
           <div>
             <div class="text-[11px] text-ink-dim">Drift Δ</div>
@@ -338,6 +386,12 @@ function renderControlPanel() {
       </div>
       <span class="text-[10px] px-2 py-0.5 rounded-full ${bg} ${fg} whitespace-nowrap">${label}</span>
     </div>
+
+    ${r.mission ? `<div class="mt-2 rounded-lg border border-line p-2" style="background:#12101f">
+      <div class="text-[9.5px] uppercase tracking-wide text-ink-dim">Current mission</div>
+      <div class="text-[12px] font-medium mt-0.5">${esc(r.mission)}</div>
+      <div class="text-[10.5px] mt-0.5"><span style="color:${PHASE_COLOR[r.mission_phase] || "#5b667a"}">●</span> ${esc(r.current_task || PHASE_LABEL[r.mission_phase] || "")}</div>
+    </div>` : ""}
 
     <div class="mt-2.5 rounded-lg bg-surface-raised border border-line p-2.5 ${dim(canVel)}">
       ${sectionHead("Drive", "control.velocity", canVel)}
@@ -473,6 +527,24 @@ function renderMap() {
   for (const c of (m.charge_stations || [])) {
     p.push(`<circle cx="${c.x}" cy="${Y(c.y)}" r="0.42" fill="#00a5da" opacity="0.16"/>`);
     p.push(`<text x="${c.x}" y="${Y(c.y) + 0.16}" fill="#3dbfe2" font-size="0.5" text-anchor="middle">⚡</text>`);
+  }
+  // Named work stations — the pick/drop points missions shuttle between (labelled so the
+  // operator can read "Aisle AB → Dock" straight off the floor).
+  for (const s of (m.stations || [])) {
+    p.push(`<rect x="${s.x - 0.34}" y="${Y(s.y) - 0.34}" width="0.68" height="0.68" rx="0.1" fill="#0b2e3a" stroke="#2f6d82" stroke-width="0.035"/>`);
+    p.push(`<text x="${s.x}" y="${Y(s.y) + 0.5}" fill="#5f7486" font-size="0.3" text-anchor="middle">${esc(s.id)}</text>`);
+  }
+  // Overhead camera rig — Orbital's ground-truth localization. Drawn as a violet camera glyph
+  // with a soft coverage halo so it's never mistaken for a robot or a waypoint.
+  for (const cam of (m.cameras || [])) {
+    const cov = cam.coverage_m || 4.0;
+    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="#7c5cff" opacity="0.05"/>`);
+    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="none" stroke="#7c5cff" stroke-width="0.02" stroke-dasharray="0.2 0.22" opacity="0.35"/>`);
+    p.push(`<g transform="translate(${cam.x},${Y(cam.y)})">`);
+    p.push(`<rect x="-0.26" y="-0.19" width="0.52" height="0.38" rx="0.08" fill="#1b1533" stroke="#7c5cff" stroke-width="0.045"/>`);
+    p.push(`<circle cx="0" cy="0" r="0.11" fill="none" stroke="#b7a6ff" stroke-width="0.05"/>`);
+    p.push(`<rect x="0.2" y="-0.1" width="0.14" height="0.2" rx="0.04" fill="#7c5cff"/>`);
+    p.push(`</g>`);
   }
 
   const byId = Object.fromEntries(state.robots.map((r) => [r.id, r]));
@@ -751,7 +823,7 @@ async function openOEM(oemId) {
   $("#modal-oem").classList.remove("hidden");
 }
 
-function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; renderFleet(); renderControlPanel(); }).catch(() => {}); }
+function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; if (f.sequence) state.sequence = f.sequence; renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
 
 // ── robot detail (business card) ───────────────────────────────────────────────
 async function openRobot(id) {
@@ -903,7 +975,7 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "fleet") { state.robots = msg.robots; renderFleet(); renderStats(); renderMap(); renderControlPanel(); renderCapabilities(); }
+    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.sequence) state.sequence = msg.sequence; renderFleet(); renderStats(); renderSequence(); renderMap(); renderControlPanel(); renderCapabilities(); }
     else if (msg.type === "alert") {
       state.alerts.unshift(msg.alert); state.alerts = state.alerts.slice(0, 200);
       renderAlerts(); renderStats();
@@ -1250,10 +1322,11 @@ async function init() {
   state.industries = fleet.industries;
   state.vendors = fleet.vendors;
   state.robots = fleet.robots;
+  state.sequence = fleet.sequence || null;
   // Auto-select a live robot so the control surface is populated the moment the page loads.
   state.selectedRobot = (fleet.robots.find((r) => r.state !== "halted") || fleet.robots[0] || {}).id || null;
   $("#facility-name").textContent = fleet.facility.name;
-  renderTabs(); renderFleet(); renderStats(); renderControlPanel();
+  renderTabs(); renderFleet(); renderStats(); renderSequence(); renderControlPanel();
 
   wireMap();
   await loadMap();

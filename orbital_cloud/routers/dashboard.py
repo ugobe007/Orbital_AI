@@ -35,7 +35,8 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 async def _broadcast_fleet() -> None:
-    await hub.broadcast({"type": "fleet", "robots": [r.model_dump(mode="json") for r in store.fleet()]})
+    await hub.broadcast({"type": "fleet", "robots": [r.model_dump(mode="json") for r in store.fleet()],
+                         "sequence": store.sequence_public()})
 
 
 @router.get("/fleet")
@@ -45,6 +46,7 @@ async def get_fleet() -> dict:
         "industries": INDUSTRIES,
         "vendors": store.vendors(),
         "robots": [r.model_dump(mode="json") for r in store.fleet()],
+        "sequence": store.sequence_public(),
     }
 
 

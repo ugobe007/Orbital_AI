@@ -22,7 +22,7 @@ import random
 import time
 
 from . import pathing, persistence
-from .config import WAREHOUSE, settings
+from .config import SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
 from .models import (
     AlertIn,
@@ -113,37 +113,83 @@ def _patrol(i: int) -> list[tuple[float, float]]:
     return path
 
 
-# Open-floor task stations (pickup/drop points in the aisles, bays, dock and stage). Robots
-# shuttle payloads between these and hand off to peers — a legible warehouse work loop.
+# Named work points (pickup/drop stations) sourced from the map config so the UI and the
+# simulator agree on their coordinates. Missions shuttle payloads between these.
 _STATIONS: list[tuple[str, float, float]] = [
-    ("Dock", 12.0, 14.0),
-    ("Aisle AB", 5.2, 5.5),
-    ("Aisle BC", 8.7, 5.5),
-    ("Aisle DE", 5.2, 12.0),
-    ("Aisle EF", 8.7, 12.0),
-    ("Bay G", 14.6, 3.6),
-    ("Bay H", 14.6, 6.6),
-    ("Bay I", 14.6, 9.6),
-    ("Stage", 13.0, 11.5),
+    (s["id"], float(s["x"]), float(s["y"])) for s in WAREHOUSE.get("stations", [])
 ]
+_STATION_XY: dict[str, tuple[float, float]] = {label: (x, y) for label, x, y in _STATIONS}
+
+_WORK_DWELL_S = 3.0   # visible "performing task at the pickup" pause before carrying to drop
+
+
+def _current_theme() -> dict:
+    """The active fleet-sequence theme (defaults to the first if the store isn't primed)."""
+    tid = store.sequence.get("theme")
+    for theme in SEQUENCE_THEMES:
+        if theme["id"] == tid:
+            return theme
+    return SEQUENCE_THEMES[0]
+
+
+def _station_xy(label: str) -> tuple[float, float]:
+    return _STATION_XY.get(label, (WAREHOUSE["width_m"] / 2, WAREHOUSE["height_m"] / 2))
 
 
 def _assign_task(robot: RobotRuntime) -> None:
-    """Put a robot on its next delivery (green/ACTIVE). If a peer handed it a payload, the
-    target is that hand-off point; otherwise pick a fresh station."""
+    """Give the robot its next mission in the current sequence theme: go to a pickup station
+    (or an inbound hand-off point), perform the task there, then carry to a drop-off station.
+    Puts it green/ACTIVE on the first leg (en route to the pickup)."""
+    theme = _current_theme()
+    verb = theme["verb"]
+    drop_label = random.choice(theme["dropoff"])
+    dx, dy = _station_xy(drop_label)
+
     if robot.pending_pickup is not None:
-        tx, ty = robot.pending_pickup
-        label = "inbound hand-off"
+        px, py = robot.pending_pickup
+        pick_label = "hand-off"
         robot.pending_pickup = None
     else:
-        label, tx, ty = random.choice(_STATIONS)
-    robot.task_target = (tx, ty)
-    robot.current_task = f"Delivering → {label}"
+        pick_label = random.choice(theme["pickup"])
+        px, py = _station_xy(pick_label)
+
+    robot.mission_pickup = (pick_label, px, py)
+    robot.mission_dropoff = (drop_label, dx, dy)
+    robot.mission_goal = f"{verb}: {pick_label} → {drop_label}"
+    robot.mission_phase = "en_route_pickup"
+    robot.current_task = f"En route to {pick_label}"
+    robot.task_target = (px, py)
     robot.handoff_partner = None
     robot.cooldown_until = None
+    robot.work_until = None
     robot.route = []
     robot.route_goal = None
     robot.state = RobotState.ACTIVE
+
+
+def _begin_work(robot: RobotRuntime) -> None:
+    """Arrived at the pickup — perform the task there for a visible dwell before carrying on."""
+    label = robot.mission_pickup[0] if robot.mission_pickup else "station"
+    robot.mission_phase = "working"
+    robot.current_task = f"Working at {label}"
+    robot.work_until = time.time() + _WORK_DWELL_S
+    robot.task_target = None
+    robot.route = []
+    robot.route_goal = None
+
+
+def _begin_carry(robot: RobotRuntime) -> None:
+    """Task done at the pickup — carry the payload to the drop-off station."""
+    if robot.mission_dropoff is None:
+        _complete_task(robot)
+        return
+    label, dx, dy = robot.mission_dropoff
+    robot.mission_phase = "carrying"
+    robot.current_task = f"Carrying → {label}"
+    robot.work_until = None
+    robot.task_target = (dx, dy)
+    robot.route = []
+    robot.route_goal = None
 
 
 def _handoff_target(robot: RobotRuntime) -> RobotRuntime | None:
@@ -168,16 +214,18 @@ def _handoff_target(robot: RobotRuntime) -> RobotRuntime | None:
 
 def _complete_task(robot: RobotRuntime) -> None:
     """Finish the current delivery: hand the payload to a peer, then go red (COOLDOWN) and
-    pause before the next task."""
+    pause before the next mission."""
     partner = _handoff_target(robot)
     if partner is not None:
         partner.pending_pickup = (robot.pose_external.x, robot.pose_external.y)
         robot.handoff_partner = partner.id
-        robot.current_task = f"Task complete → hand-off to {partner.id}"
+        robot.current_task = f"Delivered → hand-off to {partner.id}"
     else:
         robot.handoff_partner = None
-        robot.current_task = "Task complete — awaiting next"
+        robot.current_task = "Delivered — awaiting next task"
+    robot.mission_phase = "idle"
     robot.task_target = None
+    robot.work_until = None
     robot.route = []
     robot.route_goal = None
     robot.state = RobotState.COOLDOWN
@@ -224,20 +272,52 @@ def _clear_route(robot: RobotRuntime) -> None:
     robot.route_goal = None
 
 
+def _new_sequence() -> None:
+    """Rotate the whole fleet onto a fresh theme and reassign every controllable robot, so the
+    floor visibly changes objective — and nothing sits stale — every SEQUENCE_PERIOD_S."""
+    cur = store.sequence.get("theme")
+    choices = [t for t in SEQUENCE_THEMES if t["id"] != cur] or SEQUENCE_THEMES
+    theme = random.choice(choices)
+    store.set_sequence(
+        id=int(store.sequence.get("id", 0)) + 1,
+        theme=theme["id"], label=theme["label"], objective=theme["objective"],
+        started_at=time.time(), period_s=SEQUENCE_PERIOD_S,
+    )
+    for robot in store.robots.values():
+        # Never override a charging robot, an operator's waypoint/manual jog, or a human
+        # E-Stop latch — but wake anything the sim itself parked (idle / cooldown / sim-halt).
+        if robot.state == RobotState.CHARGING:
+            continue
+        if robot.nav_queue or robot.manual_heading is not None:
+            continue
+        if robot.error_code == "E_STOP":
+            continue
+        robot.error_code = None
+        robot.halted_at = None
+        robot.pending_pickup = None
+        _assign_task(robot)   # → ACTIVE on the new theme's first leg
+
+
 def prime() -> None:
-    """Seed the fleet on the autonomous task cycle; leave one robot idle to show that state."""
+    """Seed the fleet on the first mission sequence; leave one robot idle to show that state."""
+    _new_sequence()
     for idx, robot in enumerate(store.robots.values()):
-        start = _STATIONS[idx % len(_STATIONS)]
+        start = _STATIONS[idx % len(_STATIONS)] if _STATIONS else (robot.id, robot.pose_external.x, robot.pose_external.y)
         robot.pose_external = robot.pose_external.model_copy(update={"x": start[1], "y": start[2]})
         robot.pose_internal = robot.pose_external.model_copy()
-        if idx % 5 != 4:
-            # Stagger initial tasks so the fleet's start/stop rhythm is desynchronized.
-            _assign_task(robot)
-            if idx % 3 == 0:
-                robot.state = RobotState.COOLDOWN
-                robot.task_target = None
-                robot.current_task = "Task complete — awaiting next"
-                robot.cooldown_until = time.time() + (idx % 5) * 2.0
+        if idx % 5 == 4:
+            # One robot starts idle so the IDLE state is represented on the floor.
+            robot.state = RobotState.IDLE
+            robot.mission_phase = "idle"
+            robot.mission_goal = None
+            robot.task_target = None
+            robot.current_task = "Idle"
+        elif idx % 3 == 0:
+            # Stagger initial cooldowns so the fleet's start/stop rhythm is desynchronized.
+            robot.state = RobotState.COOLDOWN
+            robot.task_target = None
+            robot.current_task = "Awaiting next task"
+            robot.cooldown_until = time.time() + (idx % 5) * 2.0
     # Re-apply any operator waypoints that were set before a restart.
     store.restore_waypoints()
 
@@ -356,11 +436,19 @@ async def _tick(dt: float) -> list[AlertIn]:
                 _advance_nav(robot, dt)          # operator waypoint via visual control
             elif robot.manual_heading is not None:
                 _advance_manual(robot, dt)       # operator manual jog (heading + speed)
+            elif robot.mission_phase == "working":
+                # Performing the task at the pickup — hold (green) until the dwell elapses,
+                # then carry the payload on to the drop-off station.
+                if robot.work_until is None or time.time() >= robot.work_until:
+                    _begin_carry(robot)
             else:
                 if robot.task_target is None:
                     _assign_task(robot)          # ensure an autonomous robot always has work
                 if _drive_to_goal(robot, dt, robot.task_target):  # routed around racks to target
-                    _complete_task(robot)        # hand off + go red for the cooldown pause
+                    if robot.mission_phase == "en_route_pickup":
+                        _begin_work(robot)       # arrived at pickup → perform the task here
+                    else:
+                        _complete_task(robot)    # dropped off → hand off + red cooldown pause
             robot.battery_pct = max(0.0, robot.battery_pct - 0.05)
             if robot.battery_pct < 15.0:
                 robot.state = RobotState.CHARGING
@@ -394,6 +482,10 @@ async def run() -> None:
     hz = max(0.5, settings.sim_tick_hz)
     dt = 1.0 / hz
     while True:
+        # Rotate the fleet mission sequence when its window elapses (keeps the floor alive).
+        seq = store.sequence
+        if time.time() - float(seq.get("started_at", 0)) >= float(seq.get("period_s", SEQUENCE_PERIOD_S)):
+            _new_sequence()
         alerts = await _tick(dt)
         for a in alerts:
             saved = store.add_alert(a)
@@ -401,5 +493,6 @@ async def run() -> None:
         await hub.broadcast({
             "type": "fleet",
             "robots": [r.model_dump(mode="json") for r in store.fleet()],
+            "sequence": store.sequence_public(),
         })
         await asyncio.sleep(dt)

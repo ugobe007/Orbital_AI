@@ -67,6 +67,15 @@ class RobotRuntime:
         self.pending_pickup: Optional[tuple[float, float]] = None
         self.cooldown_until: Optional[float] = None
 
+        # Mission: the current fleet-sequence assignment. A mission is pick-up → work →
+        # drop-off between two named stations; mission_goal is the human sentence shown in
+        # the UI, mission_phase tracks the leg, and work_until times the dwell at the pickup.
+        self.mission_goal: Optional[str] = None
+        self.mission_phase: Optional[str] = None   # en_route_pickup | working | carrying | idle
+        self.mission_pickup: Optional[tuple[str, float, float]] = None
+        self.mission_dropoff: Optional[tuple[str, float, float]] = None
+        self.work_until: Optional[float] = None
+
         # Visual-nav: operator waypoints (map coords). When non-empty, the robot is driven
         # to them via Orbital's camera-based control, overriding the patrol/SLAM path.
         self.nav_queue: list[tuple[float, float]] = []
@@ -117,6 +126,8 @@ class RobotRuntime:
             pose_internal=self.pose_internal,
             drift_delta_m=round(self.drift_delta_m, 4),
             current_task=self.current_task,
+            mission=self.mission_goal,
+            mission_phase=self.mission_phase,
             error_code=self.error_code,
             handoff_partner=self.handoff_partner,
             visual_nav=bool(self.nav_queue),
@@ -137,7 +148,29 @@ class Store:
         self.sensors: dict[str, SensorSnapshot] = {}
         self.alerts: list[Alert] = []
         self.tasks: dict[str, Task] = {}
+        # Current fleet mission sequence (the simulator rotates this every ~30s).
+        self.sequence: dict = {"id": 0, "theme": "boot", "label": "Warming up",
+                               "objective": "Bringing the fleet online…", "started_at": time.time(),
+                               "period_s": 30.0}
         self._seed()
+
+    def set_sequence(self, *, id: int, theme: str, label: str, objective: str,
+                     started_at: float, period_s: float) -> None:
+        with self._lock:
+            self.sequence = {"id": id, "theme": theme, "label": label, "objective": objective,
+                             "started_at": started_at, "period_s": period_s}
+
+    def sequence_public(self) -> dict:
+        """The current sequence + a live per-robot assignment list for the UI narration."""
+        with self._lock:
+            seq = dict(self.sequence)
+            now = time.time()
+            seq["ends_in_s"] = max(0.0, round(seq["started_at"] + seq["period_s"] - now, 1))
+            seq["assignments"] = [
+                {"robot_id": r.id, "goal": r.mission_goal, "phase": r.mission_phase}
+                for r in self.robots.values() if r.mission_goal
+            ]
+            return seq
 
     def _seed(self) -> None:
         for seed in SEED_FLEET:
