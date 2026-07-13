@@ -71,6 +71,11 @@ class RobotRuntime:
         # to them via Orbital's camera-based control, overriding the patrol/SLAM path.
         self.nav_queue: list[tuple[float, float]] = []
 
+        # Obstacle-aware route the robot is currently following to its immediate goal
+        # (task target or the next operator waypoint), planned around the racks. Transient.
+        self.route: list[tuple[float, float]] = []
+        self.route_goal: Optional[tuple[float, float]] = None
+
         # Operator drive controls: commanded speed and (optional) manual jog heading (rad).
         self.speed_mps: float = settings.base_speed_mps
         self.manual_heading: Optional[float] = None
@@ -117,6 +122,7 @@ class RobotRuntime:
             visual_nav=bool(self.nav_queue),
             nav_goal=Point(x=self.nav_queue[0][0], y=self.nav_queue[0][1]) if self.nav_queue else None,
             waypoints=[Point(x=x, y=y) for x, y in self.nav_queue],
+            path=[Point(x=x, y=y) for x, y in self.route],
             speed_mps=round(self.speed_mps, 2),
             manual_drive=self.manual_heading is not None,
             control_mode=self.control_mode,

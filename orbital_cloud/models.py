@@ -89,6 +89,9 @@ class RobotSummary(BaseModel):
     visual_nav: bool = False
     nav_goal: Optional[Point] = None
     waypoints: list[Point] = Field(default_factory=list)
+    # Camera-planned route the robot is actually following right now — bends around racks
+    # so the drawn path matches the motion (obstacle-aware, not straight-line).
+    path: list[Point] = Field(default_factory=list)
     # Operator drive controls.
     speed_mps: float = 0.6         # current commanded speed
     manual_drive: bool = False     # operator is jogging it along a fixed heading

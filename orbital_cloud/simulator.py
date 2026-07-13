@@ -21,7 +21,7 @@ import math
 import random
 import time
 
-from . import persistence
+from . import pathing, persistence
 from .config import WAREHOUSE, settings
 from .events import hub
 from .models import (
@@ -141,6 +141,8 @@ def _assign_task(robot: RobotRuntime) -> None:
     robot.current_task = f"Delivering → {label}"
     robot.handoff_partner = None
     robot.cooldown_until = None
+    robot.route = []
+    robot.route_goal = None
     robot.state = RobotState.ACTIVE
 
 
@@ -176,6 +178,8 @@ def _complete_task(robot: RobotRuntime) -> None:
         robot.handoff_partner = None
         robot.current_task = "Task complete — awaiting next"
     robot.task_target = None
+    robot.route = []
+    robot.route_goal = None
     robot.state = RobotState.COOLDOWN
     robot.cooldown_until = time.time() + settings.task_pause_s
 
@@ -194,6 +198,30 @@ def _advance_point(robot: RobotRuntime, dt: float, target: tuple[float, float]) 
     nx, ny = x + dx / dist * step, y + dy / dist * step
     robot.pose_external = robot.pose_external.model_copy(update={"x": nx, "y": ny, "theta": math.atan2(dy, dx)})
     return False
+
+
+def _drive_to_goal(robot: RobotRuntime, dt: float, goal: tuple[float, float]) -> bool:
+    """Follow an obstacle-aware route to ``goal`` (routing around racks). Returns True on
+    arrival at the final goal. Re-plans when the goal changes or the route is exhausted."""
+    gx, gy = goal
+    if (robot.route_goal is None
+            or math.hypot(robot.route_goal[0] - gx, robot.route_goal[1] - gy) > 0.05
+            or not robot.route):
+        robot.route = pathing.plan((robot.pose_external.x, robot.pose_external.y), (gx, gy))
+        robot.route_goal = (gx, gy)
+    if not robot.route:
+        robot.route = [goal]
+    if _advance_point(robot, dt, robot.route[0]):
+        robot.route.pop(0)
+        if not robot.route:
+            robot.route_goal = None
+            return True
+    return False
+
+
+def _clear_route(robot: RobotRuntime) -> None:
+    robot.route = []
+    robot.route_goal = None
 
 
 def prime() -> None:
@@ -233,28 +261,16 @@ def _advance_external(robot: RobotRuntime, dt: float) -> None:
 
 
 def _advance_nav(robot: RobotRuntime, dt: float) -> None:
-    """Visual-control navigation: drive the camera-observed (external) pose straight to the
-    operator's waypoint. This deliberately ignores the robot's onboard SLAM — Orbital's
-    overhead cameras localize the robot and steer it, so odometric drift can't send it off
-    course. Advances the queue on arrival; clears back to patrol when the queue empties.
+    """Visual-control navigation: drive the camera-observed (external) pose to the operator's
+    waypoint, routing AROUND the racks (Orbital's overhead cameras localize + steer, bending
+    the path around obstacles). Deliberately ignores onboard SLAM, so odometric drift can't
+    send it off course. Advances the queue on arrival; clears to patrol when it empties.
     """
-    tx, ty = robot.nav_queue[0]
-    x, y = robot.pose_external.x, robot.pose_external.y
-    dx, dy = tx - x, ty - y
-    dist = math.hypot(dx, dy)
-    step = robot.speed_mps * dt
-    if dist <= step or dist == 0.0:
-        theta = math.atan2(dy, dx) if dist else robot.pose_external.theta
-        robot.pose_external = robot.pose_external.model_copy(update={"x": tx, "y": ty, "theta": theta})
+    if _drive_to_goal(robot, dt, robot.nav_queue[0]):
         robot.nav_queue.pop(0)
         if not robot.nav_queue:
             robot.current_task = "Autonomous patrol"
             persistence.save_waypoints(robot.id, [])   # mission complete — drop persisted goal
-    else:
-        nx, ny = x + dx / dist * step, y + dy / dist * step
-        robot.pose_external = robot.pose_external.model_copy(
-            update={"x": nx, "y": ny, "theta": math.atan2(dy, dx)}
-        )
 
 
 def _advance_manual(robot: RobotRuntime, dt: float) -> None:
@@ -267,12 +283,13 @@ def _advance_manual(robot: RobotRuntime, dt: float) -> None:
     ny = robot.pose_external.y + math.sin(theta) * step
     cx = min(max(nx, 0.0), w)
     cy = min(max(ny, 0.0), h)
-    robot.pose_external = robot.pose_external.model_copy(update={"x": cx, "y": cy, "theta": theta})
-    # Hit a wall — stop the jog so the robot doesn't grind against the boundary.
-    if (cx != nx or cy != ny):
+    # Stop the jog at a wall OR a rack face so the robot never drives into an obstacle.
+    if cx != nx or cy != ny or pathing._point_blocked(cx, cy):
         robot.manual_heading = None
         robot.current_task = "Idle"
         robot.state = RobotState.IDLE
+        return
+    robot.pose_external = robot.pose_external.model_copy(update={"x": cx, "y": cy, "theta": theta})
 
 
 def _update_drift(robot: RobotRuntime) -> None:
@@ -342,7 +359,7 @@ async def _tick(dt: float) -> list[AlertIn]:
             else:
                 if robot.task_target is None:
                     _assign_task(robot)          # ensure an autonomous robot always has work
-                if _advance_point(robot, dt, robot.task_target):  # arrived at the delivery target
+                if _drive_to_goal(robot, dt, robot.task_target):  # routed around racks to target
                     _complete_task(robot)        # hand off + go red for the cooldown pause
             robot.battery_pct = max(0.0, robot.battery_pct - 0.05)
             if robot.battery_pct < 15.0:

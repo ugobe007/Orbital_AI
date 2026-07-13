@@ -487,7 +487,10 @@ function renderMap() {
       p.push(`<circle cx="${pe.x}" cy="${Y(pe.y)}" r="0.16" fill="#ffa01f" opacity="0.9"/>`);
     }
     if (r.waypoints && r.waypoints.length) {
-      const pts = [`${ex.x},${Y(ex.y)}`, ...r.waypoints.map((w) => `${w.x},${Y(w.y)}`)].join(" ");
+      // Draw the camera-planned route the robot actually follows (bends around racks),
+      // falling back to a straight line to the waypoints if no route is published.
+      const line = (r.path && r.path.length) ? r.path : r.waypoints;
+      const pts = [`${ex.x},${Y(ex.y)}`, ...line.map((w) => `${w.x},${Y(w.y)}`)].join(" ");
       p.push(`<polyline points="${pts}" fill="none" stroke="#00a5da" stroke-width="0.05" stroke-dasharray="0.25 0.18" opacity="0.9"/>`);
       r.waypoints.forEach((w, i) => {
         const last = i === r.waypoints.length - 1;
