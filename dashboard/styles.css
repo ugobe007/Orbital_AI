@@ -1,38 +1,152 @@
-/* Small bits Tailwind CDN doesn't cover: modals, scrollbars, live pulse. */
+/* Orbital AI — "Mission Control" console.
+   NASA mission-control × modern SaaS. Deep obsidian (blue undertone), semantic accents
+   (azure=telemetry, emerald=healthy, amber=CTA/warn, crimson=critical), Space Grotesk +
+   JetBrains Mono. Design tokens + components Tailwind CDN doesn't cover. */
 
-body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+:root {
+  --bg: #0a0d14;          /* deep obsidian with a blue undertone */
+  --panel: #0c0f17;       /* sidebar / sticky header */
+  --card: #10141d;        /* cards */
+  --raised: #161c28;      /* inner tiles */
+  --input: #1b2230;       /* inputs / chips */
+  --line: #242c3a;        /* subtle border */
+  --line-strong: #2f3a4c;
+  --line-blue: #2f4a5c;   /* card hover border (electric-blue tint) */
+  --ink: #e6eaef;         /* primary text */
+  --ink-mut: #aab4c1;     /* secondary */
+  --ink-dim: #828c9b;     /* tertiary / labels */
+  --brand: #00be7d;       /* emerald — healthy / active / values */
+  --brand-600: #00a06a;
+  --azure: #00a5da;       /* electric blue — telemetry, selection, wordmark */
+  --azure-light: #3dbfe2;
+  --amber: #ffa01f;       /* CTA / warning */
+  --red: #e5484d;         /* critical / halted / E-Stop */
+}
 
+html, body { background: var(--bg); }
+body {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+/* All numeric telemetry uses JetBrains Mono, tabular. */
+.mono { font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+
+/* Monospace section tag badge (MAP·01, ALRT, FLT·09 …) */
+.tag {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  padding: 2px 6px; border-radius: 5px;
+  color: var(--azure-light); background: rgba(0,165,218,0.12);
+  border: 1px solid rgba(0,165,218,0.25);
+}
+
+/* Card / surface primitives. */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: border-color 150ms cubic-bezier(0.23,1,0.32,1);
+}
+.card:hover { border-color: var(--line-blue); }
+.card-head { border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); }
+.hairline { border-color: var(--line); }
+
+/* Glows — functional emphasis only */
+.glow-blue  { box-shadow: 0 0 12px rgba(0,165,218,0.30); }
+.glow-amber { box-shadow: 0 0 12px rgba(255,160,31,0.40); }
+.glow-red   { box-shadow: 0 0 12px rgba(229,72,77,0.45); }
+.glow-green { box-shadow: 0 0 10px rgba(0,190,125,0.30); }
+
+/* Modals */
 .modal {
   position: fixed; inset: 0; z-index: 50;
-  background: rgba(3, 6, 10, 0.72);
+  background: rgba(3, 5, 10, 0.72);
+  backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center;
   padding: 1rem;
 }
 .modal.hidden { display: none; }
 .modal-card {
-  background: #111827;
-  border: 1px solid #26313F;
-  border-radius: 0.9rem;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
   width: 100%; max-width: 560px;
-  max-height: 86vh; overflow-y: auto;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.6);
 }
 
-/* Live pulse for the connection dot + fresh alerts. */
+/* Connection pulse + fresh-alert flash + robot marker pulse */
 .pulse { animation: pulse 1.6s ease-in-out infinite; }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-/* Subtle scrollbars in the dark theme. */
-#alerts::-webkit-scrollbar, .modal-card::-webkit-scrollbar { width: 8px; }
-#alerts::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb {
-  background: #26313F; border-radius: 8px;
-}
-
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .flash { animation: flash 1s ease-out; }
-@keyframes flash {
-  0% { background: rgba(245, 158, 11, 0.18); }
-  100% { background: transparent; }
+@keyframes flash { 0% { background: rgba(0,190,125,0.16); } 100% { background: transparent; } }
+.robot-pulse { transform-box: fill-box; transform-origin: center; animation: robotpulse 2.4s ease-in-out infinite; }
+@keyframes robotpulse { 0%,100% { opacity: 0.9; } 50% { opacity: 0.45; } }
+.data-flicker { animation: dataflicker 8s ease-in-out infinite; }
+@keyframes dataflicker { 0%,92%,94%,100% { opacity: 1; } 93% { opacity: 0.65; } }
+
+/* Scrollbars */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #232935; border-radius: 8px; }
+*::-webkit-scrollbar-thumb:hover { background: #33465a; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Speed slider */
+input[type="range"].speed {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 5px; border-radius: 999px;
+  background: var(--input); outline: none; cursor: pointer;
+}
+input[type="range"].speed::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--azure); border: 2px solid #0a0d14;
+  box-shadow: 0 0 0 3px rgba(0,165,218,0.25), 0 0 10px rgba(0,165,218,0.4);
+}
+input[type="range"].speed::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--azure); border: 2px solid #0a0d14;
+}
+
+/* Direction pad */
+.dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.dpad button {
+  aspect-ratio: 1 / 1;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line-strong);
+  border-radius: 9px; color: var(--ink); font-size: 15px;
+  transition: background .12s, border-color .12s, color .12s, transform .06s;
+}
+.dpad button:hover { background: rgba(0,165,218,0.14); border-color: var(--azure); color: var(--azure-light); }
+.dpad button:active { transform: scale(0.96); }
+.dpad button.stop { background: rgba(229,72,77,0.14); border-color: rgba(229,72,77,0.45); color: #ff8a8f; }
+.dpad button.stop:hover { background: rgba(229,72,77,0.24); border-color: var(--red); }
+
+/* Focus ring in electric blue */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid rgba(0,165,218,0.6); outline-offset: 1px;
+}
+.btn-press:active { transform: scale(0.97); }
+
+/* Map object hover */
+#map [data-robot] { transition: opacity .1s; cursor: pointer; }
+#map [data-robot]:hover { opacity: 0.85; }
+
+/* Left nav rail */
+.rail-btn {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 9px; color: var(--ink-dim);
+  border: 1px solid transparent;
+  transition: color .14s, background .14s, border-color .14s, transform .06s;
+}
+.rail-btn:hover { color: var(--azure-light); background: rgba(0,165,218,0.09); }
+.rail-btn:active { transform: scale(0.94); }
+.rail-btn.active { color: var(--azure); background: rgba(0,165,218,0.15); border-color: rgba(0,165,218,0.4); }
+
+/* keep section tops clear of the sticky header when scrolled to */
+#sec-overview, #sec-map, #sec-alerts, #sec-fleet, #sec-capabilities, #sec-benchmark, #sec-partners {
+  scroll-margin-top: 70px;
 }
