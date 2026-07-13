@@ -76,3 +76,41 @@ def test_revoke_downgrades_status():
                        json={"scopes": ["telemetry.read"]}, headers=hdr)
     body = r.json()
     assert body["granted_scopes"] == [] and body["status"] == "pending"
+
+
+# ── Onboarding wizard (operator surface: register + grant + policies in one shot) ──
+def test_oem_catalog_lists_vendors_scopes_and_defaults():
+    cat = client.get("/api/dashboard/oem-catalog").json()
+    vendors = {v["vendor"] for v in cat["vendors"]}
+    assert "Unitree" in vendors and "Boston Dynamics" in vendors
+    assert {s["value"] for s in cat["scopes"]} >= {"telemetry.read", "control.velocity"}
+    assert "ros2" in cat["transports"]
+    assert cat["default_policies"]["max_speed_mps"] > 0
+
+
+def test_wizard_onboard_grants_scopes_and_sets_policies():
+    r = client.post("/api/dashboard/oems", json={
+        "company_name": "Wizard Co", "vendor": "Unitree",
+        "contact_email": "ops@wizard.example", "transport": "ros2",
+        "scopes": ["telemetry.read", "control.velocity", "control.estop"],
+        "policies": {"max_speed_mps": 1.2, "drift_halt_threshold_m": 0.4,
+                     "auto_estop_on_critical": True, "require_approval_for_teleop": False,
+                     "geofence": "zone-a"},
+    })
+    assert r.status_code == 201
+    prof, cred = r.json()["profile"], r.json()["credential"]
+    assert cred["api_key"].startswith("orb_")
+    assert prof["status"] == "active" and prof["control_ready"] is True
+    assert prof["policies"]["max_speed_mps"] == 1.2
+    assert prof["policies"]["geofence"] == "zone-a"
+
+
+def test_wizard_onboard_drops_scopes_outside_ceiling():
+    # Boston Dynamics can't expose control.velocity — onboarding must drop it.
+    r = client.post("/api/dashboard/oems", json={
+        "company_name": "Spot Co", "vendor": "Boston Dynamics",
+        "contact_email": "ops@spot.example", "transport": "grpc",
+        "scopes": ["control.velocity", "control.estop"],
+    })
+    granted = r.json()["profile"]["granted_scopes"]
+    assert "control.estop" in granted and "control.velocity" not in granted

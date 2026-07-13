@@ -26,9 +26,15 @@ from .models import (
     IntegrationProfile,
     OEMCredential,
     OEMPartner,
+    OEMPolicies,
     OEMRegisterIn,
     OEMStatus,
 )
+
+
+def ceiling_scopes_for_vendor(vendor: str) -> list[APIScope]:
+    """The scopes a vendor's protocol can support (adapter capability ceiling)."""
+    return _ceiling_scopes(vendor)
 
 
 def _hash_key(raw: str) -> str:
@@ -131,6 +137,16 @@ class OEMStore:
             self._persist(oem_id)
             return rec.partner
 
+    def set_policies(self, oem_id: str, policies: "OEMPolicies") -> Optional[OEMPartner]:
+        with self._lock:
+            rec = self._by_id.get(oem_id)
+            if rec is None:
+                return None
+            rec.partner.policies = policies
+            rec.partner.updated_at = time.time()
+            self._persist(oem_id)
+            return rec.partner
+
     def set_status(self, oem_id: str, status: OEMStatus) -> Optional[OEMPartner]:
         with self._lock:
             rec = self._by_id.get(oem_id)
@@ -211,6 +227,7 @@ class OEMStore:
                 ceiling_scopes=p.ceiling_scopes,
                 granted_scopes=p.granted_scopes,
                 missing_scopes=[s for s in ceiling - granted],
+                policies=p.policies,
                 control_ready=(p.status == OEMStatus.ACTIVE
                                and {APIScope.VELOCITY, APIScope.ESTOP} <= granted),
                 monitor_ready=(p.status == OEMStatus.ACTIVE and APIScope.TELEMETRY in granted),

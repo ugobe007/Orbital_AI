@@ -9,9 +9,12 @@ from ..events import hub
 from ..models import (
     Alert,
     APIScope,
+    ControlTransport,
     DriveIn,
     IntegrationProfile,
     NavigateIn,
+    OEMOnboardIn,
+    OEMPolicies,
     OEMStatus,
     OrchestratorStatus,
     RobotDetail,
@@ -22,7 +25,8 @@ from ..models import (
     TaskIn,
     VendorBenchmark,
 )
-from ..oem_store import oem_store
+from ..oem_store import ceiling_scopes_for_vendor, oem_store
+from fleet_adapters import known_vendors
 from ..orchestrator import orchestrator
 from .. import scope_guard
 from ..store import store
@@ -216,6 +220,54 @@ def _profile_or_404(oem_id: str) -> IntegrationProfile:
     if profile is None:
         raise HTTPException(status_code=404, detail="OEM not found")
     return profile
+
+
+_SCOPE_META: dict[str, str] = {
+    APIScope.TELEMETRY.value: "Stream pose, battery, and health telemetry",
+    APIScope.STATE.value: "Read task/state machine and mission status",
+    APIScope.VELOCITY.value: "Command velocity (visual-nav waypoints, jog, speed)",
+    APIScope.ESTOP.value: "Trigger and clear emergency stop",
+    APIScope.TELEOP.value: "Full teleoperation hand-on control",
+    APIScope.MISSION.value: "Dispatch and cancel missions",
+    APIScope.CAMERA.value: "Read onboard camera frames",
+    APIScope.MAP.value: "Read the robot's onboard map / SLAM graph",
+}
+
+
+@router.get("/oem-catalog")
+async def oem_catalog() -> dict:
+    """Everything the onboarding wizard needs: known vendors and the API scopes each
+    protocol can support, the transports, and the default governance policies."""
+    vendors = [
+        {"vendor": v, "ceiling_scopes": [s.value for s in ceiling_scopes_for_vendor(v)]}
+        for v in known_vendors()
+    ]
+    return {
+        "vendors": vendors,
+        "transports": [t.value for t in ControlTransport],
+        "scopes": [{"value": s.value, "label": _SCOPE_META.get(s.value, s.value)} for s in APIScope],
+        "default_policies": OEMPolicies().model_dump(),
+    }
+
+
+@router.post("/oems", response_model=dict, status_code=201)
+async def onboard_oem(body: OEMOnboardIn) -> dict:
+    """Wizard endpoint — register a new robot-API partner, unlock the requested scopes,
+    set governance policies, and return the profile + the one-time API key."""
+    partner, credential = oem_store.register(body)
+    if body.scopes:
+        oem_store.grant_scopes(partner.id, body.scopes)
+    if body.policies is not None:
+        oem_store.set_policies(partner.id, body.policies)
+    profile = _profile_or_404(partner.id)
+    return {"profile": profile.model_dump(mode="json"), "credential": credential.model_dump(mode="json")}
+
+
+@router.post("/oems/{oem_id}/policies", response_model=IntegrationProfile)
+async def update_oem_policies(oem_id: str, body: OEMPolicies) -> IntegrationProfile:
+    if oem_store.set_policies(oem_id, body) is None:
+        raise HTTPException(status_code=404, detail="OEM not found")
+    return _profile_or_404(oem_id)
 
 
 @router.get("/oems", response_model=list[IntegrationProfile])

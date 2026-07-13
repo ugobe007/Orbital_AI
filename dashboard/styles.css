@@ -150,3 +150,86 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #sec-overview, #sec-map, #sec-alerts, #sec-fleet, #sec-capabilities, #sec-benchmark, #sec-partners {
   scroll-margin-top: 70px;
 }
+
+/* ── Live monitoring ticker ─────────────────────────────────────────────────── */
+.ticker {
+  position: sticky; top: 49px; z-index: 15;
+  background: linear-gradient(90deg, #0a0e17, #0c1119);
+  overflow: hidden; white-space: nowrap;
+  height: 30px; display: flex; align-items: center;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+}
+.ticker-track {
+  display: inline-flex; align-items: center; gap: 0;
+  animation: ticker-scroll 42s linear infinite;
+  will-change: transform;
+}
+.ticker:hover .ticker-track { animation-play-state: paused; }
+@keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.tick {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 0 18px; font-size: 11px; letter-spacing: 0.04em;
+  border-right: 1px solid var(--line);
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;
+}
+.tick-label { color: var(--ink-dim); text-transform: uppercase; }
+.tick-val { color: var(--ink); font-weight: 600; }
+.tick-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px currentColor; }
+
+/* ── Overview: interactive status distribution ─────────────────────────────── */
+.status-seg { transition: opacity .12s, filter .12s; }
+.status-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 8px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent; background: rgba(255,255,255,0.02);
+  transition: background .12s, border-color .12s, transform .06s;
+}
+.status-chip:hover { background: rgba(255,255,255,0.05); }
+.status-chip:active { transform: scale(0.98); }
+.status-chip.on { border-color: var(--line-blue); background: rgba(0,165,218,0.08); }
+
+/* ── Wizard ─────────────────────────────────────────────────────────────────── */
+.modal-card-lg { max-width: 680px; }
+.step-dots { display: flex; align-items: center; gap: 6px; }
+.step-dot {
+  display: flex; align-items: center; gap: 7px; font-size: 11px;
+  color: var(--ink-dim); font-family: "JetBrains Mono", monospace;
+}
+.step-dot .num {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line-strong); font-size: 10px;
+}
+.step-dot.active .num { border-color: var(--azure); color: var(--azure); background: rgba(0,165,218,0.12); }
+.step-dot.done .num { border-color: var(--brand); color: var(--brand); background: rgba(0,190,125,0.12); }
+.step-dot.active { color: var(--ink); }
+.step-sep { width: 20px; height: 1px; background: var(--line-strong); }
+
+.wz-input, .wz-select {
+  width: 100%; background: var(--input); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; color: var(--ink); font-size: 13px;
+}
+.wz-input:focus, .wz-select:focus { border-color: var(--azure); outline: none; }
+.wz-scope {
+  display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.wz-scope:hover { border-color: var(--line-strong); }
+.wz-scope.on { border-color: rgba(0,190,125,0.5); background: rgba(0,190,125,0.06); }
+.wz-scope.locked { opacity: 0.45; cursor: not-allowed; }
+
+/* Toggle switch */
+.switch { position: relative; width: 38px; height: 21px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--input); border: 1px solid var(--line-strong); transition: .15s;
+}
+.switch .track::before {
+  content: ""; position: absolute; width: 15px; height: 15px; border-radius: 50%;
+  left: 2px; top: 2px; background: var(--ink-dim); transition: .15s;
+}
+.switch input:checked + .track { background: rgba(0,190,125,0.25); border-color: var(--brand); }
+.switch input:checked + .track::before { transform: translateX(17px); background: var(--brand); }

@@ -310,6 +310,16 @@ class OEMRegisterIn(BaseModel):
     website: Optional[str] = None
 
 
+class OEMPolicies(BaseModel):
+    """Operator guardrails captured at onboarding — governance bounds Orbital honours for
+    this partner's fleet on top of raw scope grants."""
+    max_speed_mps: float = 1.5          # ceiling the operator will command for this OEM
+    drift_halt_threshold_m: float = 0.5  # safety-halt trip point
+    auto_estop_on_critical: bool = True  # let the orchestrator auto-halt on critical drift
+    require_approval_for_teleop: bool = True  # teleop needs an explicit operator hand-on
+    geofence: str = "facility"           # allowed operating zone label
+
+
 class OEMPartner(BaseModel):
     """Public OEM record (never carries the raw API key)."""
     id: str
@@ -320,6 +330,7 @@ class OEMPartner(BaseModel):
     status: OEMStatus
     ceiling_scopes: list[APIScope] = Field(default_factory=list)
     granted_scopes: list[APIScope] = Field(default_factory=list)
+    policies: OEMPolicies = Field(default_factory=OEMPolicies)
     api_key_prefix: str = ""
     created_at: float
     updated_at: float
@@ -340,6 +351,13 @@ class ScopeGrantIn(BaseModel):
     scopes: list[APIScope]
 
 
+class OEMOnboardIn(OEMRegisterIn):
+    """Wizard payload: register a new robot-API partner and, in one shot, unlock the API
+    scopes (permissions) and set the governance policies."""
+    scopes: list[APIScope] = Field(default_factory=list)
+    policies: Optional[OEMPolicies] = None
+
+
 class IntegrationProfile(BaseModel):
     """What Orbital can actually do with this OEM's fleet right now."""
     oem_id: str
@@ -350,6 +368,7 @@ class IntegrationProfile(BaseModel):
     ceiling_scopes: list[APIScope]
     granted_scopes: list[APIScope]
     missing_scopes: list[APIScope]
+    policies: OEMPolicies = Field(default_factory=OEMPolicies)
     control_ready: bool   # can we run the TF-Hijack correction (velocity + estop granted)?
     monitor_ready: bool   # can we at least monitor (telemetry granted)?
 

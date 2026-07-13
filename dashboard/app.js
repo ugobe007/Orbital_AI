@@ -10,12 +10,26 @@ const state = {
   robots: [],
   alerts: [],
   activeTab: "All",
+  statusFilter: null,   // fleet filter by robot state (set from the overview chips)
+  connLive: false,
   ws: null,
   map: null,
   selectedRobot: null,
   orch: null,
   oems: [],
+  catalog: null,        // /oem-catalog: vendors + scopes + transports + default policies
+  wizard: null,         // onboarding wizard working state
 };
+
+// Fleet states, ordered for the overview distribution bar + chips.
+const STATUS_META = [
+  { key: "active",   label: "Working",       color: "#00be7d" },
+  { key: "cooldown", label: "Between tasks", color: "#e5484d" },
+  { key: "idle",     label: "Idle",          color: "#ffa01f" },
+  { key: "charging", label: "Charging",      color: "#00a5da" },
+  { key: "halted",   label: "Halted",        color: "#ff3b6b" },
+  { key: "offline",  label: "Offline",       color: "#5b667a" },
+];
 
 // The control surface Orbital exposes to operators. Each capability is gated by an API scope
 // the OEM must unlock — this is the contract 3rd-party robot vendors integrate against.
@@ -91,30 +105,101 @@ function batteryColor(p) { return p < 15 ? "bg-red-500" : p < 50 ? "bg-amber-400
 function fmtSecs(s) { if (s == null) return "—"; if (s < 90) return `${Math.round(s)}s`; if (s < 5400) return `${(s/60).toFixed(1)}m`; return `${(s/3600).toFixed(1)}h`; }
 function fmtTime(ts) { return new Date(ts * 1000).toLocaleTimeString(); }
 
-// ── stats ────────────────────────────────────────────────────────────────────
-function renderStats() {
-  const total = state.robots.length;
-  const active = state.robots.filter((r) => r.state === "active").length;
-  const cooldown = state.robots.filter((r) => r.state === "cooldown").length;
-  const nav = state.robots.filter((r) => r.control_mode === "visual_nav").length;
-  const halted = state.robots.filter((r) => r.state === "halted").length;
+// ── overview: live metrics + interactive status distribution ───────────────────
+function fleetMetrics() {
+  const rb = state.robots;
+  const total = rb.length;
+  const counts = {};
+  for (const s of STATUS_META) counts[s.key] = 0;
+  for (const r of rb) counts[r.state] = (counts[r.state] || 0) + 1;
+  const nav = rb.filter((r) => r.control_mode === "visual_nav").length;
   const openAlerts = state.alerts.filter((a) => !a.acknowledged).length;
-  const cards = [
-    ["Fleet", total, "text-ink"],
-    ["Working", active, "text-brand"],
-    ["Between tasks", cooldown, cooldown ? "text-red-400" : "text-ink"],
-    ["Visual-nav", nav, nav ? "text-azure" : "text-ink"],
-    ["Halted", halted, halted ? "text-red-400" : "text-ink"],
-    ["Open alerts", openAlerts, openAlerts ? "text-cta" : "text-ink"],
+  const avgDrift = total ? rb.reduce((s, r) => s + (r.drift_delta_m || 0), 0) / total : 0;
+  const avgBatt = total ? rb.reduce((s, r) => s + (r.battery_pct || 0), 0) / total : 0;
+  return { total, counts, nav, openAlerts, avgDrift, avgBatt };
+}
+
+function renderStats() {
+  const m = fleetMetrics();
+  // Four live headline metrics (not static counts — drift + battery are derived live).
+  const tiles = [
+    ["Fleet", String(m.total), "text-ink"],
+    ["Avg drift Δ", m.avgDrift.toFixed(3) + "m", m.avgDrift >= 0.5 ? "text-red-400" : m.avgDrift >= 0.1 ? "text-amber-400" : "text-brand"],
+    ["Fleet battery", Math.round(m.avgBatt) + "%", m.avgBatt < 25 ? "text-red-400" : m.avgBatt < 50 ? "text-amber-400" : "text-brand"],
+    ["Open alerts", String(m.openAlerts), m.openAlerts ? "text-cta" : "text-ink"],
   ];
   const box = $("#stats"); box.innerHTML = "";
-  for (const [label, val, cls] of cards) {
+  for (const [label, val, cls] of tiles) {
     box.appendChild(el(`
-      <div class="card px-3.5 py-2.5">
-        <div class="text-[11px] text-ink-dim">${label}</div>
-        <div class="text-xl font-semibold mono ${cls} mt-0.5">${val}</div>
+      <div class="rounded-lg bg-surface-raised border border-line px-2.5 py-2">
+        <div class="text-[10px] text-ink-dim leading-tight">${label}</div>
+        <div class="text-[17px] font-semibold mono ${cls} mt-0.5 leading-none">${val}</div>
       </div>`));
   }
+  renderFleetStatus(m);
+  renderTicker(m);
+}
+
+function renderFleetStatus(m) {
+  const box = $("#fleet-status");
+  if (!box) return;
+  const total = m.total || 1;
+  const segs = STATUS_META
+    .filter((s) => m.counts[s.key] > 0)
+    .map((s) => `<div class="status-seg" title="${s.label}: ${m.counts[s.key]}" style="width:${(m.counts[s.key] / total) * 100}%;background:${s.color};${state.statusFilter && state.statusFilter !== s.key ? "opacity:.3" : ""}"></div>`)
+    .join("");
+  box.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-[11px] uppercase tracking-wide text-ink-dim">Fleet status · live</div>
+      <div class="text-[10.5px] text-ink-dim mono">${state.statusFilter ? `filtered: ${STATUS_META.find((s)=>s.key===state.statusFilter)?.label || state.statusFilter}` : "click to filter"}</div>
+    </div>
+    <div class="flex h-2.5 rounded-full overflow-hidden bg-surface-input mb-3">${segs || '<div class="w-full" style="background:#5b667a"></div>'}</div>
+    <div id="status-chips" class="grid grid-cols-3 gap-1.5 flex-1 content-start"></div>`;
+  const chips = box.querySelector("#status-chips");
+  for (const s of STATUS_META) {
+    const on = state.statusFilter === s.key;
+    const chip = el(`
+      <div class="status-chip ${on ? "on" : ""}">
+        <span class="tick-dot" style="color:${s.color};background:${s.color}"></span>
+        <span class="text-[11px] text-ink-mut flex-1 truncate">${s.label}</span>
+        <span class="text-[12px] font-semibold mono ${m.counts[s.key] ? "text-ink" : "text-ink-dim"}">${m.counts[s.key]}</span>
+      </div>`);
+    chip.onclick = () => {
+      state.statusFilter = on ? null : s.key;
+      renderStats(); renderFleet();
+      document.getElementById("sec-fleet")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    chips.appendChild(chip);
+  }
+}
+
+// ── live monitoring ticker ─────────────────────────────────────────────────────
+function renderTicker(m) {
+  const track = $("#ticker-track");
+  if (!track) return;
+  m = m || fleetMetrics();
+  const activeOems = state.oems.filter((o) => o.status === "active").length;
+  const items = [
+    { dot: state.connLive ? "#00be7d" : "#e5484d", label: "Link", val: state.connLive ? "LIVE" : "RECONNECTING" },
+    { dot: "#00a5da", label: "Monitoring", val: `${m.total} robots` },
+    { dot: "#00be7d", label: "Working", val: m.counts.active },
+    { dot: "#e5484d", label: "Between tasks", val: m.counts.cooldown },
+    { dot: "#3dbfe2", label: "Visual-nav", val: m.nav },
+    { dot: "#ffa01f", label: "Idle", val: m.counts.idle },
+    { dot: "#ff3b6b", label: "Halted", val: m.counts.halted },
+    { dot: "#ffa01f", label: "Open alerts", val: m.openAlerts },
+    { dot: "#00a5da", label: "Avg drift", val: m.avgDrift.toFixed(3) + "m" },
+    { dot: "#00be7d", label: "Fleet battery", val: Math.round(m.avgBatt) + "%" },
+    { dot: "#7fd6f2", label: "OEM partners", val: `${activeOems}/${state.oems.length}` },
+    { dot: "#828c9b", label: "Facility", val: state.facility?.name || "—" },
+  ];
+  const one = items.map((i) => `
+    <span class="tick">
+      <span class="tick-dot" style="color:${i.dot};background:${i.dot}"></span>
+      <span class="tick-label">${esc(i.label)}</span>
+      <span class="tick-val">${esc(i.val)}</span>
+    </span>`).join("");
+  track.innerHTML = one + one; // duplicate for a seamless -50% loop
 }
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
@@ -132,10 +217,16 @@ function renderTabs() {
 
 // ── fleet ─────────────────────────────────────────────────────────────────────
 function renderFleet() {
-  const list = state.activeTab === "All" ? state.robots : state.robots.filter((r) => r.industry === state.activeTab);
+  let list = state.activeTab === "All" ? state.robots : state.robots.filter((r) => r.industry === state.activeTab);
+  if (state.statusFilter) list = list.filter((r) => r.state === state.statusFilter);
+  renderFleetFilter();
   const grid = $("#fleet");
   grid.innerHTML = "";
-  if (!list.length) { grid.appendChild(el(`<div class="text-ink-dim text-[13px]">No robots in this category.</div>`)); return; }
+  if (!list.length) {
+    const label = state.statusFilter ? ` (${STATUS_META.find((s) => s.key === state.statusFilter)?.label || state.statusFilter})` : "";
+    grid.appendChild(el(`<div class="text-ink-dim text-[13px]">No robots in this category${label}.</div>`));
+    return;
+  }
   for (const r of list) {
     const [bg, fg, label] = STATE_STYLE[r.state] || STATE_STYLE.offline;
     const sel = r.id === state.selectedRobot;
@@ -187,6 +278,20 @@ function renderFleet() {
   }
 }
 
+function renderFleetFilter() {
+  const box = $("#fleet-filter");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!state.statusFilter) return;
+  const s = STATUS_META.find((x) => x.key === state.statusFilter);
+  const chip = el(`<button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-input hover:bg-line-strong text-[11.5px]">
+      <span class="tick-dot" style="color:${s?.color};background:${s?.color}"></span>
+      ${esc(s?.label || state.statusFilter)}<span class="text-ink-dim ml-1">✕ clear</span>
+    </button>`);
+  chip.onclick = () => { state.statusFilter = null; renderStats(); renderFleet(); };
+  box.appendChild(chip);
+}
+
 // ── control panel (selected robot) ──────────────────────────────────────────────
 const DIRS = [
   ["↖", 135], ["↑", 90], ["↗", 45],
@@ -228,42 +333,42 @@ function renderControlPanel() {
   box.innerHTML = `
     <div class="flex items-center justify-between gap-2">
       <div class="min-w-0">
-        <div class="font-semibold text-[14px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
-        <div class="text-[11px] text-ink-dim">${esc(r.id)} · ${g.managed ? esc(r.vendor) + " OEM" : "unmanaged (open)"}</div>
+        <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
+        <div class="text-[10.5px] text-ink-dim">${esc(r.id)} · ${g.managed ? esc(r.vendor) + " OEM" : "unmanaged (open)"}</div>
       </div>
-      <span class="text-[10.5px] px-2 py-0.5 rounded-full ${bg} ${fg} whitespace-nowrap">${label}</span>
+      <span class="text-[10px] px-2 py-0.5 rounded-full ${bg} ${fg} whitespace-nowrap">${label}</span>
     </div>
 
-    <div class="mt-4 rounded-lg bg-surface-raised border border-line p-3 ${dim(canVel)}">
+    <div class="mt-2.5 rounded-lg bg-surface-raised border border-line p-2.5 ${dim(canVel)}">
       ${sectionHead("Drive", "control.velocity", canVel)}
-      <div class="flex items-center justify-between text-[11px] text-ink-mut mb-1.5">
+      <div class="flex items-center justify-between text-[10.5px] text-ink-mut mb-1">
         <span>Speed</span><span class="mono" id="speed-val">${(r.speed_mps ?? 0).toFixed(2)} m/s</span>
       </div>
       <input id="speed" type="range" class="speed" min="0.05" max="${MAX_SPEED}" step="0.05" value="${r.speed_mps ?? 0.6}" ${canVel ? "" : "disabled"} />
-      <div class="flex justify-between text-[10px] text-ink-dim mono mt-1 mb-3"><span>0.05</span><span>${MAX_SPEED.toFixed(1)} m/s</span></div>
-      <div class="text-[11px] text-ink-mut mb-1.5">Manual jog — drive along a heading</div>
-      <div class="dpad max-w-[168px] mx-auto"></div>
-      <div class="text-[10px] text-ink-dim text-center mt-2">overrides patrol · clears waypoints until stopped</div>
+      <div class="flex justify-between text-[9.5px] text-ink-dim mono mt-0.5 mb-2"><span>0.05</span><span>${MAX_SPEED.toFixed(1)} m/s</span></div>
+      <div class="text-[10.5px] text-ink-mut mb-1">Manual jog — heading</div>
+      <div class="dpad max-w-[132px] mx-auto"></div>
+      <div class="text-[9.5px] text-ink-dim text-center mt-1.5">overrides patrol · clears waypoints</div>
     </div>
 
-    <div class="mt-3 rounded-lg bg-surface-raised border border-line p-3 ${dim(canVel)}">
+    <div class="mt-2 rounded-lg bg-surface-raised border border-line p-2.5 ${dim(canVel)}">
       ${sectionHead("Navigate — visual waypoints", "control.velocity", canVel)}
       ${r.waypoints && r.waypoints.length
         ? `<div class="flex items-center justify-between">
-             <span class="text-[12px] text-brand">en route · ${r.waypoints.length} pt${r.waypoints.length > 1 ? "s" : ""}</span>
-             <button id="wp-clear" class="text-[12px] px-2.5 py-1 rounded-md bg-surface-input hover:bg-line-strong">Clear route</button>
+             <span class="text-[11.5px] text-brand">en route · ${r.waypoints.length} pt${r.waypoints.length > 1 ? "s" : ""}</span>
+             <button id="wp-clear" class="text-[11.5px] px-2 py-0.5 rounded-md bg-surface-input hover:bg-line-strong">Clear</button>
            </div>`
-        : `<div class="text-[12px] text-ink-dim">Click the map to set a waypoint. Shift-click to chain. Orbital drives it there by camera — bypassing onboard SLAM.</div>`}
+        : `<div class="text-[11px] text-ink-dim leading-snug">Click the map to set a waypoint · shift-click to chain. Orbital drives it by camera, bypassing SLAM.</div>`}
     </div>
 
-    <div class="mt-3 rounded-lg bg-surface-raised border border-line p-3">
+    <div class="mt-2 rounded-lg bg-surface-raised border border-line p-2.5">
       ${sectionHead("Safety", "control.estop", canEstop)}
-      <div class="flex gap-2">
+      <div class="flex gap-1.5">
         ${halted
-          ? `<button id="c-resume" class="flex-1 px-3 py-2 rounded-md ${canEstop ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[13px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "Resume" : "Resume 🔒"}</button>`
-          : `<button id="c-estop" class="flex-1 px-3 py-2 rounded-md ${canEstop ? "bg-red-600 hover:bg-red-500 text-white" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[13px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "E-Stop" : "E-Stop 🔒"}</button>`}
-        <button id="c-mission" class="px-3 py-2 rounded-md ${canMission ? "bg-surface-input hover:bg-line-strong" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[13px]" ${canMission ? "" : "disabled"} title="mission.dispatch">Task</button>
-        <button id="c-details" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Info</button>
+          ? `<button id="c-resume" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "Resume" : "Resume 🔒"}</button>`
+          : `<button id="c-estop" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-red-600 hover:bg-red-500 text-white" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "E-Stop" : "E-Stop 🔒"}</button>`}
+        <button id="c-mission" class="px-2.5 py-1.5 rounded-md ${canMission ? "bg-surface-input hover:bg-line-strong" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px]" ${canMission ? "" : "disabled"} title="mission.dispatch">Task</button>
+        <button id="c-details" class="px-2.5 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
       </div>
     </div>`;
 
@@ -549,9 +654,10 @@ async function loadOEMs() {
     state.oems = oems;
     renderCapabilities();
     renderControlPanel();
+    renderTicker();
     const tb = $("#oems"); tb.innerHTML = "";
     if (!oems.length) {
-      tb.appendChild(el(`<tr><td colspan="7" class="px-4 py-6 text-[13px] text-ink-dim">No OEM partners yet. Onboard one with <code class="text-ink-mut">scripts/oem_onboard.py register</code>.</td></tr>`));
+      tb.appendChild(el(`<tr><td colspan="7" class="px-4 py-6 text-[13px] text-ink-dim">No OEM partners yet. Use <button class="text-azure hover:underline" onclick="openWizard()">Onboard robot API</button> to register one.</td></tr>`));
       return;
     }
     for (const o of oems) {
@@ -595,6 +701,16 @@ async function openOEM(oemId) {
       <div class="text-[11px] text-ink-dim">${esc(o.oem_id)} · ${esc(o.vendor)} · ${esc(o.transport)} · <span class="uppercase">${esc(o.status)}</span></div>
       <p class="text-[12px] text-ink-mut mt-2">Toggle the API scopes this OEM has unlocked for Orbital. Scopes outside their protocol's ceiling can't be granted.</p>
       <div class="mt-4 grid grid-cols-2 gap-x-6">${rows}</div>
+      ${o.policies ? `<div class="mt-4 pt-3 border-t border-line">
+        <div class="text-[11px] uppercase tracking-wide text-ink-dim mb-1.5">Governance policies</div>
+        <div class="flex flex-wrap gap-1.5 text-[11px]">
+          <span class="mono px-1.5 py-0.5 rounded bg-surface-input text-ink-mut">max ${(+o.policies.max_speed_mps).toFixed(2)} m/s</span>
+          <span class="mono px-1.5 py-0.5 rounded bg-surface-input text-ink-mut">drift halt ${(+o.policies.drift_halt_threshold_m).toFixed(2)} m</span>
+          <span class="mono px-1.5 py-0.5 rounded bg-surface-input ${o.policies.auto_estop_on_critical ? "text-brand" : "text-ink-dim"}">auto-estop ${o.policies.auto_estop_on_critical ? "on" : "off"}</span>
+          <span class="mono px-1.5 py-0.5 rounded bg-surface-input ${o.policies.require_approval_for_teleop ? "text-brand" : "text-ink-dim"}">teleop approval ${o.policies.require_approval_for_teleop ? "on" : "off"}</span>
+          <span class="mono px-1.5 py-0.5 rounded bg-surface-input text-ink-mut">zone: ${esc(o.policies.geofence)}</span>
+        </div>
+      </div>` : ""}
       <div class="mt-5 flex gap-2 justify-between items-center">
         <button id="oem-suspend" class="px-3 py-2 rounded-md text-[13px] ${suspended ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input hover:bg-line-strong text-red-400"}">${suspended ? "Reactivate" : "Suspend access"}</button>
         <div class="flex gap-2">
@@ -760,8 +876,10 @@ function closeModals() { document.querySelectorAll(".modal").forEach((m) => m.cl
 
 // ── live connection ────────────────────────────────────────────────────────────
 function setConn(ok) {
+  state.connLive = ok;
   $("#conn-dot").className = `w-2 h-2 rounded-full ${ok ? "bg-brand pulse" : "bg-red-500"}`;
   $("#conn-label").textContent = ok ? "live" : "reconnecting…";
+  renderTicker();
 }
 function connectWS() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -804,10 +922,313 @@ function initRail() {
   sections.forEach((s) => obs.observe(s));
 }
 
+// ── onboarding wizard (new robot API → permissions → policies) ─────────────────
+async function loadCatalog() {
+  try { state.catalog = await getJSON("/api/dashboard/oem-catalog"); } catch (e) { console.error(e); }
+}
+
+const WZ_STEPS = ["Partner", "Permissions", "Policies", "Review"];
+
+function openWizard() {
+  if (!state.catalog) { toast("Catalog still loading — try again in a moment", "warn"); loadCatalog(); return; }
+  const cat = state.catalog;
+  state.wizard = {
+    step: 1,
+    result: null,
+    data: {
+      company_name: "", vendor: "", customVendor: "", contact_email: "",
+      transport: cat.transports[0] || "ros2", website: "",
+      scopes: new Set(),
+      policies: { ...cat.default_policies },
+    },
+  };
+  $("#modal-wizard").classList.remove("hidden");
+  renderWizard();
+}
+window.openWizard = openWizard;
+
+function wzVendorName() {
+  const d = state.wizard.data;
+  return d.vendor === "__other__" ? d.customVendor.trim() : d.vendor;
+}
+function wzCeiling() {
+  const d = state.wizard.data, cat = state.catalog;
+  const all = new Set(cat.scopes.map((s) => s.value));
+  if (d.vendor === "__other__" || !d.vendor) return all;
+  const found = cat.vendors.find((v) => v.vendor === d.vendor);
+  return new Set(found ? found.ceiling_scopes : [...all]);
+}
+function wzStep1Valid() {
+  const d = state.wizard.data;
+  const emailOk = /.+@.+\..+/.test(d.contact_email.trim());
+  return d.company_name.trim() && emailOk && (d.vendor && (d.vendor !== "__other__" || d.customVendor.trim()));
+}
+
+function renderWizard() {
+  if (state.wizard.result) return renderWizardDone();
+  const wz = state.wizard, d = wz.data, cat = state.catalog;
+  const dots = WZ_STEPS.map((label, i) => {
+    const n = i + 1;
+    const cls = n === wz.step ? "active" : n < wz.step ? "done" : "";
+    return `<div class="step-dot ${cls}"><span class="num">${n < wz.step ? "✓" : n}</span>${label}</div>`
+      + (i < WZ_STEPS.length - 1 ? `<span class="step-sep"></span>` : "");
+  }).join("");
+
+  let bodyHtml = "";
+  if (wz.step === 1) {
+    const vendorOpts = cat.vendors.map((v) => `<option value="${esc(v.vendor)}" ${d.vendor === v.vendor ? "selected" : ""}>${esc(v.vendor)}</option>`).join("");
+    const transportOpts = cat.transports.map((t) => `<option value="${t}" ${d.transport === t ? "selected" : ""}>${t}</option>`).join("");
+    bodyHtml = `
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="sm:col-span-2">
+          <label class="block text-[11px] text-ink-mut mb-1">Company name *</label>
+          <input id="wz-company" class="wz-input" placeholder="e.g. Acme Robotics" value="${esc(d.company_name)}" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-ink-mut mb-1">Robot vendor / platform *</label>
+          <select id="wz-vendor" class="wz-select">
+            <option value="" ${!d.vendor ? "selected" : ""} disabled>Select a platform…</option>
+            ${vendorOpts}
+            <option value="__other__" ${d.vendor === "__other__" ? "selected" : ""}>Other (custom)…</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] text-ink-mut mb-1">Control transport</label>
+          <select id="wz-transport" class="wz-select">${transportOpts}</select>
+        </div>
+        <div id="wz-custom-wrap" class="sm:col-span-2 ${d.vendor === "__other__" ? "" : "hidden"}">
+          <label class="block text-[11px] text-ink-mut mb-1">Custom vendor name *</label>
+          <input id="wz-custom" class="wz-input" placeholder="e.g. Nimbus Dynamics" value="${esc(d.customVendor)}" />
+          <div class="text-[10.5px] text-ink-dim mt-1">Unknown platforms default to the ROS 2 cmd_vel adapter; unsupported scopes are dropped automatically.</div>
+        </div>
+        <div>
+          <label class="block text-[11px] text-ink-mut mb-1">Contact email *</label>
+          <input id="wz-email" class="wz-input" placeholder="partners@acme.example" value="${esc(d.contact_email)}" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-ink-mut mb-1">Website (optional)</label>
+          <input id="wz-website" class="wz-input" placeholder="https://acme.example" value="${esc(d.website)}" />
+        </div>
+      </div>`;
+  } else if (wz.step === 2) {
+    const ceiling = wzCeiling();
+    const cards = cat.scopes.map((s) => {
+      const inCeiling = ceiling.has(s.value);
+      const on = d.scopes.has(s.value);
+      return `
+        <label class="wz-scope ${on ? "on" : ""} ${inCeiling ? "" : "locked"}" data-scope="${s.value}">
+          <input type="checkbox" class="accent-brand mt-0.5" ${on ? "checked" : ""} ${inCeiling ? "" : "disabled"} />
+          <span class="min-w-0">
+            <span class="text-[13px] font-medium">${esc(s.label)}</span>
+            <span class="mono text-[10px] text-ink-dim block">${s.value}${inCeiling ? "" : " · outside " + esc(wzVendorName() || "vendor") + " ceiling"}</span>
+          </span>
+        </label>`;
+    }).join("");
+    bodyHtml = `
+      <p class="text-[12px] text-ink-mut mb-3">Unlock the slices of <span class="text-ink">${esc(wzVendorName())}</span>'s robot API that Orbital may call. Scopes outside the platform's protocol ceiling are locked. <span class="text-brand">control.velocity</span> + <span class="text-brand">control.estop</span> are required for full control-readiness.</p>
+      <div id="wz-scopes" class="grid grid-cols-1 sm:grid-cols-2 gap-2">${cards}</div>`;
+  } else if (wz.step === 3) {
+    const p = d.policies;
+    bodyHtml = `
+      <p class="text-[12px] text-ink-mut mb-3">Governance bounds Orbital honours for this partner's fleet on top of raw scope grants.</p>
+      <div class="space-y-4">
+        <div>
+          <div class="flex items-center justify-between text-[12px] mb-1"><span>Max commanded speed</span><span class="mono text-azure" id="wz-speed-val">${(+p.max_speed_mps).toFixed(2)} m/s</span></div>
+          <input id="wz-speed" type="range" class="speed" min="0.1" max="2.5" step="0.05" value="${p.max_speed_mps}" />
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-[12px] mb-1"><span>Drift halt threshold</span><span class="mono text-azure" id="wz-drift-val">${(+p.drift_halt_threshold_m).toFixed(2)} m</span></div>
+          <input id="wz-drift" type="range" class="speed" min="0.1" max="1.5" step="0.05" value="${p.drift_halt_threshold_m}" />
+        </div>
+        <label class="flex items-center justify-between gap-3 py-1.5 border-t border-line">
+          <span class="text-[13px]">Auto E-Stop on critical drift<span class="block text-[10.5px] text-ink-dim">let the orchestrator halt autonomously</span></span>
+          <span class="switch"><input id="wz-autoestop" type="checkbox" ${p.auto_estop_on_critical ? "checked" : ""}/><span class="track"></span></span>
+        </label>
+        <label class="flex items-center justify-between gap-3 py-1.5 border-t border-line">
+          <span class="text-[13px]">Require operator approval for teleop<span class="block text-[10.5px] text-ink-dim">teleop needs an explicit hand-on</span></span>
+          <span class="switch"><input id="wz-teleop" type="checkbox" ${p.require_approval_for_teleop ? "checked" : ""}/><span class="track"></span></span>
+        </label>
+        <div class="pt-1 border-t border-line">
+          <label class="block text-[11px] text-ink-mut mb-1">Geofence / allowed zone</label>
+          <input id="wz-geofence" class="wz-input" value="${esc(p.geofence)}" placeholder="facility" />
+        </div>
+      </div>`;
+  } else {
+    const scopes = [...d.scopes];
+    const p = d.policies;
+    const row = (k, v) => `<div class="flex items-center justify-between py-1 border-b border-line/60"><span class="text-[12px] text-ink-mut">${k}</span><span class="text-[12.5px] mono">${v}</span></div>`;
+    bodyHtml = `
+      <p class="text-[12px] text-ink-mut mb-3">Review, then create the partner. We'll mint a one-time API key.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+        <div>
+          ${row("Company", esc(d.company_name) || "—")}
+          ${row("Vendor", esc(wzVendorName()) || "—")}
+          ${row("Transport", esc(d.transport))}
+          ${row("Contact", esc(d.contact_email) || "—")}
+        </div>
+        <div>
+          ${row("Max speed", (+p.max_speed_mps).toFixed(2) + " m/s")}
+          ${row("Drift halt", (+p.drift_halt_threshold_m).toFixed(2) + " m")}
+          ${row("Auto E-Stop", p.auto_estop_on_critical ? "on" : "off")}
+          ${row("Teleop approval", p.require_approval_for_teleop ? "required" : "off")}
+        </div>
+      </div>
+      <div class="mt-3">
+        <div class="text-[11px] text-ink-mut mb-1.5">Permissions unlocked (${scopes.length})</div>
+        <div class="flex flex-wrap gap-1.5">
+          ${scopes.length ? scopes.map((s) => `<span class="mono text-[10px] px-1.5 py-0.5 rounded bg-brand/10 text-brand">${s}</span>`).join("") : '<span class="text-[12px] text-ink-dim">None — partner starts pending, monitor-only.</span>'}
+        </div>
+      </div>`;
+  }
+
+  const backBtn = wz.step > 1
+    ? `<button id="wz-back" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Back</button>`
+    : `<button id="wz-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>`;
+  const nextBtn = wz.step < 4
+    ? `<button id="wz-next" class="px-4 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#1a1204] text-[13px] font-semibold">Continue</button>`
+    : `<button id="wz-create" class="px-4 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[13px] font-semibold">Create partner</button>`;
+
+  $("#modal-wizard .modal-card").innerHTML = `
+    <div class="p-5">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <div class="text-[16px] font-bold">Onboard robot API</div>
+          <div class="text-[11px] text-ink-dim">register a 3rd-party robot platform, unlock its API, set governance</div>
+        </div>
+        <button id="wz-x" class="text-ink-dim hover:text-ink text-[18px] leading-none">✕</button>
+      </div>
+      <div class="step-dots mt-4 mb-4 flex-wrap">${dots}</div>
+      <div>${bodyHtml}</div>
+      <div class="mt-5 flex items-center justify-between">
+        ${backBtn}
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] text-ink-dim">Step ${wz.step} of 4</span>
+          ${nextBtn}
+        </div>
+      </div>
+    </div>`;
+  wireWizard();
+}
+
+function wireWizard() {
+  const card = $("#modal-wizard .modal-card");
+  const wz = state.wizard, d = wz.data;
+  card.querySelector("#wz-x").onclick = closeWizard;
+  const cancel = card.querySelector("#wz-cancel");
+  if (cancel) cancel.onclick = closeWizard;
+  const back = card.querySelector("#wz-back");
+  if (back) back.onclick = () => { wz.step--; renderWizard(); };
+
+  if (wz.step === 1) {
+    const bind = (id, key) => { const e = card.querySelector(id); if (e) e.oninput = () => { d[key] = e.value; }; };
+    bind("#wz-company", "company_name"); bind("#wz-email", "contact_email");
+    bind("#wz-website", "website"); bind("#wz-custom", "customVendor");
+    card.querySelector("#wz-vendor").onchange = (e) => {
+      d.vendor = e.target.value;
+      d.scopes = new Set();  // ceiling changed → reset picks
+      card.querySelector("#wz-custom-wrap").classList.toggle("hidden", d.vendor !== "__other__");
+    };
+    card.querySelector("#wz-transport").onchange = (e) => { d.transport = e.target.value; };
+  } else if (wz.step === 2) {
+    card.querySelectorAll(".wz-scope").forEach((lbl) => {
+      const scope = lbl.dataset.scope;
+      const cb = lbl.querySelector("input");
+      if (cb.disabled) return;
+      lbl.onclick = (e) => {
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (cb.checked) d.scopes.add(scope); else d.scopes.delete(scope);
+        lbl.classList.toggle("on", cb.checked);
+      };
+    });
+  } else if (wz.step === 3) {
+    const sp = card.querySelector("#wz-speed"), spv = card.querySelector("#wz-speed-val");
+    sp.oninput = () => { d.policies.max_speed_mps = +sp.value; spv.textContent = (+sp.value).toFixed(2) + " m/s"; };
+    const dr = card.querySelector("#wz-drift"), drv = card.querySelector("#wz-drift-val");
+    dr.oninput = () => { d.policies.drift_halt_threshold_m = +dr.value; drv.textContent = (+dr.value).toFixed(2) + " m"; };
+    card.querySelector("#wz-autoestop").onchange = (e) => { d.policies.auto_estop_on_critical = e.target.checked; };
+    card.querySelector("#wz-teleop").onchange = (e) => { d.policies.require_approval_for_teleop = e.target.checked; };
+    card.querySelector("#wz-geofence").oninput = (e) => { d.policies.geofence = e.target.value; };
+  }
+
+  const next = card.querySelector("#wz-next");
+  if (next) next.onclick = () => {
+    if (wz.step === 1 && !wzStep1Valid()) { toast("Fill company, a valid email, and a vendor", "warn"); return; }
+    wz.step++; renderWizard();
+  };
+  const create = card.querySelector("#wz-create");
+  if (create) create.onclick = createOEM;
+}
+
+async function createOEM() {
+  const d = state.wizard.data;
+  const body = {
+    company_name: d.company_name.trim(),
+    vendor: wzVendorName(),
+    contact_email: d.contact_email.trim(),
+    transport: d.transport,
+    website: d.website.trim() || null,
+    scopes: [...d.scopes],
+    policies: d.policies,
+  };
+  const btn = $("#modal-wizard #wz-create");
+  if (btn) { btn.disabled = true; btn.textContent = "Creating…"; }
+  try {
+    state.wizard.result = await postJSON("/api/dashboard/oems", body);
+    renderWizardDone();
+    loadOEMs();
+  } catch (e) {
+    toast(`Failed: ${e.detail}`, "warn");
+    if (btn) { btn.disabled = false; btn.textContent = "Create partner"; }
+  }
+}
+
+function renderWizardDone() {
+  const { profile, credential } = state.wizard.result;
+  const scopes = profile.granted_scopes || [];
+  const readiness = `${profile.monitor_ready ? '<span class="text-brand">monitor-ready</span>' : '<span class="text-ink-dim">monitor pending</span>'} · ${profile.control_ready ? '<span class="text-brand">control-ready</span>' : '<span class="text-ink-dim">control pending</span>'}`;
+  $("#modal-wizard .modal-card").innerHTML = `
+    <div class="p-5">
+      <div class="flex items-center gap-2.5">
+        <span class="w-9 h-9 rounded-full flex items-center justify-center glow-green" style="background:rgba(0,190,125,0.12);border:1px solid rgba(0,190,125,0.5);color:#00be7d">✓</span>
+        <div>
+          <div class="text-[16px] font-bold">${esc(profile.company_name)} onboarded</div>
+          <div class="text-[11px] text-ink-dim">${esc(profile.oem_id)} · ${esc(profile.vendor)} · ${esc(profile.transport)} · ${readiness}</div>
+        </div>
+      </div>
+      <div class="mt-4 rounded-lg border p-3" style="background:rgba(255,160,31,0.06);border-color:rgba(255,160,31,0.35)">
+        <div class="text-[11px] text-cta font-semibold uppercase tracking-wide mb-1">⚠ API key — shown once</div>
+        <div class="text-[11px] text-ink-mut mb-2">Give this to the partner. Orbital stores only a hash; it can't be recovered.</div>
+        <div class="flex items-center gap-2">
+          <code class="flex-1 mono text-[12px] bg-surface-input border border-line rounded-md px-2.5 py-2 break-all">${esc(credential.api_key)}</code>
+          <button id="wz-copy" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[12px] whitespace-nowrap">Copy</button>
+        </div>
+      </div>
+      <div class="mt-3">
+        <div class="text-[11px] text-ink-mut mb-1.5">Permissions unlocked (${scopes.length})</div>
+        <div class="flex flex-wrap gap-1.5">
+          ${scopes.length ? scopes.map((s) => `<span class="mono text-[10px] px-1.5 py-0.5 rounded bg-brand/10 text-brand">${s}</span>`).join("") : '<span class="text-[12px] text-ink-dim">None yet — partner is pending. Grant scopes from OEM Partners.</span>'}
+        </div>
+      </div>
+      <div class="mt-5 flex justify-end gap-2">
+        <button id="wz-done" class="px-4 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[13px] font-semibold">Done</button>
+      </div>
+    </div>`;
+  const copy = $("#modal-wizard #wz-copy");
+  copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(credential.api_key); copy.textContent = "Copied ✓"; }
+    catch (_) { toast("Copy failed — select manually", "warn"); }
+  };
+  $("#modal-wizard #wz-done").onclick = () => { closeWizard(); document.getElementById("sec-partners")?.scrollIntoView({ behavior: "smooth" }); };
+}
+
+function closeWizard() { $("#modal-wizard").classList.add("hidden"); state.wizard = null; }
+
 // ── boot ─────────────────────────────────────────────────────────────────────
 async function init() {
   initRail();
   $("#btn-dispatch").onclick = () => openDispatch();
+  $("#btn-onboard").onclick = () => openWizard();
+  const onboard2 = $("#btn-onboard-2"); if (onboard2) onboard2.onclick = () => openWizard();
   document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModals(); }));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModals(); });
 
@@ -827,6 +1248,7 @@ async function init() {
   state.alerts = await getJSON("/api/dashboard/alerts");
   renderAlerts();
   await loadBenchmark();
+  await loadCatalog();
   await loadOEMs();
   await loadOrchestrator();
   setInterval(loadBenchmark, 5000);
