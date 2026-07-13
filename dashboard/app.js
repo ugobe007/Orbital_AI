@@ -387,11 +387,21 @@ function renderControlPanel() {
       <span class="text-[10px] px-2 py-0.5 rounded-full ${bg} ${fg} whitespace-nowrap">${label}</span>
     </div>
 
-    ${r.mission ? `<div class="mt-2 rounded-lg border border-line p-2" style="background:#12101f">
-      <div class="text-[9.5px] uppercase tracking-wide text-ink-dim">Current mission</div>
-      <div class="text-[12px] font-medium mt-0.5">${esc(r.mission)}</div>
-      <div class="text-[10.5px] mt-0.5"><span style="color:${PHASE_COLOR[r.mission_phase] || "#5b667a"}">●</span> ${esc(r.current_task || PHASE_LABEL[r.mission_phase] || "")}</div>
-    </div>` : ""}
+    ${(() => {
+      // Always explain what this robot is doing right now (mission if it has one, else its state).
+      const missionText = r.mission
+        || (r.state === "charging" ? "Charging at the dock"
+          : r.state === "halted" ? "Safety stop engaged — awaiting resume"
+          : r.state === "idle" ? "Idle — will join the next sequence"
+          : "Autonomous patrol");
+      const activity = r.current_task || PHASE_LABEL[r.mission_phase] || MODE_LABEL[r.control_mode] || "";
+      const col = PHASE_COLOR[r.mission_phase] || "#5b667a";
+      return `<div class="mt-2 rounded-lg border p-2" style="background:#12101f;border-color:#2a2440">
+        <div class="text-[9px] uppercase tracking-wide text-ink-dim">What it's doing now</div>
+        <div class="text-[12px] font-medium mt-0.5 leading-snug">${esc(missionText)}</div>
+        ${activity ? `<div class="text-[10.5px] text-ink-mut mt-0.5"><span style="color:${col}">●</span> ${esc(activity)}</div>` : ""}
+      </div>`;
+    })()}
 
     <div class="mt-2.5 rounded-lg bg-surface-raised border border-line p-2.5 ${dim(canVel)}">
       ${sectionHead("Drive", "control.velocity", canVel)}
