@@ -65,16 +65,17 @@ const STATE_STYLE = {
   active:   ["bg-brand/15", "text-brand", "Active"],
   idle:     ["bg-cta/15", "text-cta", "Idle"],
   charging: ["bg-azure/15", "text-azure", "Charging"],
+  cooldown: ["bg-red-500/15", "text-red-400", "Task done"],
   halted:   ["bg-red-500/20", "text-red-400", "Halted"],
   offline:  ["bg-white/[0.06]", "text-ink-dim", "Offline"],
 };
 const MODE_LABEL = {
   patrol: "Autonomous patrol", visual_nav: "Visual-nav (SLAM bypass)", manual: "Manual jog",
-  charging: "Charging", halted: "Halted", idle: "Idle",
+  charging: "Charging", halted: "Halted", idle: "Idle", cooldown: "Between tasks",
 };
 const MODE_STYLE = {
   patrol: "text-ink-mut", visual_nav: "text-azure", manual: "text-cta",
-  charging: "text-azure", halted: "text-red-400", idle: "text-cta",
+  charging: "text-azure", halted: "text-red-400", idle: "text-cta", cooldown: "text-red-400",
 };
 // Resolve which scopes a vendor's OEM has unlocked (mirrors the cloud scope guard):
 // unmanaged vendors are permissive; suspended OEMs grant nothing.
@@ -94,17 +95,17 @@ function fmtTime(ts) { return new Date(ts * 1000).toLocaleTimeString(); }
 function renderStats() {
   const total = state.robots.length;
   const active = state.robots.filter((r) => r.state === "active").length;
+  const cooldown = state.robots.filter((r) => r.state === "cooldown").length;
   const nav = state.robots.filter((r) => r.control_mode === "visual_nav").length;
-  const manual = state.robots.filter((r) => r.control_mode === "manual").length;
   const halted = state.robots.filter((r) => r.state === "halted").length;
   const openAlerts = state.alerts.filter((a) => !a.acknowledged).length;
   const cards = [
     ["Fleet", total, "text-ink"],
-    ["Active", active, "text-brand"],
-    ["Visual-nav", nav, nav ? "text-brand" : "text-ink"],
-    ["Manual", manual, manual ? "text-amber-400" : "text-ink"],
+    ["Working", active, "text-brand"],
+    ["Between tasks", cooldown, cooldown ? "text-red-400" : "text-ink"],
+    ["Visual-nav", nav, nav ? "text-azure" : "text-ink"],
     ["Halted", halted, halted ? "text-red-400" : "text-ink"],
-    ["Open alerts", openAlerts, openAlerts ? "text-amber-400" : "text-ink"],
+    ["Open alerts", openAlerts, openAlerts ? "text-cta" : "text-ink"],
   ];
   const box = $("#stats"); box.innerHTML = "";
   for (const [label, val, cls] of cards) {
@@ -329,7 +330,7 @@ function renderCapabilities() {
 }
 
 // ── warehouse map ──────────────────────────────────────────────────────────────
-const ROBOT_FILL = { active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", halted: "#e5484d", offline: "#5b667a" };
+const ROBOT_FILL = { active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#5b667a" };
 
 async function loadMap() {
   try { state.map = await getJSON("/api/dashboard/map"); renderMap(); }
@@ -369,9 +370,17 @@ function renderMap() {
     p.push(`<text x="${c.x}" y="${Y(c.y) + 0.16}" fill="#3dbfe2" font-size="0.5" text-anchor="middle">⚡</text>`);
   }
 
+  const byId = Object.fromEntries(state.robots.map((r) => [r.id, r]));
   for (const r of state.robots) {
     const ex = r.pose_external, ins = r.pose_internal;
     const selected = r.id === state.selectedRobot;
+    // Hand-off link: dashed amber line to the peer that received this robot's payload.
+    const partner = r.handoff_partner ? byId[r.handoff_partner] : null;
+    if (partner) {
+      const pe = partner.pose_external;
+      p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${pe.x}" y2="${Y(pe.y)}" stroke="#ffa01f" stroke-width="0.05" stroke-dasharray="0.2 0.16" opacity="0.85"/>`);
+      p.push(`<circle cx="${pe.x}" cy="${Y(pe.y)}" r="0.16" fill="#ffa01f" opacity="0.9"/>`);
+    }
     if (r.waypoints && r.waypoints.length) {
       const pts = [`${ex.x},${Y(ex.y)}`, ...r.waypoints.map((w) => `${w.x},${Y(w.y)}`)].join(" ");
       p.push(`<polyline points="${pts}" fill="none" stroke="#00a5da" stroke-width="0.05" stroke-dasharray="0.25 0.18" opacity="0.9"/>`);
