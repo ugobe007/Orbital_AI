@@ -80,7 +80,7 @@
         <a href="#oem" class="link-underline hover:text-ink transition">For OEMs</a>
       </nav>
       <div class="flex-1"></div>
-      <a href="mailto:hello@orbital-ai.io?subject=Orbital%20AI%20—%20early%20access" class="hidden sm:inline text-[14px] text-ink-mut hover:text-ink transition">Request access</a>
+      <button type="button" data-contact="early-access" class="hidden sm:inline text-[14px] text-ink-mut hover:text-ink transition">Request access</button>
       <a href="/app/" class="px-3.5 py-2 rounded-md text-[13.5px] font-semibold transition glow-blue flex items-center gap-1.5" style="background:#0e2230; border:1px solid rgba(0,165,218,0.5); color:#7fd6f2">
         Launch live demo
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -277,7 +277,7 @@
         </div>
         <div class="mt-8 flex flex-wrap gap-3">
           <a href="/app/" class="px-5 py-3 rounded-lg text-[15px] font-semibold transition glow-blue flex items-center gap-2" style="background:#0e2230; border:1px solid rgba(0,165,218,0.6); color:#bfeaff">Onboard a fleet</a>
-          <a href="mailto:partners@orbital-ai.io?subject=Orbital%20AI%20—%20OEM%20partnership" class="px-5 py-3 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0c0f17; border:1px solid var(--line)">Talk partnerships</a>
+          <button type="button" data-contact="partnership" class="px-5 py-3 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0c0f17; border:1px solid var(--line)">Talk partnerships</button>
         </div>
       </div>
       <div class="card p-6 reveal glow-soft">
@@ -302,7 +302,7 @@
           Launch the live demo
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
-        <a href="mailto:hello@orbital-ai.io?subject=Orbital%20AI%20—%20early%20access" class="px-6 py-3.5 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0a0d14; border:1px solid var(--line)">Request early access</a>
+        <button type="button" data-contact="early-access" class="px-6 py-3.5 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0a0d14; border:1px solid var(--line)">Request early access</button>
       </div>
     </div>
   </section>
@@ -323,6 +323,43 @@
     </div>
   </footer>
 
+  <!-- ───────────────────── Contact modal ───────────────────── -->
+  <div id="contact-modal" class="fixed inset-0 z-50 hidden items-center justify-center px-4" style="background:rgba(5,7,11,.72); backdrop-filter:blur(4px)">
+    <div class="card w-full max-w-lg glow-soft" style="border-color:var(--line)">
+      <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-line">
+        <div>
+          <div class="mono text-[11px] eyebrow uppercase text-ink-dim">Get in touch</div>
+          <h3 id="contact-title" class="mt-1 text-[19px] font-semibold">Request early access</h3>
+        </div>
+        <button type="button" id="contact-close" class="text-ink-dim hover:text-ink transition" aria-label="Close">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="contact-form" class="px-6 py-5 space-y-4">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block mono text-[11px] eyebrow uppercase text-ink-dim mb-1.5">Name</label>
+            <input name="name" required maxlength="120" class="w-full rounded-lg px-3 py-2.5 text-[14px] text-ink outline-none focus:ring-1" style="background:#0a0d14;border:1px solid var(--line)" />
+          </div>
+          <div>
+            <label class="block mono text-[11px] eyebrow uppercase text-ink-dim mb-1.5">Work email</label>
+            <input name="email" type="email" required maxlength="200" class="w-full rounded-lg px-3 py-2.5 text-[14px] text-ink outline-none focus:ring-1" style="background:#0a0d14;border:1px solid var(--line)" />
+          </div>
+        </div>
+        <div>
+          <label class="block mono text-[11px] eyebrow uppercase text-ink-dim mb-1.5">Message <span class="text-ink-dim normal-case">(optional)</span></label>
+          <textarea name="message" rows="4" maxlength="4000" placeholder="Tell us about your fleet, OEM, or use case…" class="w-full rounded-lg px-3 py-2.5 text-[14px] text-ink outline-none focus:ring-1 resize-none" style="background:#0a0d14;border:1px solid var(--line)"></textarea>
+        </div>
+        <input type="text" name="company_url" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true" />
+        <div id="contact-status" class="text-[13.5px] hidden"></div>
+        <div class="flex items-center justify-end gap-3 pt-1">
+          <button type="button" id="contact-cancel" class="px-4 py-2.5 rounded-lg text-[14px] font-medium text-ink-mut hover:text-ink transition" style="background:#0c0f17;border:1px solid var(--line)">Cancel</button>
+          <button type="submit" id="contact-submit" class="px-5 py-2.5 rounded-lg text-[14px] font-semibold transition glow-blue flex items-center gap-2" style="background:#0e2230;border:1px solid rgba(0,165,218,0.6);color:#bfeaff">Send message</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
 
@@ -340,6 +377,83 @@
       }, { rootMargin: "300px" });
       fio.observe(frame);
     }
+
+    // ───────── Contact modal ─────────
+    const modal = document.getElementById("contact-modal");
+    const form = document.getElementById("contact-form");
+    const statusEl = document.getElementById("contact-status");
+    const titleEl = document.getElementById("contact-title");
+    const submitBtn = document.getElementById("contact-submit");
+    let currentTopic = "early-access";
+
+    const TOPIC_COPY = {
+      "early-access": "Request early access",
+      "partnership": "Talk partnerships",
+      "general": "Get in touch",
+    };
+
+    function setStatus(msg, ok) {
+      statusEl.textContent = msg;
+      statusEl.style.color = ok ? "#00be7d" : "#ff7a7a";
+      statusEl.classList.toggle("hidden", !msg);
+    }
+
+    function openModal(topic) {
+      currentTopic = topic || "general";
+      titleEl.textContent = TOPIC_COPY[currentTopic] || TOPIC_COPY.general;
+      setStatus("", true);
+      form.reset();
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Send message";
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+      const first = form.querySelector('input[name="name"]');
+      if (first) setTimeout(() => first.focus(), 40);
+    }
+
+    function closeModal() {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    document.querySelectorAll("[data-contact]").forEach((btn) => {
+      btn.addEventListener("click", () => openModal(btn.getAttribute("data-contact")));
+    });
+    document.getElementById("contact-close").addEventListener("click", closeModal);
+    document.getElementById("contact-cancel").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal(); });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form).entries());
+      data.topic = currentTopic;
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending…";
+      setStatus("", true);
+      try {
+        const res = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body.ok) {
+          setStatus("Thanks — your message is on its way. We'll be in touch shortly.", true);
+          form.reset();
+          submitBtn.textContent = "Sent ✓";
+          setTimeout(closeModal, 2200);
+        } else {
+          setStatus(body.error || "Something went wrong. Please try again.", false);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Send message";
+        }
+      } catch (err) {
+        setStatus("Network error — please email hello@orbital-ai.io.", false);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send message";
+      }
+    });
   </script>
 </body>
 </html>

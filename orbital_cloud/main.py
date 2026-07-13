@@ -14,10 +14,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, orchestrator, simulator
+from . import __version__, contact, inbox, orchestrator, simulator
 from .config import settings
 from .events import hub
 from .models import APIScope, ControlTransport
@@ -70,9 +70,19 @@ app.add_middleware(
 )
 
 @app.middleware("http")
-async def _revalidate_html(request, call_next):
-    """Always revalidate the SPA entry so a redeploy's cache-busted asset URLs are picked up
-    immediately (StaticFiles has no cache-control by default, so browsers cache heuristically)."""
+async def _canonical_and_cache(request, call_next):
+    """Canonical host + cache control.
+
+    - 301 the www subdomain to the apex so search engines see a single canonical URL.
+    - Always revalidate the SPA entry so a redeploy's cache-busted asset URLs are picked
+      up immediately (StaticFiles has no cache-control by default, so browsers cache
+      heuristically)."""
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    if host == "www.orbital-ai.io":
+        target = f"https://orbital-ai.io{request.url.path}"
+        if request.url.query:
+            target += f"?{request.url.query}"
+        return RedirectResponse(url=target, status_code=301)
     response = await call_next(request)
     if response.headers.get("content-type", "").startswith("text/html"):
         response.headers["Cache-Control"] = "no-cache"
@@ -82,6 +92,8 @@ async def _revalidate_html(request, call_next):
 app.include_router(dashboard.router)
 app.include_router(edge.router)
 app.include_router(oem.router)
+app.include_router(contact.router)
+app.include_router(inbox.router)
 
 
 @app.get("/health")

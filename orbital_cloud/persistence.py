@@ -44,6 +44,11 @@ def init_db() -> None:
     with _lock, _connect() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS oem_partners (id TEXT PRIMARY KEY, key_hash TEXT, data TEXT)")
         conn.execute("CREATE TABLE IF NOT EXISTS waypoints (robot_id TEXT PRIMARY KEY, data TEXT)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS inbox ("
+            "id TEXT PRIMARY KEY, received_at TEXT, source TEXT, from_addr TEXT, "
+            "to_addr TEXT, subject TEXT, body TEXT, read INTEGER DEFAULT 0)"
+        )
 
 
 # ── OEM partners ──────────────────────────────────────────────────────────────
@@ -91,3 +96,49 @@ def load_waypoints() -> dict[str, list[list[float]]]:
     with _lock, _connect() as conn:
         rows = conn.execute("SELECT robot_id, data FROM waypoints").fetchall()
     return {rid: json.loads(data) for rid, data in rows}
+
+
+# ── Inbox (contact-form submissions + inbound email to @orbital-ai.io) ─────────
+def save_inbox_message(
+    msg_id: str, received_at: str, source: str,
+    from_addr: str, to_addr: str, subject: str, body: str,
+) -> bool:
+    """Persist one message. Returns False (no-op) when the DB is disabled, so callers
+    can fall back to a non-persistent notification path in local dev / tests."""
+    if not enabled():
+        return False
+    with _lock, _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO inbox "
+            "(id, received_at, source, from_addr, to_addr, subject, body, read) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+            (msg_id, received_at, source, from_addr, to_addr, subject, body),
+        )
+    return True
+
+
+def load_inbox_messages(limit: int = 100) -> list[dict]:
+    if not enabled():
+        return []
+    with _lock, _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, received_at, source, from_addr, to_addr, subject, body, read "
+            "FROM inbox ORDER BY received_at DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+    cols = ("id", "received_at", "source", "from_addr", "to_addr", "subject", "body", "read")
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def mark_inbox_read(msg_id: str) -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("UPDATE inbox SET read = 1 WHERE id = ?", (msg_id,))
+
+
+def inbox_unread_count() -> int:
+    if not enabled():
+        return 0
+    with _lock, _connect() as conn:
+        return int(conn.execute("SELECT COUNT(*) FROM inbox WHERE read = 0").fetchone()[0])
