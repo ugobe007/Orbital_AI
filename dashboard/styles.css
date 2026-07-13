@@ -162,7 +162,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .ticker-track {
   display: inline-flex; align-items: center; gap: 0;
-  animation: ticker-scroll 42s linear infinite;
+  animation: ticker-scroll 84s linear infinite;
   will-change: transform;
 }
 .ticker:hover .ticker-track { animation-play-state: paused; }

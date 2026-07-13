@@ -679,24 +679,40 @@ async function loadOrchestrator() {
 
 // ── alerts ────────────────────────────────────────────────────────────────────
 const SEV_STYLE = { critical: "text-red-400", warning: "text-amber-400", info: "text-sky-300" };
+const SEV_DOT = { critical: "#ff3b6b", warning: "#ffa01f", info: "#3dbfe2" };
+async function ackAlert(id) {
+  const a = state.alerts.find((x) => x.id === id);
+  if (!a || a.acknowledged) return;
+  await postJSON(`/api/dashboard/alerts/${id}/ack`);
+  a.acknowledged = true;
+}
 function renderAlerts() {
-  $("#alert-count").textContent = state.alerts.filter((a) => !a.acknowledged).length;
+  const unacked = state.alerts.filter((a) => !a.acknowledged);
+  $("#alert-count").textContent = unacked.length;
+  const ackAllBtn = $("#ack-all");
+  if (ackAllBtn) {
+    ackAllBtn.classList.toggle("hidden", unacked.length === 0);
+    ackAllBtn.onclick = async () => {
+      await Promise.all(unacked.map((a) => ackAlert(a.id)));
+      renderAlerts(); renderStats();
+    };
+  }
   const box = $("#alerts");
   box.innerHTML = "";
-  if (!state.alerts.length) { box.appendChild(el(`<div class="px-4 py-6 text-[13px] text-ink-dim">No alerts. Fleet nominal.</div>`)); return; }
-  for (const a of state.alerts.slice(0, 60)) {
-    const sev = SEV_STYLE[a.severity] || "text-ink-mut";
+  if (!state.alerts.length) { box.appendChild(el(`<div class="px-4 py-5 text-[12px] text-ink-dim">No alerts. Fleet nominal.</div>`)); return; }
+  // Unacknowledged first, then most-recent acknowledged — dense single-line rows.
+  const ordered = [...state.alerts].sort((a, b) => (a.acknowledged - b.acknowledged) || (b.ts - a.ts));
+  for (const a of ordered.slice(0, 60)) {
+    const dot = SEV_DOT[a.severity] || "#828c9b";
+    const detail = a.message || a.type;
     const row = el(`
-      <div class="px-4 py-2.5 ${a.acknowledged ? "opacity-45" : ""}">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[10.5px] font-semibold ${sev} uppercase tracking-wide">${esc(a.type)}</span>
-          <span class="text-[10.5px] text-ink-dim mono">${fmtTime(a.ts)}</span>
-        </div>
-        <div class="text-[12.5px] mt-1 text-ink-mut">${esc(a.message)}</div>
-        ${a.acknowledged ? "" : `<button class="mt-1.5 text-[11px] text-brand hover:underline">Acknowledge</button>`}
+      <div class="group flex items-center gap-2 px-3 py-1.5 ${a.acknowledged ? "opacity-40" : "cursor-pointer hover:bg-surface-raised/60"}" title="${esc(a.type)} · ${esc(a.message || "")}">
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${dot}"></span>
+        <span class="text-[11.5px] text-ink-mut truncate flex-1">${esc(detail)}</span>
+        <span class="text-[9.5px] text-ink-dim mono shrink-0">${fmtTime(a.ts)}</span>
+        ${a.acknowledged ? `<span class="text-[9px] text-ink-dim shrink-0">✓</span>` : `<span class="ack text-[10px] text-brand shrink-0 opacity-0 group-hover:opacity-100">ack</span>`}
       </div>`);
-    const ack = row.querySelector("button");
-    if (ack) ack.onclick = async () => { await postJSON(`/api/dashboard/alerts/${a.id}/ack`); a.acknowledged = true; renderAlerts(); renderStats(); };
+    if (!a.acknowledged) row.onclick = async () => { await ackAlert(a.id); renderAlerts(); renderStats(); };
     box.appendChild(row);
   }
 }
