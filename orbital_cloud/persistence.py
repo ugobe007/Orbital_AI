@@ -64,6 +64,13 @@ def load_oems() -> list[tuple[str, str, str]]:
         return list(conn.execute("SELECT id, key_hash, data FROM oem_partners").fetchall())
 
 
+def delete_oem(oem_id: str) -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("DELETE FROM oem_partners WHERE id = ?", (oem_id,))
+
+
 # ── Waypoints ─────────────────────────────────────────────────────────────────
 def save_waypoints(robot_id: str, points: list[list[float]]) -> None:
     if not enabled():

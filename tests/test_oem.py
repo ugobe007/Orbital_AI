@@ -105,6 +105,18 @@ def test_wizard_onboard_grants_scopes_and_sets_policies():
     assert prof["policies"]["geofence"] == "zone-a"
 
 
+def test_operator_can_remove_partner():
+    out = client.post("/api/dashboard/oems", json={
+        "company_name": "Temp Co", "vendor": "Unitree",
+        "contact_email": "t@temp.example", "transport": "ros2",
+    }).json()
+    oem_id = out["profile"]["oem_id"]
+    assert client.get(f"/api/dashboard/oems/{oem_id}").status_code == 200
+    assert client.delete(f"/api/dashboard/oems/{oem_id}").status_code == 200
+    assert client.get(f"/api/dashboard/oems/{oem_id}").status_code == 404
+    assert client.delete(f"/api/dashboard/oems/{oem_id}").status_code == 404
+
+
 def test_wizard_onboard_drops_scopes_outside_ceiling():
     # Boston Dynamics can't expose control.velocity — onboarding must drop it.
     r = client.post("/api/dashboard/oems", json={

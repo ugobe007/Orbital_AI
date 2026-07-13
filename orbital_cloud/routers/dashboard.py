@@ -294,6 +294,13 @@ async def operator_revoke(oem_id: str, body: ScopeGrantIn) -> IntegrationProfile
     return _profile_or_404(oem_id)
 
 
+@router.delete("/oems/{oem_id}")
+async def remove_oem(oem_id: str) -> dict:
+    if not oem_store.remove(oem_id):
+        raise HTTPException(status_code=404, detail="OEM not found")
+    return {"ok": True, "oem_id": oem_id}
+
+
 @router.post("/oems/{oem_id}/suspend", response_model=IntegrationProfile)
 async def suspend_oem(oem_id: str) -> IntegrationProfile:
     if oem_store.set_status(oem_id, OEMStatus.SUSPENDED) is None:

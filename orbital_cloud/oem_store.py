@@ -157,6 +157,17 @@ class OEMStore:
             self._persist(oem_id)
             return rec.partner
 
+    def remove(self, oem_id: str) -> bool:
+        """Delete a partner entirely (operator off-boarding). Robots of this vendor fall
+        back to whatever other partner (if any) is registered for the vendor."""
+        with self._lock:
+            rec = self._by_id.pop(oem_id, None)
+            if rec is None:
+                return False
+            self._id_by_hash.pop(rec.key_hash, None)
+            persistence.delete_oem(oem_id)
+            return True
+
     # ── Reads ────────────────────────────────────────────────────────────────────
     def get(self, oem_id: str) -> Optional[OEMPartner]:
         with self._lock:

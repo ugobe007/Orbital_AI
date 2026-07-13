@@ -712,7 +712,10 @@ async function openOEM(oemId) {
         </div>
       </div>` : ""}
       <div class="mt-5 flex gap-2 justify-between items-center">
-        <button id="oem-suspend" class="px-3 py-2 rounded-md text-[13px] ${suspended ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input hover:bg-line-strong text-red-400"}">${suspended ? "Reactivate" : "Suspend access"}</button>
+        <div class="flex gap-2">
+          <button id="oem-suspend" class="px-3 py-2 rounded-md text-[13px] ${suspended ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input hover:bg-line-strong text-red-400"}">${suspended ? "Reactivate" : "Suspend access"}</button>
+          <button id="oem-remove" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px] text-ink-dim hover:text-red-400" title="Off-board this partner">Remove</button>
+        </div>
         <div class="flex gap-2">
           <button id="oem-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>
           <button id="oem-save" class="px-3 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#1a1204] text-[13px] font-semibold">Save scopes</button>
@@ -720,6 +723,13 @@ async function openOEM(oemId) {
       </div>
     </div>`;
   card.querySelector("#oem-cancel").onclick = closeModals;
+  card.querySelector("#oem-remove").onclick = async () => {
+    const btn = card.querySelector("#oem-remove");
+    if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Click again to confirm"; btn.classList.add("text-red-400"); return; }
+    await reqJSON("DELETE", `/api/dashboard/oems/${oemId}`);
+    closeModals(); loadOEMs(); loadFleetSoon();
+    toast(`${o.company_name} off-boarded`);
+  };
   card.querySelector("#oem-suspend").onclick = async () => {
     await postJSON(`/api/dashboard/oems/${oemId}/${suspended ? "reactivate" : "suspend"}`);
     closeModals(); loadOEMs();
