@@ -15,6 +15,7 @@ class RobotState(str, Enum):
     ACTIVE = "active"            # executing a task under ARIA correction
     IDLE = "idle"               # connected, no task
     CHARGING = "charging"
+    COOLDOWN = "cooldown"       # task complete — paused between tasks (shown red)
     HALTED = "halted"           # safety E-Stop engaged
     OFFLINE = "offline"
 
@@ -81,6 +82,9 @@ class RobotSummary(BaseModel):
     drift_delta_m: float           # euclidean(external, internal)
     current_task: Optional[str] = None
     error_code: Optional[str] = None
+    # Autonomous task cycle: the robot this one just handed its payload off to (drawn as a
+    # transient link on the map during the cooldown pause). None outside a hand-off.
+    handoff_partner: Optional[str] = None
     # Visual-nav state (operator waypoints set on the map; drives external pose).
     visual_nav: bool = False
     nav_goal: Optional[Point] = None

@@ -113,18 +113,103 @@ def _patrol(i: int) -> list[tuple[float, float]]:
     return path
 
 
+# Open-floor task stations (pickup/drop points in the aisles, bays, dock and stage). Robots
+# shuttle payloads between these and hand off to peers — a legible warehouse work loop.
+_STATIONS: list[tuple[str, float, float]] = [
+    ("Dock", 12.0, 14.0),
+    ("Aisle AB", 5.2, 5.5),
+    ("Aisle BC", 8.7, 5.5),
+    ("Aisle DE", 5.2, 12.0),
+    ("Aisle EF", 8.7, 12.0),
+    ("Bay G", 14.6, 3.6),
+    ("Bay H", 14.6, 6.6),
+    ("Bay I", 14.6, 9.6),
+    ("Stage", 13.0, 11.5),
+]
+
+
+def _assign_task(robot: RobotRuntime) -> None:
+    """Put a robot on its next delivery (green/ACTIVE). If a peer handed it a payload, the
+    target is that hand-off point; otherwise pick a fresh station."""
+    if robot.pending_pickup is not None:
+        tx, ty = robot.pending_pickup
+        label = "inbound hand-off"
+        robot.pending_pickup = None
+    else:
+        label, tx, ty = random.choice(_STATIONS)
+    robot.task_target = (tx, ty)
+    robot.current_task = f"Delivering → {label}"
+    robot.handoff_partner = None
+    robot.cooldown_until = None
+    robot.state = RobotState.ACTIVE
+
+
+def _handoff_target(robot: RobotRuntime) -> RobotRuntime | None:
+    """Pick a peer to receive the finished payload: prefer a robot already paused between
+    tasks (or idle-in-cycle), else a busy peer without a pending pickup. Nearest wins."""
+    cands = [
+        r for r in store.robots.values()
+        if r.id != robot.id
+        and r.state in (RobotState.COOLDOWN, RobotState.ACTIVE)
+        and r.error_code is None
+        and not r.nav_queue and r.manual_heading is None
+        and r.pending_pickup is None
+    ]
+    if not cands:
+        return None
+    cands.sort(key=lambda r: (
+        0 if r.state == RobotState.COOLDOWN else 1,
+        math.hypot(r.pose_external.x - robot.pose_external.x, r.pose_external.y - robot.pose_external.y),
+    ))
+    return cands[0]
+
+
+def _complete_task(robot: RobotRuntime) -> None:
+    """Finish the current delivery: hand the payload to a peer, then go red (COOLDOWN) and
+    pause before the next task."""
+    partner = _handoff_target(robot)
+    if partner is not None:
+        partner.pending_pickup = (robot.pose_external.x, robot.pose_external.y)
+        robot.handoff_partner = partner.id
+        robot.current_task = f"Task complete → hand-off to {partner.id}"
+    else:
+        robot.handoff_partner = None
+        robot.current_task = "Task complete — awaiting next"
+    robot.task_target = None
+    robot.state = RobotState.COOLDOWN
+    robot.cooldown_until = time.time() + settings.task_pause_s
+
+
+def _advance_point(robot: RobotRuntime, dt: float, target: tuple[float, float]) -> bool:
+    """Drive the camera-observed pose straight to a point; return True on arrival."""
+    tx, ty = target
+    x, y = robot.pose_external.x, robot.pose_external.y
+    dx, dy = tx - x, ty - y
+    dist = math.hypot(dx, dy)
+    step = robot.speed_mps * dt
+    if dist <= step or dist == 0.0:
+        theta = math.atan2(dy, dx) if dist else robot.pose_external.theta
+        robot.pose_external = robot.pose_external.model_copy(update={"x": tx, "y": ty, "theta": theta})
+        return True
+    nx, ny = x + dx / dist * step, y + dy / dist * step
+    robot.pose_external = robot.pose_external.model_copy(update={"x": nx, "y": ny, "theta": math.atan2(dy, dx)})
+    return False
+
+
 def prime() -> None:
-    """Assign patrol trajectories and start most of the fleet on an autonomous task."""
+    """Seed the fleet on the autonomous task cycle; leave one robot idle to show that state."""
     for idx, robot in enumerate(store.robots.values()):
-        robot.trajectory = _patrol(idx)
-        robot.traj_index = 0
-        start = robot.trajectory[0]
-        robot.pose_external = robot.pose_external.model_copy(update={"x": start[0], "y": start[1]})
+        start = _STATIONS[idx % len(_STATIONS)]
+        robot.pose_external = robot.pose_external.model_copy(update={"x": start[1], "y": start[2]})
         robot.pose_internal = robot.pose_external.model_copy()
-        # Leave one robot idle to exercise that state; the rest patrol.
         if idx % 5 != 4:
-            robot.state = RobotState.ACTIVE
-            robot.current_task = "Autonomous patrol"
+            # Stagger initial tasks so the fleet's start/stop rhythm is desynchronized.
+            _assign_task(robot)
+            if idx % 3 == 0:
+                robot.state = RobotState.COOLDOWN
+                robot.task_target = None
+                robot.current_task = "Task complete — awaiting next"
+                robot.cooldown_until = time.time() + (idx % 5) * 2.0
     # Re-apply any operator waypoints that were set before a restart.
     store.restore_waypoints()
 
@@ -234,13 +319,31 @@ async def _tick(dt: float) -> list[AlertIn]:
                     robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
             continue
 
+        if robot.state == RobotState.COOLDOWN:
+            # Task done — hold position (red) until the pause elapses, then take the next task.
+            if robot.cooldown_until is None or time.time() >= robot.cooldown_until:
+                _assign_task(robot)              # → ACTIVE (green); falls through to move below
+            else:
+                _update_drift(robot)
+                store.ingest_telemetry(
+                    TelemetryIn(
+                        robot_id=robot.id, vendor=robot.vendor, model=robot.model,
+                        facility_id=settings.facility_id, delta_meters=robot.drift_delta_m,
+                        **_sensors(robot),
+                    )
+                )
+                continue
+
         if robot.state == RobotState.ACTIVE:
             if robot.nav_queue:
                 _advance_nav(robot, dt)          # operator waypoint via visual control
             elif robot.manual_heading is not None:
                 _advance_manual(robot, dt)       # operator manual jog (heading + speed)
             else:
-                _advance_external(robot, dt)     # default autonomous patrol
+                if robot.task_target is None:
+                    _assign_task(robot)          # ensure an autonomous robot always has work
+                if _advance_point(robot, dt, robot.task_target):  # arrived at the delivery target
+                    _complete_task(robot)        # hand off + go red for the cooldown pause
             robot.battery_pct = max(0.0, robot.battery_pct - 0.05)
             if robot.battery_pct < 15.0:
                 robot.state = RobotState.CHARGING

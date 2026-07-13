@@ -59,6 +59,14 @@ class RobotRuntime:
         self.drift_bias: tuple[float, float] = (0.0, 0.0)
         self.spike_ticks: int = 0
 
+        # Autonomous task cycle: a discrete delivery target, the peer a finished payload was
+        # handed to, an inbound pickup handed from a peer, and the timestamp the between-task
+        # cooldown (state=COOLDOWN, shown red) ends.
+        self.task_target: Optional[tuple[float, float]] = None
+        self.handoff_partner: Optional[str] = None
+        self.pending_pickup: Optional[tuple[float, float]] = None
+        self.cooldown_until: Optional[float] = None
+
         # Visual-nav: operator waypoints (map coords). When non-empty, the robot is driven
         # to them via Orbital's camera-based control, overriding the patrol/SLAM path.
         self.nav_queue: list[tuple[float, float]] = []
@@ -80,6 +88,8 @@ class RobotRuntime:
     def control_mode(self) -> str:
         if self.state == RobotState.HALTED:
             return "halted"
+        if self.state == RobotState.COOLDOWN:
+            return "cooldown"
         if self.state == RobotState.CHARGING:
             return "charging"
         if self.nav_queue:
@@ -103,6 +113,7 @@ class RobotRuntime:
             drift_delta_m=round(self.drift_delta_m, 4),
             current_task=self.current_task,
             error_code=self.error_code,
+            handoff_partner=self.handoff_partner,
             visual_nav=bool(self.nav_queue),
             nav_goal=Point(x=self.nav_queue[0][0], y=self.nav_queue[0][1]) if self.nav_queue else None,
             waypoints=[Point(x=x, y=y) for x, y in self.nav_queue],

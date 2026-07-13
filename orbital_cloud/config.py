@@ -40,6 +40,10 @@ class Settings:
     # An orchestrator/drift auto-halt re-converges and resumes after this cooldown (ARIA
     # recovers on its own). A human-issued E-Stop is NOT auto-recovered — it waits for an operator.
     auto_recover_s: float = float(os.getenv("ORBITAL_AUTO_RECOVER_S", "12") or "12")
+    # Autonomous task cycle: after finishing a task a robot hands off to a peer and pauses
+    # (shown red) for this long before picking up its next task (shown green) — makes the
+    # start/stop rhythm of the fleet visibly legible.
+    task_pause_s: float = float(os.getenv("ORBITAL_TASK_PAUSE_S", "10") or "10")
     llm_enabled: bool = _flag("ORBITAL_LLM_ENABLED", "0")
     llm_model: str = os.getenv("ORBITAL_LLM_MODEL", "gpt-4o-mini")
 
