@@ -14,6 +14,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, orchestrator, simulator
@@ -94,6 +95,30 @@ async def health() -> dict:
     }
 
 
+# Static asset roots. The dashboard SPA and its assets (styles.css, app.js,
+# orbital-logo.png) are referenced by absolute "/…" URLs, so those assets stay served
+# from root. The public marketing site lives at "/" and the dashboard moves to "/app".
+_DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
+_SITE_DIR = Path(__file__).resolve().parent.parent / "site"
+_SITE_INDEX = _SITE_DIR / "index.html"
+_DASHBOARD_INDEX = _DASHBOARD_DIR / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+async def marketing_home():
+    """Public marketing landing page (falls back to the dashboard if the site is absent)."""
+    if _SITE_INDEX.is_file():
+        return FileResponse(str(_SITE_INDEX))
+    return FileResponse(str(_DASHBOARD_INDEX))
+
+
+@app.get("/app", include_in_schema=False)
+@app.get("/app/", include_in_schema=False)
+async def dashboard_app():
+    """The live fleet-control dashboard (its absolute asset URLs resolve at root)."""
+    return FileResponse(str(_DASHBOARD_INDEX))
+
+
 @app.websocket("/ws")
 async def ws(websocket: WebSocket) -> None:
     await hub.connect(websocket)
@@ -110,7 +135,8 @@ async def ws(websocket: WebSocket) -> None:
         await hub.disconnect(websocket)
 
 
-# Serve the dashboard SPA at "/" (registered last so it doesn't shadow the API).
-_DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
+# Serve dashboard assets (styles.css, app.js, orbital-logo.png) from root, registered
+# last so it doesn't shadow the API or the explicit "/" and "/app" routes above. The
+# marketing site reuses /orbital-logo.png from here.
 if _DASHBOARD_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="dashboard")

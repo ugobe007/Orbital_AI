@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbital AI — The operational layer for deployed robots</title>
+  <meta name="description" content="Orbital AI is the operational data & control layer for deployed robots — real-time telemetry, scope-enforced control, and camera-based visual navigation across any OEM." />
+  <link rel="icon" href="/orbital-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand:   { DEFAULT: "#00be7d", 600: "#00a06a", 700: "#00855a" },
+            azure:   { DEFAULT: "#00a5da", light: "#3dbfe2" },
+            cta:     { DEFAULT: "#ffa01f", 600: "#e8890c" },
+            surface: { DEFAULT: "#0a0d14", panel: "#0c0f17", raised: "#161c28", input: "#1b2230" },
+            line:    { DEFAULT: "#242c3a", strong: "#2f3a4c" },
+            ink:     { DEFAULT: "#e6eaef", mut: "#aab4c1", dim: "#828c9b" },
+          },
+          fontFamily: {
+            sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root { --line:#242c3a; --azure:#00a5da; --brand:#00be7d; }
+    html { scroll-behavior: smooth; }
+    body { background:#0a0d14; font-family:'Space Grotesk',ui-sans-serif,system-ui; }
+    .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
+    /* Faint blueprint grid backdrop for the hero */
+    .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(45,58,76,0.35) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(45,58,76,0.35) 1px, transparent 1px);
+      background-size: 44px 44px;
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+    }
+    .glow-blue { box-shadow: 0 0 0 1px rgba(0,165,218,0.15), 0 8px 40px -12px rgba(0,165,218,0.35); }
+    .glow-soft { box-shadow: 0 10px 50px -20px rgba(0,0,0,0.8); }
+    .eyebrow { letter-spacing:.18em; }
+    .card { background:#0c0f17; border:1px solid var(--line); border-radius:14px; }
+    .chip { background:#12182350; border:1px solid var(--line); }
+    .reveal { opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease; }
+    .reveal.in { opacity:1; transform:none; }
+    .link-underline { position:relative; }
+    .link-underline::after { content:""; position:absolute; left:0; bottom:-2px; width:0; height:1px; background:var(--azure); transition:width .25s ease; }
+    .link-underline:hover::after { width:100%; }
+    .browser-dot { width:10px; height:10px; border-radius:999px; display:inline-block; }
+    .feature-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#0e1622; border:1px solid rgba(0,165,218,0.28); color:#7fd6f2; }
+    .step-num { font-family:'JetBrains Mono',monospace; color:var(--azure); }
+  </style>
+</head>
+<body class="text-ink antialiased">
+
+  <!-- ───────────────────────── Nav ───────────────────────── -->
+  <header class="sticky top-0 z-40 border-b border-line" style="background:rgba(10,13,20,.82); backdrop-filter:blur(10px)">
+    <div class="max-w-[1200px] mx-auto px-5 h-16 flex items-center gap-6">
+      <a href="/" class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center glow-blue" style="background:#0c1119; border:1px solid rgba(0,165,218,0.4)">
+          <img src="/orbital-logo.png" alt="Orbital AI" class="w-7 h-7 object-contain" />
+        </div>
+        <div class="leading-none">
+          <div class="font-semibold text-[16px] tracking-tight">Orbital<span class="text-azure font-light"> AI</span></div>
+        </div>
+      </a>
+      <nav class="hidden md:flex items-center gap-7 text-[14px] text-ink-mut ml-2">
+        <a href="#platform" class="link-underline hover:text-ink transition">Platform</a>
+        <a href="#how" class="link-underline hover:text-ink transition">How it works</a>
+        <a href="#data" class="link-underline hover:text-ink transition">Operational data</a>
+        <a href="#oem" class="link-underline hover:text-ink transition">For OEMs</a>
+      </nav>
+      <div class="flex-1"></div>
+      <a href="mailto:hello@orbital-ai.io?subject=Orbital%20AI%20—%20early%20access" class="hidden sm:inline text-[14px] text-ink-mut hover:text-ink transition">Request access</a>
+      <a href="/app/" class="px-3.5 py-2 rounded-md text-[13.5px] font-semibold transition glow-blue flex items-center gap-1.5" style="background:#0e2230; border:1px solid rgba(0,165,218,0.5); color:#7fd6f2">
+        Launch live demo
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ───────────────────────── Hero ───────────────────────── -->
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 grid-bg pointer-events-none"></div>
+    <div class="relative max-w-[1200px] mx-auto px-5 pt-20 pb-16 md:pt-28 md:pb-24">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 chip rounded-full px-3 py-1 mb-6">
+          <span class="w-1.5 h-1.5 rounded-full" style="background:var(--brand)"></span>
+          <span class="mono text-[11px] eyebrow text-ink-mut uppercase">Operational layer for physical AI</span>
+        </div>
+        <h1 class="text-[40px] leading-[1.08] md:text-[62px] font-semibold tracking-tight">
+          The operational data &amp;<br />
+          <span class="text-azure">control layer</span> for deployed robots.
+        </h1>
+        <p class="mt-6 text-[17px] md:text-[19px] text-ink-mut leading-relaxed max-w-2xl">
+          Foundation models teach robots how to act. Orbital AI runs them once they're on the floor —
+          real-time telemetry, scope-enforced control, and camera-based visual navigation, across any OEM.
+        </p>
+        <div class="mt-9 flex flex-wrap items-center gap-3">
+          <a href="/app/" class="px-5 py-3 rounded-lg text-[15px] font-semibold transition glow-blue flex items-center gap-2" style="background:#0e2230; border:1px solid rgba(0,165,218,0.6); color:#bfeaff">
+            Launch the live demo
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a href="#platform" class="px-5 py-3 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0c0f17; border:1px solid var(--line)">
+            See the platform
+          </a>
+        </div>
+        <div class="mt-12 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px] text-ink-dim">
+          <span class="mono uppercase eyebrow text-[11px]">Works with any OEM</span>
+          <span class="chip rounded-md px-2.5 py-1">Unitree</span>
+          <span class="chip rounded-md px-2.5 py-1">Boston Dynamics</span>
+          <span class="chip rounded-md px-2.5 py-1">Agility</span>
+          <span class="chip rounded-md px-2.5 py-1 mono">ROS2 · gRPC · REST</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── Positioning contrast band ───────────── -->
+  <section class="border-y border-line" style="background:#0c0f17">
+    <div class="max-w-[1200px] mx-auto px-5 py-12 grid md:grid-cols-3 gap-5">
+      <div class="reveal">
+        <div class="mono text-[11px] eyebrow uppercase text-ink-dim">01 · Train</div>
+        <h3 class="mt-2 text-[18px] font-semibold text-ink-mut">Teach the robot</h3>
+        <p class="mt-1.5 text-[14px] text-ink-dim leading-relaxed">Foundation-model and data companies capture footage to train perception and action policies. Pre-deployment.</p>
+      </div>
+      <div class="reveal">
+        <div class="mono text-[11px] eyebrow uppercase text-ink-dim">02 · Deploy</div>
+        <h3 class="mt-2 text-[18px] font-semibold text-ink-mut">Ship the hardware</h3>
+        <p class="mt-1.5 text-[14px] text-ink-dim leading-relaxed">OEMs put robots on real floors with onboard autonomy — SLAM, local policies, vendor-specific stacks.</p>
+      </div>
+      <div class="reveal card p-5" style="border-color:rgba(0,165,218,0.4)">
+        <div class="mono text-[11px] eyebrow uppercase text-azure">03 · Operate</div>
+        <h3 class="mt-2 text-[18px] font-semibold">Run the fleet — Orbital AI</h3>
+        <p class="mt-1.5 text-[14px] text-ink-mut leading-relaxed">One control plane to monitor, govern, and command every robot in production — regardless of who built it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── Platform / features ───────────────────── -->
+  <section id="platform" class="max-w-[1200px] mx-auto px-5 py-20 md:py-24">
+    <div class="max-w-2xl reveal">
+      <div class="mono text-[11px] eyebrow uppercase text-ink-dim">The platform</div>
+      <h2 class="mt-3 text-[30px] md:text-[38px] font-semibold tracking-tight">The operational data layer for robots in production</h2>
+      <p class="mt-4 text-[16px] text-ink-mut leading-relaxed">Every deployed robot emits a stream of operational data that today dies on the edge. Orbital captures it, governs who can act on it, and closes the loop with control.</p>
+    </div>
+
+    <div class="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="card p-6 reveal">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+        <h3 class="mt-4 text-[16px] font-semibold">Real-time telemetry</h3>
+        <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Multi-modal vitals — pose, sensors, motor load, battery &amp; thermal, spatial position — streamed live from every robot on a 2-second heartbeat.</p>
+      </div>
+      <div class="card p-6 reveal">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3 class="mt-4 text-[16px] font-semibold">Scope &amp; safety governance</h3>
+        <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Every command is checked against per-OEM API scopes before it reaches a robot. Granular grants, E-stop, and a safety-halt controller are first-class.</p>
+      </div>
+      <div class="card p-6 reveal">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><circle cx="12" cy="11" r="2.5"/></svg></div>
+        <h3 class="mt-4 text-[16px] font-semibold">Visual navigation</h3>
+        <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Set a waypoint on the overhead map and Orbital's cameras guide the robot there — circumventing onboard SLAM when it drifts or fails.</p>
+      </div>
+      <div class="card p-6 reveal">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3 class="mt-4 text-[16px] font-semibold">Multi-OEM control plane</h3>
+        <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">One integration surface across ROS2, gRPC, and cloud REST transports. Onboard any vendor's fleet and control it from a single pane.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── Live demo ───────────────────── -->
+  <section class="border-y border-line" style="background:#0c0f17">
+    <div class="max-w-[1200px] mx-auto px-5 py-20 md:py-24">
+      <div class="flex flex-wrap items-end justify-between gap-4 reveal">
+        <div class="max-w-2xl">
+          <div class="mono text-[11px] eyebrow uppercase text-ink-dim">Live demo</div>
+          <h2 class="mt-3 text-[30px] md:text-[38px] font-semibold tracking-tight">A real control plane, running right now</h2>
+          <p class="mt-4 text-[16px] text-ink-mut leading-relaxed">This isn't a mockup. A simulated warehouse fleet is live below — mission sequences, telemetry, alerts, and operator waypoints. Click a robot, set a waypoint, watch it navigate around obstacles.</p>
+        </div>
+        <a href="/app/" class="px-4 py-2.5 rounded-lg text-[14px] font-semibold transition glow-blue flex items-center gap-2 shrink-0" style="background:#0e2230; border:1px solid rgba(0,165,218,0.6); color:#bfeaff">
+          Open full dashboard
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        </a>
+      </div>
+
+      <div class="mt-10 card overflow-hidden glow-soft reveal">
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-line" style="background:#0a0d14">
+          <span class="browser-dot" style="background:#ff5f57"></span>
+          <span class="browser-dot" style="background:#febc2e"></span>
+          <span class="browser-dot" style="background:#28c840"></span>
+          <span class="ml-3 mono text-[11.5px] text-ink-dim">orbital-ai · fleet control</span>
+          <span class="flex-1"></span>
+          <span class="flex items-center gap-1.5 text-[11.5px] text-ink-mut"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--brand)"></span> live</span>
+        </div>
+        <iframe id="demo-frame" data-src="/app/" title="Orbital AI live fleet control demo"
+          style="width:100%; height:640px; border:0; display:block; background:#0a0d14"
+          loading="lazy" referrerpolicy="no-referrer"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── How it works ───────────────────── -->
+  <section id="how" class="max-w-[1200px] mx-auto px-5 py-20 md:py-24">
+    <div class="max-w-2xl reveal">
+      <div class="mono text-[11px] eyebrow uppercase text-ink-dim">How it works</div>
+      <h2 class="mt-3 text-[30px] md:text-[38px] font-semibold tracking-tight">Connect, observe, control</h2>
+    </div>
+    <div class="mt-12 grid md:grid-cols-3 gap-6">
+      <div class="reveal">
+        <div class="step-num text-[13px]">STEP 01</div>
+        <h3 class="mt-2 text-[20px] font-semibold">Connect the fleet</h3>
+        <p class="mt-2 text-[14.5px] text-ink-mut leading-relaxed">Onboard an OEM through the API wizard, pick the transport (ROS2, gRPC, REST), and grant the exact scopes you want Orbital to hold — no more, no less.</p>
+      </div>
+      <div class="reveal">
+        <div class="step-num text-[13px]">STEP 02</div>
+        <h3 class="mt-2 text-[20px] font-semibold">Observe everything</h3>
+        <p class="mt-2 text-[14.5px] text-ink-mut leading-relaxed">Live telemetry, a global spatial map, mission sequences, and drift/safety alerts land in one dashboard — with camera-tracked ground truth for every robot.</p>
+      </div>
+      <div class="reveal">
+        <div class="step-num text-[13px]">STEP 03</div>
+        <h3 class="mt-2 text-[20px] font-semibold">Take control</h3>
+        <p class="mt-2 text-[14.5px] text-ink-mut leading-relaxed">Set visual waypoints, adjust speed and direction, or hit E-stop — every action passing the scope gate and safety-halt controller before it reaches hardware.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── Operational data band ───────────────────── -->
+  <section id="data" class="border-y border-line" style="background:#0c0f17">
+    <div class="max-w-[1200px] mx-auto px-5 py-20 md:py-24">
+      <div class="grid lg:grid-cols-[1fr_1.15fr] gap-12 items-center">
+        <div class="reveal">
+          <div class="mono text-[11px] eyebrow uppercase text-ink-dim">Downstream data</div>
+          <h2 class="mt-3 text-[30px] md:text-[38px] font-semibold tracking-tight">The data your robots already produce</h2>
+          <p class="mt-4 text-[16px] text-ink-mut leading-relaxed">Training data teaches robots in the lab. Orbital captures the <span class="text-ink">operational</span> data they generate on real floors — the signal that only exists after deployment, and the interventions that make the next run safer.</p>
+          <div class="mt-7 flex gap-8">
+            <div><div class="text-[30px] font-semibold text-azure">2s</div><div class="mono text-[11px] text-ink-dim uppercase eyebrow mt-1">Telemetry heartbeat</div></div>
+            <div><div class="text-[30px] font-semibold text-azure">6</div><div class="mono text-[11px] text-ink-dim uppercase eyebrow mt-1">Control scopes</div></div>
+            <div><div class="text-[30px] font-semibold text-brand">∞</div><div class="mono text-[11px] text-ink-dim uppercase eyebrow mt-1">OEM transports</div></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 reveal">
+          <div class="card p-4"><div class="mono text-[10.5px] text-ink-dim uppercase eyebrow">Spatial</div><div class="mt-1 text-[14px] font-medium">Pose &amp; position</div></div>
+          <div class="card p-4"><div class="mono text-[10.5px] text-ink-dim uppercase eyebrow">Sensor</div><div class="mt-1 text-[14px] font-medium">Vision &amp; proximity</div></div>
+          <div class="card p-4"><div class="mono text-[10.5px] text-ink-dim uppercase eyebrow">Power</div><div class="mt-1 text-[14px] font-medium">Battery &amp; thermal</div></div>
+          <div class="card p-4"><div class="mono text-[10.5px] text-ink-dim uppercase eyebrow">Motion</div><div class="mt-1 text-[14px] font-medium">Motor &amp; velocity</div></div>
+          <div class="card p-4"><div class="mono text-[10.5px] text-ink-dim uppercase eyebrow">Missions</div><div class="mt-1 text-[14px] font-medium">Task &amp; sequence</div></div>
+          <div class="card p-4"><div class="mono text-[10.5px] text-ink-dim uppercase eyebrow">Safety</div><div class="mt-1 text-[14px] font-medium">Drift &amp; halt events</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── For OEMs ───────────────────── -->
+  <section id="oem" class="max-w-[1200px] mx-auto px-5 py-20 md:py-24">
+    <div class="grid lg:grid-cols-[1.1fr_1fr] gap-12 items-center">
+      <div class="reveal">
+        <div class="mono text-[11px] eyebrow uppercase text-ink-dim">For OEMs</div>
+        <h2 class="mt-3 text-[30px] md:text-[38px] font-semibold tracking-tight">Unlock your API into Orbital</h2>
+        <p class="mt-4 text-[16px] text-ink-mut leading-relaxed">Give operators a best-in-class control surface without building it yourself. Onboard your fleet, expose exactly the capabilities you choose, and let Orbital handle monitoring, governance, and visual navigation.</p>
+        <div class="mt-7 flex flex-wrap gap-2.5">
+          <span class="chip rounded-md px-3 py-1.5 mono text-[12.5px]">telemetry</span>
+          <span class="chip rounded-md px-3 py-1.5 mono text-[12.5px]">state</span>
+          <span class="chip rounded-md px-3 py-1.5 mono text-[12.5px]">velocity</span>
+          <span class="chip rounded-md px-3 py-1.5 mono text-[12.5px]">e-stop</span>
+          <span class="chip rounded-md px-3 py-1.5 mono text-[12.5px]">mission</span>
+          <span class="chip rounded-md px-3 py-1.5 mono text-[12.5px]">map</span>
+        </div>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a href="/app/" class="px-5 py-3 rounded-lg text-[15px] font-semibold transition glow-blue flex items-center gap-2" style="background:#0e2230; border:1px solid rgba(0,165,218,0.6); color:#bfeaff">Onboard a fleet</a>
+          <a href="mailto:partners@orbital-ai.io?subject=Orbital%20AI%20—%20OEM%20partnership" class="px-5 py-3 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0c0f17; border:1px solid var(--line)">Talk partnerships</a>
+        </div>
+      </div>
+      <div class="card p-6 reveal glow-soft">
+        <div class="mono text-[11px] text-ink-dim uppercase eyebrow mb-4">Onboarding · scope grant</div>
+        <div class="space-y-2.5 mono text-[13px]">
+          <div class="flex items-center justify-between rounded-md px-3 py-2" style="background:#0a0d14;border:1px solid var(--line)"><span class="text-ink-mut">POST /oem/onboard</span><span class="text-brand">201</span></div>
+          <div class="flex items-center justify-between rounded-md px-3 py-2" style="background:#0a0d14;border:1px solid var(--line)"><span class="text-ink-mut">transport</span><span class="text-azure">ros2</span></div>
+          <div class="flex items-center justify-between rounded-md px-3 py-2" style="background:#0a0d14;border:1px solid var(--line)"><span class="text-ink-mut">scopes</span><span class="text-ink">telemetry, state, mission</span></div>
+          <div class="flex items-center justify-between rounded-md px-3 py-2" style="background:#0a0d14;border:1px solid var(--line)"><span class="text-ink-mut">estop</span><span class="text-cta">granted</span></div>
+          <div class="flex items-center justify-between rounded-md px-3 py-2" style="background:#0a0d14;border:1px solid var(--line)"><span class="text-ink-mut">status</span><span class="text-brand">ready · monitored</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── Closing CTA ───────────────────── -->
+  <section class="border-t border-line" style="background:#0c0f17">
+    <div class="max-w-[1200px] mx-auto px-5 py-20 md:py-28 text-center">
+      <h2 class="text-[32px] md:text-[46px] font-semibold tracking-tight max-w-3xl mx-auto reveal">Your robots are already deployed. Give them an operations layer.</h2>
+      <div class="mt-9 flex flex-wrap justify-center gap-3 reveal">
+        <a href="/app/" class="px-6 py-3.5 rounded-lg text-[15px] font-semibold transition glow-blue flex items-center gap-2" style="background:#0e2230; border:1px solid rgba(0,165,218,0.6); color:#bfeaff">
+          Launch the live demo
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a href="mailto:hello@orbital-ai.io?subject=Orbital%20AI%20—%20early%20access" class="px-6 py-3.5 rounded-lg text-[15px] font-medium text-ink-mut hover:text-ink transition" style="background:#0a0d14; border:1px solid var(--line)">Request early access</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────── Footer ───────────────────── -->
+  <footer class="border-t border-line">
+    <div class="max-w-[1200px] mx-auto px-5 py-10 flex flex-col md:flex-row items-center gap-4 md:gap-0 justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-md overflow-hidden flex items-center justify-center" style="background:#0c1119; border:1px solid rgba(0,165,218,0.35)"><img src="/orbital-logo.png" alt="Orbital AI" class="w-6 h-6 object-contain" /></div>
+        <span class="text-[14px] text-ink-mut">Orbital<span class="text-azure font-light"> AI</span> — the operational layer for physical AI</span>
+      </div>
+      <div class="flex items-center gap-6 text-[13.5px] text-ink-dim">
+        <a href="#platform" class="hover:text-ink transition">Platform</a>
+        <a href="#oem" class="hover:text-ink transition">For OEMs</a>
+        <a href="/app/" class="hover:text-ink transition">Live demo</a>
+        <span class="mono">© <span id="year">2026</span></span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    // Reveal-on-scroll
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }, { threshold: 0.12 });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+    // Lazy-load the live demo iframe only when it scrolls into view (keeps the landing snappy)
+    const frame = document.getElementById("demo-frame");
+    if (frame) {
+      const fio = new IntersectionObserver((entries) => {
+        for (const e of entries) if (e.isIntersecting) { frame.src = frame.dataset.src; fio.disconnect(); }
+      }, { rootMargin: "300px" });
+      fio.observe(frame);
+    }
+  </script>
+</body>
+</html>
