@@ -68,6 +68,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def _revalidate_html(request, call_next):
+    """Always revalidate the SPA entry so a redeploy's cache-busted asset URLs are picked up
+    immediately (StaticFiles has no cache-control by default, so browsers cache heuristically)."""
+    response = await call_next(request)
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 app.include_router(dashboard.router)
 app.include_router(edge.router)
 app.include_router(oem.router)

@@ -19,9 +19,10 @@ from __future__ import annotations
 import asyncio
 import math
 import random
+import time
 
 from . import persistence
-from .config import settings
+from .config import WAREHOUSE, settings
 from .events import hub
 from .models import (
     AlertIn,
@@ -39,8 +40,11 @@ from .store import RobotRuntime, store
 _SPEED_MPS = 0.6
 _DRIFT_DECAY = 0.90          # ARIA re-convergence per tick
 _DRIFT_NOISE = 0.015         # baseline odometric noise (m)
-_SPIKE_PROB = 0.01           # chance/tick a robot starts drifting badly
-_DRIFT_HALT = "DRIFT_HALT"   # sim-triggered halt (auto-recovers); vs manual "E_STOP"
+_SPIKE_PROB = 0.004          # chance/tick a robot starts drifting badly (kept rare so the fleet stays live)
+_DRIFT_HALT = "DRIFT_HALT"   # sim safety halt (auto-recovers immediately)
+_AUTO_ESTOP = "AUTO_ESTOP"   # orchestrator auto-halt (auto-recovers after a cooldown)
+# "E_STOP" (human/operator) is NOT in this set — it latches until an operator resumes.
+_RECOVERABLE_HALTS = {_DRIFT_HALT, _AUTO_ESTOP}
 _JOINTS = ("hip_left", "hip_right", "knee_left", "knee_right")
 
 
@@ -70,7 +74,7 @@ def _sensors(robot: RobotRuntime) -> dict:
             temperature_c=round(45.0 + j * 3.0 + load * 15.0 + robot.drift_delta_m * 12.0 + random.gauss(0, 0.6), 1),
             current_a=round((0.4 + load * 3.5) + random.gauss(0, 0.2), 2),
             torque_nm=round((0.4 + load * 3.5) * 3.2 + random.gauss(0, 0.4), 1),
-            velocity_rad_s=round((_SPEED_MPS * 2.0 if active else 0.0) + random.gauss(0, 0.05), 2),
+            velocity_rad_s=round((robot.speed_mps * 2.0 if active else 0.0) + random.gauss(0, 0.05), 2),
         )
         for j, joint in enumerate(_JOINTS)
     ]
@@ -83,7 +87,7 @@ def _sensors(robot: RobotRuntime) -> dict:
     spatial = SpatialTelemetry(
         x=round(robot.pose_internal.x, 3), y=round(robot.pose_internal.y, 3), z=0.0,
         yaw=round(robot.pose_internal.theta, 3),
-        linear_velocity_mps=round(_SPEED_MPS if active else 0.0, 2),
+        linear_velocity_mps=round(robot.speed_mps if active else 0.0, 2),
         angular_velocity_rps=round(random.gauss(0, 0.05), 3),
     )
 
@@ -132,7 +136,7 @@ def _advance_external(robot: RobotRuntime, dt: float) -> None:
     x, y = robot.pose_external.x, robot.pose_external.y
     dx, dy = tx - x, ty - y
     dist = math.hypot(dx, dy)
-    step = _SPEED_MPS * dt
+    step = robot.speed_mps * dt
     if dist <= step or dist == 0.0:
         robot.traj_index = (robot.traj_index + 1) % len(robot.trajectory)
         nx, ny = tx, ty
@@ -153,7 +157,7 @@ def _advance_nav(robot: RobotRuntime, dt: float) -> None:
     x, y = robot.pose_external.x, robot.pose_external.y
     dx, dy = tx - x, ty - y
     dist = math.hypot(dx, dy)
-    step = _SPEED_MPS * dt
+    step = robot.speed_mps * dt
     if dist <= step or dist == 0.0:
         theta = math.atan2(dy, dx) if dist else robot.pose_external.theta
         robot.pose_external = robot.pose_external.model_copy(update={"x": tx, "y": ty, "theta": theta})
@@ -166,6 +170,24 @@ def _advance_nav(robot: RobotRuntime, dt: float) -> None:
         robot.pose_external = robot.pose_external.model_copy(
             update={"x": nx, "y": ny, "theta": math.atan2(dy, dx)}
         )
+
+
+def _advance_manual(robot: RobotRuntime, dt: float) -> None:
+    """Operator jog: drive the external pose along the commanded heading at the set speed.
+    Clamps to the warehouse bounds; if it reaches a wall it stops (drops back to idle)."""
+    theta = robot.manual_heading or 0.0
+    w = float(WAREHOUSE["width_m"]); h = float(WAREHOUSE["height_m"])
+    step = robot.speed_mps * dt
+    nx = robot.pose_external.x + math.cos(theta) * step
+    ny = robot.pose_external.y + math.sin(theta) * step
+    cx = min(max(nx, 0.0), w)
+    cy = min(max(ny, 0.0), h)
+    robot.pose_external = robot.pose_external.model_copy(update={"x": cx, "y": cy, "theta": theta})
+    # Hit a wall — stop the jog so the robot doesn't grind against the boundary.
+    if (cx != nx or cy != ny):
+        robot.manual_heading = None
+        robot.current_task = "Idle"
+        robot.state = RobotState.IDLE
 
 
 def _update_drift(robot: RobotRuntime) -> None:
@@ -196,17 +218,27 @@ async def _tick(dt: float) -> list[AlertIn]:
             continue
 
         if robot.state == RobotState.HALTED:
-            # Sim-triggered halts auto-recover (ARIA re-converges); manual E-Stops wait for an operator.
-            if robot.error_code == _DRIFT_HALT:
-                robot.drift_bias = (0.0, 0.0)
-                robot.drift_delta_m = 0.0
-                robot.error_code = None
-                robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
+            # Sim safety halts recover immediately; orchestrator auto-stops recover after a
+            # cooldown (ARIA re-converges). A human E-Stop latches until an operator resumes.
+            if robot.error_code in _RECOVERABLE_HALTS:
+                cooled = (
+                    robot.error_code == _DRIFT_HALT
+                    or robot.halted_at is None
+                    or (time.time() - robot.halted_at) >= settings.auto_recover_s
+                )
+                if cooled:
+                    robot.drift_bias = (0.0, 0.0)
+                    robot.drift_delta_m = 0.0
+                    robot.error_code = None
+                    robot.halted_at = None
+                    robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
             continue
 
         if robot.state == RobotState.ACTIVE:
             if robot.nav_queue:
                 _advance_nav(robot, dt)          # operator waypoint via visual control
+            elif robot.manual_heading is not None:
+                _advance_manual(robot, dt)       # operator manual jog (heading + speed)
             else:
                 _advance_external(robot, dt)     # default autonomous patrol
             robot.battery_pct = max(0.0, robot.battery_pct - 0.05)

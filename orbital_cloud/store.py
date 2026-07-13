@@ -50,6 +50,7 @@ class RobotRuntime:
         self.drift_delta_m: float = 0.0
         self.current_task: Optional[str] = None
         self.error_code: Optional[str] = None
+        self.halted_at: Optional[float] = None
         self.created_at: float = time.time()
 
         # Simulator internals (ignored when driven by real edge telemetry).
@@ -62,6 +63,10 @@ class RobotRuntime:
         # to them via Orbital's camera-based control, overriding the patrol/SLAM path.
         self.nav_queue: list[tuple[float, float]] = []
 
+        # Operator drive controls: commanded speed and (optional) manual jog heading (rad).
+        self.speed_mps: float = settings.base_speed_mps
+        self.manual_heading: Optional[float] = None
+
         # Benchmark tracking.
         self.degradation_events: int = 0
         self._degraded_since: Optional[float] = None
@@ -70,6 +75,20 @@ class RobotRuntime:
     @property
     def uptime_seconds(self) -> float:
         return max(0.0, time.time() - self.created_at)
+
+    @property
+    def control_mode(self) -> str:
+        if self.state == RobotState.HALTED:
+            return "halted"
+        if self.state == RobotState.CHARGING:
+            return "charging"
+        if self.nav_queue:
+            return "visual_nav"
+        if self.manual_heading is not None:
+            return "manual"
+        if self.state == RobotState.IDLE:
+            return "idle"
+        return "patrol"
 
     def summary(self) -> RobotSummary:
         return RobotSummary(
@@ -87,6 +106,9 @@ class RobotRuntime:
             visual_nav=bool(self.nav_queue),
             nav_goal=Point(x=self.nav_queue[0][0], y=self.nav_queue[0][1]) if self.nav_queue else None,
             waypoints=[Point(x=x, y=y) for x, y in self.nav_queue],
+            speed_mps=round(self.speed_mps, 2),
+            manual_drive=self.manual_heading is not None,
+            control_mode=self.control_mode,
         )
 
 
@@ -193,13 +215,16 @@ class Store:
             return [t for t in self.tasks.values() if t.status in (TaskStatus.QUEUED, TaskStatus.ACTIVE)]
 
     # ── Control (monitor+control) ────────────────────────────────────────────────
-    def estop(self, robot_id: str) -> bool:
+    def estop(self, robot_id: str, *, auto: bool = False) -> bool:
+        """Halt a robot. Operator E-Stops latch until a human resumes; orchestrator/auto stops
+        use a distinct code the simulator re-converges from after a cooldown."""
         with self._lock:
             robot = self.robots.get(robot_id)
             if robot is None:
                 return False
             robot.state = RobotState.HALTED
-            robot.error_code = "E_STOP"
+            robot.error_code = "AUTO_ESTOP" if auto else "E_STOP"
+            robot.halted_at = time.time()
             return True
 
     def resume(self, robot_id: str) -> bool:
@@ -209,10 +234,47 @@ class Store:
                 return False
             robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
             robot.error_code = None
+            robot.halted_at = None
             robot.drift_bias = (0.0, 0.0)  # ARIA re-converges on resume
             return True
 
     # ── Visual-nav waypoints ─────────────────────────────────────────────────────
+    def set_speed(self, robot_id: str, speed_mps: float) -> Optional[float]:
+        """Set a robot's commanded speed (m/s), clamped to [0.05, max]. Returns the applied
+        value, or None for unknown robots."""
+        with self._lock:
+            robot = self.robots.get(robot_id)
+            if robot is None:
+                return None
+            robot.speed_mps = min(max(float(speed_mps), 0.05), settings.max_speed_mps)
+            return round(robot.speed_mps, 2)
+
+    def set_manual_drive(self, robot_id: str, heading_rad: float, speed_mps: Optional[float] = None) -> bool:
+        """Jog a robot along a fixed heading via visual control. Clears any waypoint queue,
+        wakes it to ACTIVE, and (optionally) updates speed. Refuses halted robots."""
+        with self._lock:
+            robot = self.robots.get(robot_id)
+            if robot is None or robot.state == RobotState.HALTED:
+                return False
+            robot.nav_queue = []
+            persistence.save_waypoints(robot_id, [])
+            robot.manual_heading = float(heading_rad)
+            if speed_mps is not None:
+                robot.speed_mps = min(max(float(speed_mps), 0.05), settings.max_speed_mps)
+            robot.state = RobotState.ACTIVE
+            robot.current_task = "Manual drive (operator)"
+            return True
+
+    def stop_manual_drive(self, robot_id: str) -> bool:
+        with self._lock:
+            robot = self.robots.get(robot_id)
+            if robot is None:
+                return False
+            robot.manual_heading = None
+            if robot.current_task == "Manual drive (operator)":
+                robot.current_task = "Autonomous patrol"
+            return True
+
     def set_waypoints(self, robot_id: str, points: list[tuple[float, float]], persist: bool = True) -> bool:
         """Queue operator waypoints and put the robot into visual-nav (active) state.
         Coordinates are clamped to the warehouse bounds. Returns False for unknown robots."""
@@ -223,6 +285,7 @@ class Store:
             w = float(WAREHOUSE["width_m"]); h = float(WAREHOUSE["height_m"])
             clamped = [(min(max(x, 0.0), w), min(max(y, 0.0), h)) for x, y in points]
             robot.nav_queue = clamped
+            robot.manual_heading = None  # waypoints take over from a manual jog
             if clamped and robot.state in (RobotState.IDLE, RobotState.ACTIVE):
                 robot.state = RobotState.ACTIVE
                 robot.current_task = "Visual waypoint nav (SLAM bypass)"

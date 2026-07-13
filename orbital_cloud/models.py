@@ -56,6 +56,18 @@ class NavigateIn(BaseModel):
     waypoints: list[Point]
 
 
+class SpeedIn(BaseModel):
+    """Operator speed override (m/s) applied to all of a robot's motion."""
+    speed_mps: float
+
+
+class DriveIn(BaseModel):
+    """Manual jog: drive the robot along a heading (degrees, 0 = +x / east, CCW) at an
+    optional speed. Overrides patrol and clears any waypoint queue until stopped."""
+    heading_deg: float
+    speed_mps: Optional[float] = None
+
+
 class RobotSummary(BaseModel):
     """The 2s-refresh fleet payload (GET /api/dashboard/fleet)."""
     id: str
@@ -73,6 +85,10 @@ class RobotSummary(BaseModel):
     visual_nav: bool = False
     nav_goal: Optional[Point] = None
     waypoints: list[Point] = Field(default_factory=list)
+    # Operator drive controls.
+    speed_mps: float = 0.6         # current commanded speed
+    manual_drive: bool = False     # operator is jogging it along a fixed heading
+    control_mode: str = "patrol"   # patrol | visual_nav | manual | charging | halted | idle
 
 
 class ControlGrants(BaseModel):

@@ -9,6 +9,7 @@ from ..events import hub
 from ..models import (
     Alert,
     APIScope,
+    DriveIn,
     IntegrationProfile,
     NavigateIn,
     OEMStatus,
@@ -16,6 +17,7 @@ from ..models import (
     RobotDetail,
     RobotSummary,
     ScopeGrantIn,
+    SpeedIn,
     Task,
     TaskIn,
     VendorBenchmark,
@@ -81,6 +83,41 @@ async def navigate(robot_id: str, body: NavigateIn) -> dict:
 @router.post("/robot/{robot_id}/navigate/clear")
 async def navigate_clear(robot_id: str) -> dict:
     if not store.clear_waypoints(robot_id):
+        raise HTTPException(status_code=404, detail="robot not found")
+    await _broadcast_fleet()
+    return {"ok": True, "robot_id": robot_id}
+
+
+@router.post("/robot/{robot_id}/speed")
+async def set_speed(robot_id: str, body: SpeedIn) -> dict:
+    """Operator speed override (m/s). Scales patrol, visual-nav, and manual motion.
+    Gated on control.velocity."""
+    _enforce(robot_id, APIScope.VELOCITY)
+    applied = store.set_speed(robot_id, body.speed_mps)
+    if applied is None:
+        raise HTTPException(status_code=404, detail="robot not found")
+    await _broadcast_fleet()
+    return {"ok": True, "robot_id": robot_id, "speed_mps": applied}
+
+
+@router.post("/robot/{robot_id}/drive")
+async def drive(robot_id: str, body: DriveIn) -> dict:
+    """Manual jog along a heading (deg, 0 = east, CCW). Overrides patrol / clears waypoints.
+    Gated on control.velocity."""
+    import math
+
+    _enforce(robot_id, APIScope.VELOCITY)
+    heading_rad = math.radians(body.heading_deg)
+    if not store.set_manual_drive(robot_id, heading_rad, body.speed_mps):
+        raise HTTPException(status_code=409, detail="robot not found or halted")
+    await _broadcast_fleet()
+    return {"ok": True, "robot_id": robot_id, "heading_deg": body.heading_deg}
+
+
+@router.post("/robot/{robot_id}/drive/stop")
+async def drive_stop(robot_id: str) -> dict:
+    _enforce(robot_id, APIScope.VELOCITY)
+    if not store.stop_manual_drive(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id}

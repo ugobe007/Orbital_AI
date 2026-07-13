@@ -82,11 +82,12 @@ class Orchestrator:
                     auto_executed=False,
                 ))
                 continue
-            executed = self._store.estop(alert.robot_id or "")
+            executed = self._store.estop(alert.robot_id or "", auto=True)
             new_decisions.append(self._decision(
                 now, alert.robot_id, OrchestratorAction.AUTO_ESTOP, AlertSeverity.CRITICAL,
                 f"Auto E-Stop {robot.vendor} {robot.model}: critical {alert.type.value}"
-                + (f" (Δ {alert.delta_meters:.2f}m)" if alert.delta_meters is not None else "") + ".",
+                + (f" (Δ {alert.delta_meters:.2f}m)" if alert.delta_meters is not None else "")
+                + " — auto-clears once ARIA re-converges.",
                 auto_executed=executed,
             ))
 
