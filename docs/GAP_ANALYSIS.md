@@ -9,9 +9,9 @@
 
 | Module | Guide focus | Status | Primary locations |
 |--------|-------------|--------|-------------------|
-| 1 CV Pipeline | ArUco/YOLO → `P_external` | Scaffold | `aria_edge/cv_pipeline.py` (sim only) |
+| 1 CV Pipeline | ArUco/YOLO → `P_external` | Partial | `ArucoPoseEstimator` on recorded frames; live OpenCV optional; YOLO B deferred |
 | 2 TF Hijack | 10 Hz `T_delta` + inject waypoint | Done (sim) | `waypoint_generator.py` + `tf_publisher.py` (map→odom record @ 30 Hz) |
-| 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | Guide API + protocol contracts + fake BD/Arc servers; real SDKs still stub |
+| 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | `UnitreeAdapter` + protocol fakes; real rclpy bind is lab (`use_hardware=True`) |
 | 4 Safety Halt | Independent 20 Hz watchdog | Partial | `pose_bus.py` + `SafetyWatchdog` (thread/bus isolation); not yet a separate OS process |
 | 5 Benchmark | Drift / MTBD / recovery / env | Done (sim) | `TelemetryStore` (memory ± optional Influx dual-write); benchmark API unchanged |
 | 6 Cloud Orchestration | Missions / trajectory / map / telemetry | Done | Synthetic occupancy on `/api/v1/map`; edge pull_map |
@@ -35,7 +35,9 @@
 5. ~~Occupancy map~~ — Done (synthetic grid, Sprint C2)
 6. ~~Optional mTLS harness~~ — Done (client + cert script; prod VLAN still open)
 7. ~~Dashboard RBAC~~ — Done (enforce via `ORBITAL_RBAC_ENFORCE=1`)
-8. Real OEM SDK binds (hardware — Sprint D)
+8. Lab hardware cutover — see [HARDWARE_GATE.md](./HARDWARE_GATE.md) LAB rows
+9. Real OEM SDK binds (Unitree rclpy, bosdyn, Arc) on edge hosts
+10. YOLOv8 Strategy B (explicitly deferred)
 
 ## Guide sprint items vs sim
 

@@ -213,7 +213,10 @@ async def resume(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
 
 
 # ── OEM governance (operator surface) ─────────────────────────────────────────
-# Mutating OEM grants requires Admin when ORBITAL_RBAC_ENFORCE=1. Reads need Viewer+.
+# Operators view every partner and can revoke/suspend defensively. Granting stays
+# OEM-initiated in production (POST /api/oem/{id}/scopes with the partner's key); the
+# operator grant here is a convenience for the console/demo. Open in v0 — production
+# gates this behind operator RBAC.
 
 def _profile_or_404(oem_id: str) -> IntegrationProfile:
     profile = oem_store.profile(oem_id)

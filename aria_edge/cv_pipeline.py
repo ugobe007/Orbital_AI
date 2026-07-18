@@ -38,10 +38,10 @@ class SimulatedCVPipeline:
 
 
 class CudaCVPipeline:
-    """Hardware backend placeholder — wire cameras + detector here.
+    """Hardware backend placeholder — prefer ``ArucoPoseEstimator`` for Strategy A.
 
     Kept as an explicit NotImplemented so deployments can't silently fall back to the
-    simulator on real hardware.
+    simulator on real hardware without opting into a detector.
     """
 
     def __init__(self, *_args, **_kwargs) -> None:  # noqa: D401
@@ -49,8 +49,8 @@ class CudaCVPipeline:
 
     def process_frame(self, frame: CameraFrame) -> list[Detection]:  # pragma: no cover - hw
         raise NotImplementedError(
-            "CudaCVPipeline requires camera capture + a detector model; use "
-            "SimulatedCVPipeline off-hardware."
+            "CudaCVPipeline is reserved for YOLO/CUDA Strategy B; use "
+            "ArucoPoseEstimator (recorded or live OpenCV) for Sprint D1."
         )
 
 

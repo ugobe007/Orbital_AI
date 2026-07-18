@@ -1,0 +1,15 @@
+{
+  "camera_id": "cam-0",
+  "ts": 1710000000.0,
+  "width": 640,
+  "height": 480,
+  "calibration": {"x": 12.0, "y": 8.0, "z": 3.5, "yaw": 0.0},
+  "marker_map": [
+    {"marker_id": 1, "robot_id": "rbt-01"},
+    {"marker_id": 2, "robot_id": "rbt-02"}
+  ],
+  "markers": [
+    {"marker_id": 1, "tvec": [0.5, -0.25, 3.5], "yaw": 0.1, "bbox": [300, 200, 40, 40]},
+    {"marker_id": 2, "tvec": [-1.0, 0.75, 3.5], "yaw": -0.2, "bbox": [100, 150, 40, 40]}
+  ]
+}

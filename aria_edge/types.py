@@ -31,6 +31,19 @@ class CameraFrame:
     # Real frames carry pixel data; the scaffold passes a ground-truth hint the
     # simulated detector "sees" so the loop is deterministic in tests.
     ground_truth: dict[str, Pose2D] = field(default_factory=dict)
+    # Encoded image bytes (JPEG/PNG) or raw grayscale buffer for live ArUco.
+    pixels: Optional[bytes] = None
+    # Precomputed ArUco detections for recorded-frame replay (no OpenCV needed).
+    markers: list["MarkerObservation"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MarkerObservation:
+    """One ArUco marker seen in a frame (camera-frame translation)."""
+    marker_id: int
+    tvec: tuple[float, float, float]
+    yaw: float = 0.0
+    bbox: Optional[tuple[int, int, int, int]] = None
 
 
 @dataclass

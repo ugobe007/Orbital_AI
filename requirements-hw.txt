@@ -1,0 +1,9 @@
+# Optional lab / edge-host dependencies (Sprint D). Not required for CI.
+# Install on the ARIA edge machine only:
+#   pip install -r requirements-hw.txt
+
+opencv-python-headless>=4.8,<5.0
+numpy>=1.26,<3.0
+# ROS 2 Python bindings come from the system ROS distro, not pip:
+#   sudo apt install ros-humble-rclpy ros-humble-tf2-ros
+# Unitree packages: follow unitree_ros2 install docs for your G1 image.

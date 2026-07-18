@@ -51,17 +51,17 @@ sim backends first; gate hardware (cameras, ROS SDKs, VLAN) behind Sprint D.
 
 ---
 
-## Sprint D — Hardware gate (after A–B)
+## Sprint D — Hardware gate (after A–C)
 
-**Goal:** Only after abstraction is faithful.
+**Goal:** Only after abstraction is faithful. Soft gates pass in CI; LAB rows need on-site gear.
 
-| ID | Work |
-|----|------|
-| D1 | ArUco on recorded frames → same `PoseSource` interface |
-| D2 | Real Unitree adapter + 10 Hz latency bench (S1-08) |
-| D3 | Lab VLAN / mTLS / SROS2 ops + external audit |
+| ID | Work | Status |
+|----|------|--------|
+| D1 | ArUco on recorded frames → same `PoseSource` interface | **Done** (soft) — `aria_edge/aruco.py` + `testdata/aruco/`; live OpenCV optional via `requirements-hw.txt` |
+| D2 | Real Unitree adapter + 10 Hz latency bench (S1-08) | **Partial** — `UnitreeAdapter` + bench green on sim; `use_hardware=True` needs rclpy on edge |
+| D3 | Lab VLAN / mTLS / SROS2 ops + external audit | **Partial** — runbook in `docs/HARDWARE_GATE.md` + `scripts/check_hardware_gate.py`; VLAN/SROS2/audit are lab |
 
-**Do not start D until A1–A4 pass CI.**
+**Do not pilot until LAB rows in HARDWARE_GATE.md are checked.**
 
 ---
 

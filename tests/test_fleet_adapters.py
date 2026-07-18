@@ -14,7 +14,8 @@ from fleet_adapters import (
 
 def test_ros2_vendor_gets_full_velocity_ceiling():
     a = get_adapter("Unitree", "rbt-01")
-    assert isinstance(a, SimulatedROS2Adapter)
+    from fleet_adapters import UnitreeAdapter
+    assert isinstance(a, UnitreeAdapter)
     assert a.vendor == "Unitree"
     assert Capability.VELOCITY in capability_ceiling_for("Unitree")
 
