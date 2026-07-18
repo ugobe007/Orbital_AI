@@ -15,6 +15,7 @@ from typing import Sequence
 from aria_edge.types import Pose2D
 
 from .base import Capability, FleetAdapter, Transport
+from .protocols import contract_for
 
 _ROS2_CEILING = {
     Capability.TELEMETRY, Capability.STATE, Capability.VELOCITY,
@@ -35,6 +36,8 @@ class SimulatedROS2Adapter(FleetAdapter):
         self._halted = False
         self.commands: list[tuple[float, float, float]] = []
         self.injected: list[tuple[float, float]] = []
+        self.protocol_ops: list[str] = []
+        self.protocol_calls: list[dict] = []
 
     @classmethod
     def capability_ceiling(cls) -> set[Capability]:
@@ -50,13 +53,23 @@ class SimulatedROS2Adapter(FleetAdapter):
         del robot_id
         if self._halted:
             return False
-        self.injected.append((float(waypoint[0]), float(waypoint[1])))
+        xy = (float(waypoint[0]), float(waypoint[1]))
+        self.injected.append(xy)
+        contract = contract_for(self.vendor)
+        op = contract.inject_op if contract else "ros2.navigate_to_pose"
+        self.protocol_ops.append(op)
+        self.protocol_calls.append({
+            "op": op,
+            "waypoint": xy,
+            "topics": [e.name for e in (contract.ros2 if contract else ())],
+        })
         return True
 
     def send_velocity(self, vx: float, vy: float, wz: float) -> None:
         if self._halted:
             return
         self.commands.append((vx, vy, wz))
+        self.protocol_ops.append("ros2.cmd_vel")
 
     def estop(self) -> None:
         self._halted = True

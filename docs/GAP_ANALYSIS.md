@@ -10,8 +10,8 @@
 | Module | Guide focus | Status | Primary locations |
 |--------|-------------|--------|-------------------|
 | 1 CV Pipeline | ArUco/YOLO → `P_external` | Scaffold | `aria_edge/cv_pipeline.py` (sim only) |
-| 2 TF Hijack | 10 Hz `T_delta` + inject waypoint | Done (sim) | `aria_edge/waypoint_generator.py` (`T_delta`, lookahead, inject); velocity fallback when no traj |
-| 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | Guide API on sim adapters (`inject_waypoint` / `get_internal_pose` / `trigger_estop`); real SDKs still stub |
+| 2 TF Hijack | 10 Hz `T_delta` + inject waypoint | Done (sim) | `waypoint_generator.py` + `tf_publisher.py` (map→odom record @ 30 Hz) |
+| 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | Guide API + protocol contracts + fake BD/Arc servers; real SDKs still stub |
 | 4 Safety Halt | Independent 20 Hz watchdog | Partial | `pose_bus.py` + `SafetyWatchdog` (thread/bus isolation); not yet a separate OS process |
 | 5 Benchmark | Drift / MTBD / recovery / env | Done (sim) | `orbital_cloud/store.py`, `benchmark.py` (no InfluxDB) |
 | 6 Cloud Orchestration | Missions / trajectory / map / telemetry | Done | `orbital_cloud/routers/edge.py` (+ orchestrator, OEM) |
@@ -29,7 +29,7 @@
 ## Highest-impact gaps (abstraction, still no hardware)
 
 1. ~~Module 2 algorithm fidelity~~ — Done (sim); see Sprint A1
-2. Per-vendor **protocol stubs** (recorded topics / fake BD+Agility servers) — Sprint B
+2. ~~Per-vendor protocol stubs~~ — Done (Sprint B); real SDK bind still open
 3. ~~Edge pull of missions/trajectories~~ — Done (cache + HTTP when enabled)
 4. Safety halt as a **separate OS process** (bus exists; process spawn still open)
 5. Occupancy map stub → richer `/api/v1/map` payload

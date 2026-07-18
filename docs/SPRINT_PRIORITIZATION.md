@@ -26,11 +26,11 @@ sim backends first; gate hardware (cameras, ROS SDKs, VLAN) behind Sprint D.
 
 **Goal:** Per-vendor contracts without real robot SDKs.
 
-| ID | Work | Exit criteria |
-|----|------|---------------|
-| B1 | Per-vendor modules with recorded topics / REST / gRPC method names | Registry still sim-backed |
-| B2 | Fake BD + Agility servers for integration tests | pytest exercises protocol shapes |
-| B3 | Simulated `TFPublisher` recording `map→odom` | Tests assert TF stream existence/rate |
+| ID | Work | Exit criteria | Status |
+|----|------|---------------|--------|
+| B1 | Per-vendor modules with recorded topics / REST / gRPC method names | Registry still sim-backed | **Done** (`fleet_adapters/protocols/`) |
+| B2 | Fake BD + Agility servers for integration tests | pytest exercises protocol shapes | **Done** (`fleet_adapters/fake_servers/`) |
+| B3 | Simulated `TFPublisher` recording `map→odom` | Tests assert TF stream existence/rate | **Done** (`aria_edge/tf_publisher.py`) |
 
 **Maps to guide:** S1-06 (sim), S2-01/S3-01/S4-01/S4-02 (stubs)
 
