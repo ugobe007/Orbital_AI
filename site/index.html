@@ -198,7 +198,7 @@
         <a href="#oem" class="link-underline hover:text-ink transition">For OEMs</a>
       </nav>
       <div class="flex-1"></div>
-      <button type="button" data-contact="early-access" class="hidden sm:inline px-3.5 py-1.5 rounded-md text-[13px] font-medium btn-secondary transition">Request access</button>
+      <button type="button" data-contact="signup" class="hidden sm:inline px-3.5 py-1.5 rounded-md text-[13px] font-medium btn-secondary transition">Sign up</button>
       <a href="/app/" class="px-3.5 py-1.5 rounded-md text-[13px] font-semibold btn-primary transition flex items-center gap-1.5">
         Live demo
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -230,6 +230,7 @@
             Launch the live demo
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
+          <button type="button" data-contact="signup" class="px-4 py-2.5 rounded-lg text-[14.5px] font-medium btn-secondary transition">Sign up</button>
           <button type="button" data-contact="early-access" class="px-4 py-2.5 rounded-lg text-[14.5px] font-medium btn-text transition">Request early access</button>
         </div>
         <div class="mt-6 flex flex-wrap items-center justify-center gap-2.5">
@@ -534,6 +535,7 @@
           Launch the live demo
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
+        <button type="button" data-contact="signup" class="px-4 py-3 rounded-lg text-[15px] font-medium btn-secondary transition">Sign up</button>
         <button type="button" data-contact="early-access" class="px-4 py-3 rounded-lg text-[15px] font-medium btn-text transition">Request early access</button>
       </div>
     </div>
@@ -567,6 +569,7 @@
             <a href="#oem" class="hover:text-ink transition">For OEMs</a>
             <a href="#stack" class="hover:text-ink transition">Orbital + ARIA</a>
             <button type="button" data-contact="partnership" class="text-left hover:text-ink transition">Partnerships</button>
+            <button type="button" data-contact="signup" class="text-left hover:text-ink transition">Sign up</button>
             <button type="button" data-contact="early-access" class="text-left hover:text-ink transition">Early access</button>
           </div>
         </div>
@@ -631,7 +634,7 @@
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
     const frame = document.getElementById("demo-frame");
-    if (frame) frame.src = "/app/?embed=1&v=20260718a";
+    if (frame) frame.src = "/app/?embed=1&v=20260718b";
 
     const modal = document.getElementById("contact-modal");
     const form = document.getElementById("contact-form");
@@ -641,6 +644,7 @@
     let currentTopic = "early-access";
 
     const TOPIC_COPY = {
+      "signup": "Sign up",
       "early-access": "Request early access",
       "partnership": "Talk partnerships",
       "general": "Get in touch",
@@ -673,6 +677,12 @@
     document.querySelectorAll("[data-contact]").forEach((btn) => {
       btn.addEventListener("click", () => openModal(btn.getAttribute("data-contact")));
     });
+
+    const signupParam = new URLSearchParams(location.search).get("signup");
+    if (signupParam === "1" || signupParam === "true") {
+      openModal("signup");
+      history.replaceState({}, "", location.pathname + location.hash);
+    }
     document.getElementById("contact-close").addEventListener("click", closeModal);
     document.getElementById("contact-cancel").addEventListener("click", closeModal);
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });

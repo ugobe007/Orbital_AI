@@ -32,6 +32,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Human-readable topic labels for the three site CTAs.
 _TOPICS = {
+    "signup": "Sign up",
     "early-access": "Early access request",
     "partnership": "OEM partnership",
     "general": "General inquiry",

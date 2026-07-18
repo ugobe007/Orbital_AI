@@ -29,7 +29,7 @@
       },
     };
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260718a" />
+  <link rel="stylesheet" href="/styles.css?v=20260718b" />
 </head>
 <body class="min-h-screen text-ink md:pl-14">
   <!-- Left nav rail -->
@@ -50,13 +50,17 @@
   <!-- Top nav -->
   <header class="sticky top-0 z-20 bg-surface-panel/95 backdrop-blur border-b border-line">
     <div class="max-w-[1500px] mx-auto px-5 py-2.5 flex items-center gap-4">
-      <div class="flex items-center gap-2.5">
+      <a href="/" class="flex items-center gap-2.5 shrink-0 hover:opacity-90 transition" title="Back to home">
         <div class="w-7 h-7 rounded-md overflow-hidden flex items-center justify-center glow-blue" style="background:#0c1119; border:1px solid rgba(0,165,218,0.5)"><img src="/orbital-logo.png?v=20260713d" alt="Orbital AI" class="w-full h-full object-contain" /></div>
         <div>
           <div class="font-semibold text-[15px] leading-none tracking-tight">Orbital<span class="text-azure font-light"> AI</span></div>
           <div class="text-[10.5px] text-ink-dim leading-none mt-1 mono">FLEET·CTRL · ARIA·EDGE</div>
         </div>
-      </div>
+      </a>
+      <a href="/" class="header-nav-link hidden md:inline-flex items-center gap-1.5 text-[13px] text-ink-mut hover:text-ink transition shrink-0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Home
+      </a>
       <div class="ml-1 pl-4 border-l border-line hidden sm:block">
         <div class="text-[11px] text-ink-dim leading-none">Facility</div>
         <div id="facility-name" class="text-[13px] font-medium leading-none mt-1">—</div>
@@ -66,6 +70,7 @@
         <span id="conn-dot" class="w-2 h-2 rounded-full bg-ink-dim"></span>
         <span id="conn-label" class="text-ink-mut">connecting…</span>
       </div>
+      <a href="/?signup=1" class="header-nav-link px-3 py-1.5 rounded-md text-[13px] font-medium transition shrink-0" style="border:1px solid var(--line); color:#aab4c1">Sign up</a>
       <button id="btn-onboard" class="px-3 py-1.5 rounded-md text-[13px] font-semibold transition btn-press glow-blue flex items-center gap-1.5" style="background:#0e2230; border:1px solid rgba(0,165,218,0.5); color:#7fd6f2">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Onboard robot API
@@ -224,6 +229,6 @@
   <div id="modal-oem" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-wizard" class="modal hidden"><div class="modal-card modal-card-lg"></div></div>
 
-  <script src="/app.js?v=20260718a"></script>
+  <script src="/app.js?v=20260718b"></script>
 </body>
 </html>
