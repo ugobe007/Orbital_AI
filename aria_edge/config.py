@@ -31,5 +31,16 @@ class EdgeSettings:
     # Guide Module 2: lookahead on the global trajectory (meters).
     lookahead_m: float = float(os.getenv("ARIA_LOOKAHEAD_M", "0.20") or "0.20")
 
+    # Lab cutover (Sprint D) — sim stays default until gear is online.
+    cv_mode: str = os.getenv("ARIA_CV_MODE", "sim")  # sim | aruco
+    aruco_marker_map: str = os.getenv("ARIA_ARUCO_MARKER_MAP", "")
+    aruco_fixture: str = os.getenv("ARIA_ARUCO_FIXTURE", "")
+    unitree_hardware: bool = (os.getenv("ARIA_UNITREE_HARDWARE", "0") or "0").strip().lower() not in (
+        "0", "false", "no", "off", "",
+    )
+    cloud_sync_enabled: bool = (os.getenv("ARIA_CLOUD_SYNC", "0") or "0").strip().lower() not in (
+        "0", "false", "no", "off", "",
+    )
+
 
 edge_settings = EdgeSettings()

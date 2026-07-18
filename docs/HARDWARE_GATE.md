@@ -113,6 +113,16 @@ Provide the auditor:
 
 ```bash
 python3 scripts/check_hardware_gate.py
+python3 scripts/lab_cutover.py --bench
 ```
 
 Reports which soft gates are green in this repo vs which remain lab-only.
+
+### Prep already done in-repo (2026-07-18)
+
+| Item | Location |
+|------|----------|
+| Soft D1–D3 CI | green on `main` |
+| mTLS CA/client/server | `scripts/mtls/certs/` (gitignored; regenerate with `./scripts/gen_mtls_certs.sh`) |
+| Lab edge factories | `aria_edge/lab_runtime.py` (`ARIA_CV_MODE`, `ARIA_UNITREE_HARDWARE`) |
+| Cutover smoke | `scripts/lab_cutover.py` |
