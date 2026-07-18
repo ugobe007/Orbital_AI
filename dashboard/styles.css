@@ -417,6 +417,10 @@ body.embed-mode #sequence-bar {
 }
 body.embed-mode #map {
   flex: 1;
-  min-height: 180px;
+  min-height: 220px;
+  height: 100%;
   max-height: none !important;
+}
+body.embed-preview #map {
+  min-height: 280px;
 }

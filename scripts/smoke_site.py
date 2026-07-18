@@ -75,6 +75,11 @@ def main() -> None:
     if re.search(r'id=["\']demo-frame["\'][^>]*\ssrc=', html):
         fail("demo-frame must not have a static src (use click-to-load)")
 
+    # display:flex on .demo-frame-loading overrides Tailwind .hidden → stuck spinner.
+    m = re.search(r"\.demo-frame-loading\s*\{([^}]+)\}", html)
+    if m and re.search(r"display\s*:\s*flex", m.group(1)):
+        fail(".demo-frame-loading must not set display:flex (use .is-active)")
+
     print(
         f"OK: site smoke passed "
         f"({section_count} sections, tw.css={TW_CSS.stat().st_size}B, "

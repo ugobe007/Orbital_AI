@@ -1474,6 +1474,21 @@ async function init() {
     setInterval(loadOrchestrator, 5000);
   }
   connectWS();
+
+  if (EMBED) {
+    try {
+      window.parent.postMessage({ type: "orbital-embed-ready" }, window.location.origin);
+    } catch (_) { /* ignore */ }
+  }
 }
 
-init().catch((e) => { console.error(e); $("#conn-label").textContent = "error"; });
+init().catch((e) => {
+  console.error(e);
+  const label = $("#conn-label");
+  if (label) label.textContent = "error";
+  if (EMBED) {
+    try {
+      window.parent.postMessage({ type: "orbital-embed-ready", error: String(e) }, window.location.origin);
+    } catch (_) { /* ignore */ }
+  }
+});

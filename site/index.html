@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/tw.css?v=20260718e" />
+  <link rel="stylesheet" href="/tw.css?v=20260718f" />
   <style>
     :root { --line:#1e2530; --line-strong:#2a3340; --emerald:#3ecf8e; --amber:#ffb020; }
     html { scroll-behavior: smooth; }
@@ -104,11 +104,14 @@
       padding:1.25rem max(1.25rem, calc(50vw - 640px)) 1.75rem;
     }
     .demo-frame-wrap { overflow:hidden; border-radius:12px; border:1px solid var(--line-strong); position:relative; }
+    /* Must not set display:flex here — it overrides Tailwind .hidden and leaves the spinner stuck on. */
     .demo-frame-loading {
-      position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.75rem;
-      background:#0b0e13; color:#697585; font-size:13px; pointer-events:none; transition:opacity .35s ease;
+      position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:0.75rem;
+      background:#0b0e13; color:#697585; font-size:13px; pointer-events:none; z-index:2;
+      transition:opacity .35s ease;
     }
-    .demo-frame-loading.hide { opacity:0; }
+    .demo-frame-loading.is-active { display:flex; opacity:1; }
+    .demo-frame-loading.is-active.hide { opacity:0; visibility:hidden; }
     .demo-frame-spinner {
       width:28px; height:28px; border-radius:999px; border:2px solid rgba(62,207,142,0.2); border-top-color:#3ecf8e;
       animation:demo-spin .8s linear infinite;
@@ -267,11 +270,11 @@
             <p>Interactive fleet preview with spatial map, robot telemetry, and live metrics. Loads on demand so the page stays fast.</p>
             <button type="button" id="demo-load-btn" class="px-5 py-2.5 rounded-lg text-[14.5px] font-semibold btn-primary transition">Load live preview</button>
           </div>
-          <div id="demo-frame-loading" class="demo-frame-loading hidden">
+          <div id="demo-frame-loading" class="demo-frame-loading" aria-live="polite">
             <div class="demo-frame-spinner" aria-hidden="true"></div>
             <span class="mono text-[11px] eyebrow uppercase">Loading live warehouse map…</span>
           </div>
-          <iframe id="demo-frame" title="Orbital AI live warehouse map" referrerpolicy="no-referrer"></iframe>
+          <iframe id="demo-frame" title="Orbital AI live warehouse map" referrerpolicy="same-origin"></iframe>
         </div>
       </div>
     </div>
@@ -336,38 +339,51 @@
         </div>
       </div>
 
-      <!-- Architecture diagram (visual) -->
+      <!-- Network diagram — facility VLANs + edge + cloud -->
       <div class="mt-8 card p-6 md:p-8 reveal">
-        <div class="mono text-[10.5px] eyebrow uppercase text-ink-dim mb-4 text-center">Security boundary · outbound-only mTLS</div>
-        <svg class="arch-diagram" viewBox="0 0 920 220" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Robot VLAN connects to ARIA edge agent, which sends outbound mTLS to Orbital AI Cloud">
-          <!-- Robot VLAN zone -->
-          <rect x="20" y="40" width="260" height="140" rx="12" fill="#1c1509" stroke="rgba(255,176,32,0.45)" stroke-width="1.5" stroke-dasharray="6 4"/>
-          <text x="150" y="68" text-anchor="middle" fill="#ffc24d" font-family="JetBrains Mono,monospace" font-size="11" letter-spacing="2">ROBOT VLAN</text>
-          <rect x="50" y="88" width="200" height="72" rx="10" fill="#141a24" stroke="#2a3340" stroke-width="1"/>
-          <text x="150" y="118" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="14" font-weight="600">Robot network</text>
-          <text x="150" y="140" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="11">Hardware · sensors · actuators</text>
+        <div class="mono text-[10.5px] eyebrow uppercase text-ink-dim mb-2 text-center">Facility network · defense in depth</div>
+        <p class="text-center text-[13px] text-ink-mut mb-5 max-w-xl mx-auto">Cameras and robots stay offline. Only the ARIA edge node reaches Orbital over outbound mTLS.</p>
+        <svg class="arch-diagram" viewBox="0 0 920 280" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VLAN 10 cameras and VLAN 20 robots connect to ARIA on VLAN 30, which syncs outbound mTLS to Orbital AI Cloud">
+          <!-- Facility boundary -->
+          <rect x="16" y="16" width="560" height="248" rx="14" fill="#0c1016" stroke="#2a3340" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="36" y="40" fill="#697585" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.5">FACILITY · NO ROBOT INTERNET EGRESS</text>
 
-          <!-- ARIA edge -->
-          <rect x="320" y="55" width="200" height="110" rx="12" fill="#1c1509" stroke="rgba(255,176,32,0.55)" stroke-width="1.5"/>
-          <text x="420" y="84" text-anchor="middle" fill="#ffc24d" font-family="JetBrains Mono,monospace" font-size="11" letter-spacing="1.5">ARIA · EDGE</text>
-          <text x="420" y="112" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="500">CV navigation</text>
-          <text x="420" y="132" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10.5">drift-correct · safety-halt</text>
-          <text x="420" y="150" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="10">10 Hz control loop</text>
+          <!-- VLAN 10 cameras -->
+          <rect x="36" y="56" width="200" height="88" rx="10" fill="#12101c" stroke="rgba(124,92,255,0.45)" stroke-width="1.4"/>
+          <text x="136" y="78" text-anchor="middle" fill="#b7a6ff" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.2">VLAN 10 · CAMERAS</text>
+          <text x="136" y="102" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">Overhead CV</text>
+          <text x="136" y="122" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10">ArUco · ground-truth pose</text>
 
-          <!-- Arrow VLAN → ARIA -->
-          <path d="M280 110 H310" stroke="#697585" stroke-width="1.5" marker-end="url(#arrow-dim)"/>
+          <!-- VLAN 20 robots -->
+          <rect x="36" y="160" width="200" height="88" rx="10" fill="#1c1509" stroke="rgba(255,176,32,0.45)" stroke-width="1.4"/>
+          <text x="136" y="182" text-anchor="middle" fill="#ffc24d" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.2">VLAN 20 · ROBOTS</text>
+          <text x="136" y="206" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">OEM fleet</text>
+          <text x="136" y="226" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10">ROS2 · gRPC · REST · UDP</text>
 
-          <!-- mTLS tunnel -->
-          <rect x="545" y="95" width="130" height="30" rx="15" fill="#0e1b16" stroke="rgba(62,207,142,0.5)" stroke-width="1.5"/>
-          <text x="610" y="115" text-anchor="middle" fill="#4ade9a" font-family="JetBrains Mono,monospace" font-size="10.5">outbound mTLS</text>
-          <path d="M530 110 H545 M675 110 H700" stroke="#3ecf8e" stroke-width="2" marker-end="url(#arrow-em)"/>
+          <!-- arrows to edge -->
+          <path d="M236 100 H280" stroke="#697585" stroke-width="1.5" marker-end="url(#arrow-dim)"/>
+          <path d="M236 204 H280" stroke="#697585" stroke-width="1.5" marker-end="url(#arrow-dim)"/>
 
-          <!-- Cloud zone -->
-          <rect x="640" y="40" width="260" height="140" rx="12" fill="#0e1b16" stroke="rgba(62,207,142,0.45)" stroke-width="1.5" stroke-dasharray="6 4"/>
-          <text x="770" y="68" text-anchor="middle" fill="#4ade9a" font-family="JetBrains Mono,monospace" font-size="11" letter-spacing="2">ORBITAL AI CLOUD</text>
-          <rect x="670" y="88" width="200" height="72" rx="10" fill="#141a24" stroke="#2a3340" stroke-width="1"/>
-          <text x="770" y="116" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="14" font-weight="600">Control plane</text>
-          <text x="770" y="138" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10.5">REST · WS · dashboard · orchestrator</text>
+          <!-- VLAN 30 edge -->
+          <rect x="288" y="88" width="220" height="120" rx="12" fill="#1c1509" stroke="rgba(255,176,32,0.55)" stroke-width="1.5"/>
+          <text x="398" y="114" text-anchor="middle" fill="#ffc24d" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.2">VLAN 30 · EDGE MGMT</text>
+          <text x="398" y="140" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="14" font-weight="600">ARIA edge agent</text>
+          <text x="398" y="162" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10.5">TF-hijack · inject · estop</text>
+          <text x="398" y="182" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="10">10 Hz control loop</text>
+
+          <!-- mTLS -->
+          <path d="M508 148 H560" stroke="#3ecf8e" stroke-width="2" marker-end="url(#arrow-em)"/>
+          <rect x="568" y="128" width="112" height="40" rx="20" fill="#0e1b16" stroke="rgba(62,207,142,0.55)" stroke-width="1.4"/>
+          <text x="624" y="152" text-anchor="middle" fill="#4ade9a" font-family="JetBrains Mono,monospace" font-size="10">outbound mTLS</text>
+          <path d="M680 148 H708" stroke="#3ecf8e" stroke-width="2" marker-end="url(#arrow-em)"/>
+
+          <!-- Cloud -->
+          <rect x="708" y="72" width="192" height="152" rx="14" fill="#0e1b16" stroke="rgba(62,207,142,0.5)" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <text x="804" y="100" text-anchor="middle" fill="#4ade9a" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.2">ORBITAL AI CLOUD</text>
+          <text x="804" y="128" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="14" font-weight="600">Control plane</text>
+          <text x="804" y="150" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10.5">Dashboard · REST · WS</text>
+          <text x="804" y="170" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10.5">OEM scopes · RBAC</text>
+          <text x="804" y="190" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="10">Orchestrator · telemetry</text>
 
           <defs>
             <marker id="arrow-em" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3ecf8e"/></marker>
@@ -444,6 +460,54 @@
       </div>
       <div class="step-callout reveal">
         <strong>Every step is scope-governed and logged.</strong> Nothing reaches hardware without passing both Orbital's API gates and ARIA's safety-halt controller.
+      </div>
+
+      <!-- Control-loop workflow -->
+      <div class="mt-8 card p-6 md:p-8 reveal">
+        <div class="mono text-[10.5px] eyebrow uppercase text-ink-dim mb-2 text-center">ARIA control loop · every tick</div>
+        <p class="text-center text-[13px] text-ink-mut mb-5 max-w-xl mx-auto">Camera ground truth corrects onboard SLAM drift, then a waypoint is injected through the OEM adapter — with a local safety halt that never waits on the cloud.</p>
+        <svg class="arch-diagram" viewBox="0 0 920 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Control workflow from camera pose through TF hijack inject and OEM adapter to robot, with safety watchdog">
+          <rect x="20" y="40" width="140" height="80" rx="10" fill="#12101c" stroke="rgba(124,92,255,0.45)" stroke-width="1.3"/>
+          <text x="90" y="72" text-anchor="middle" fill="#b7a6ff" font-family="JetBrains Mono,monospace" font-size="10">01</text>
+          <text x="90" y="94" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">Camera pose</text>
+          <text x="90" y="112" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="9.5">P_external</text>
+
+          <path d="M160 80 H188" stroke="#697585" stroke-width="1.5" marker-end="url(#wf-dim)"/>
+
+          <rect x="188" y="40" width="140" height="80" rx="10" fill="#0e1b16" stroke="rgba(62,207,142,0.4)" stroke-width="1.3"/>
+          <text x="258" y="72" text-anchor="middle" fill="#4ade9a" font-family="JetBrains Mono,monospace" font-size="10">02</text>
+          <text x="258" y="94" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">TF-hijack</text>
+          <text x="258" y="112" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="9.5">T_delta · lookahead</text>
+
+          <path d="M328 80 H356" stroke="#697585" stroke-width="1.5" marker-end="url(#wf-dim)"/>
+
+          <rect x="356" y="40" width="140" height="80" rx="10" fill="#0e1b16" stroke="rgba(62,207,142,0.4)" stroke-width="1.3"/>
+          <text x="426" y="72" text-anchor="middle" fill="#4ade9a" font-family="JetBrains Mono,monospace" font-size="10">03</text>
+          <text x="426" y="94" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">Inject</text>
+          <text x="426" y="112" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="9.5">W_internal</text>
+
+          <path d="M496 80 H524" stroke="#697585" stroke-width="1.5" marker-end="url(#wf-dim)"/>
+
+          <rect x="524" y="40" width="150" height="80" rx="10" fill="#1c1509" stroke="rgba(255,176,32,0.45)" stroke-width="1.3"/>
+          <text x="599" y="72" text-anchor="middle" fill="#ffc24d" font-family="JetBrains Mono,monospace" font-size="10">04</text>
+          <text x="599" y="94" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">OEM adapter</text>
+          <text x="599" y="112" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="9.5">7 vendors · scopes</text>
+
+          <path d="M674 80 H702" stroke="#697585" stroke-width="1.5" marker-end="url(#wf-dim)"/>
+
+          <rect x="702" y="40" width="140" height="80" rx="10" fill="#141a24" stroke="#2a3340" stroke-width="1.3"/>
+          <text x="772" y="72" text-anchor="middle" fill="#9aa4b2" font-family="JetBrains Mono,monospace" font-size="10">05</text>
+          <text x="772" y="94" text-anchor="middle" fill="#e8ecf1" font-family="Space Grotesk,sans-serif" font-size="13" font-weight="600">Robot</text>
+          <text x="772" y="112" text-anchor="middle" fill="#697585" font-family="JetBrains Mono,monospace" font-size="9.5">nav · motion</text>
+
+          <!-- watchdog band -->
+          <rect x="20" y="132" width="822" height="22" rx="6" fill="#1a1010" stroke="rgba(229,72,77,0.35)" stroke-width="1"/>
+          <text x="431" y="147" text-anchor="middle" fill="#f07178" font-family="JetBrains Mono,monospace" font-size="10">SafetyWatchdog on PoseBus · local E-Stop if drift &gt; halt threshold (cloud-independent)</text>
+
+          <defs>
+            <marker id="wf-dim" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#697585"/></marker>
+          </defs>
+        </svg>
       </div>
     </div>
   </section>
@@ -635,19 +699,34 @@
     const frameLoading = document.getElementById("demo-frame-loading");
     const demoPrompt = document.getElementById("demo-prompt");
     const demoLoadBtn = document.getElementById("demo-load-btn");
-    const EMBED_SRC = "/app/?embed=1&v=20260718e";
+    const EMBED_SRC = "/app/?embed=1&v=20260718f";
+    let loadingHidden = false;
 
     function hideFrameLoading() {
-      if (frameLoading) frameLoading.classList.add("hide");
+      if (loadingHidden || !frameLoading) return;
+      loadingHidden = true;
+      frameLoading.classList.add("hide");
+      setTimeout(() => {
+        frameLoading.classList.remove("is-active", "hide");
+      }, 400);
     }
 
     function loadDemoFrame() {
       if (!frame || frame.dataset.loaded === "1") return;
       frame.dataset.loaded = "1";
+      loadingHidden = false;
       if (demoPrompt) demoPrompt.style.display = "none";
-      if (frameLoading) frameLoading.classList.remove("hidden");
+      if (frameLoading) {
+        frameLoading.classList.remove("hide");
+        frameLoading.classList.add("is-active");
+      }
       frame.classList.add("is-live");
-      frame.addEventListener("load", hideFrameLoading, { once: true });
+      // Document load is early; prefer postMessage from dashboard when map is ready.
+      frame.addEventListener("load", () => setTimeout(hideFrameLoading, 2500), { once: true });
+      window.addEventListener("message", (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        if (ev.data && ev.data.type === "orbital-embed-ready") hideFrameLoading();
+      });
       frame.src = EMBED_SRC;
       setTimeout(hideFrameLoading, 12000);
     }

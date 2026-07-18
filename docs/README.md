@@ -13,6 +13,7 @@ Authoritative engineering references for the **robot-control abstraction layer**
 | [HARDWARE_GATE.md](./HARDWARE_GATE.md) | Sprint D lab checklist (ArUco, Unitree, VLAN/SROS2/audit) |
 | [OEM_API_CONNECTIONS.md](./OEM_API_CONNECTIONS.md) | Public OEM API research + dry-run clients (`fleet_adapters/oem_apis/`) |
 | [OEM_API_SECURITY.md](./OEM_API_SECURITY.md) | OEM API inventory gaps + defense-in-depth security phases |
+| [FLY_PRODUCTION.md](./FLY_PRODUCTION.md) | Fly secrets checklist (RBAC, scopes, what not to put on Fly) |
 
 **Repos:** `/Users/robertchristopher/Desktop/Orbital_AI` (Python sim + Fly).  
 **Client apps** (StageGate, ReadyForRobots) consume Orbital over API/embed — they are not this repo.
