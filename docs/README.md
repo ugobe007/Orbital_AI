@@ -10,6 +10,7 @@ Authoritative engineering references for the **robot-control abstraction layer**
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | Desktop repo vs build guide (simulation lens) |
 | [SPRINT_PRIORITIZATION.md](./SPRINT_PRIORITIZATION.md) | Abstraction-first engineering order |
 | [HARDWARE_GATE.md](./HARDWARE_GATE.md) | Sprint D lab checklist (ArUco, Unitree, VLAN/SROS2/audit) |
+| [OEM_API_CONNECTIONS.md](./OEM_API_CONNECTIONS.md) | Public OEM API research + dry-run clients (`fleet_adapters/oem_apis/`) |
 
 **Repos:** `/Users/robertchristopher/Desktop/Orbital_AI` (Python sim + Fly).  
 **Client apps** (StageGate, ReadyForRobots) consume Orbital over API/embed — they are not this repo.
