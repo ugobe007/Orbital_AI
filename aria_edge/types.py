@@ -56,16 +56,31 @@ class DriftEstimate:
 
 @dataclass
 class PoseCorrection:
-    """Output of the Micro-Waypoint Generator (Module 2) — the corrective transform the
-    edge injects into the robot's TF tree / nav goal ("TF Hijack")."""
+    """Legacy cmd_vel correction when no trajectory is available."""
     robot_id: str
     dx: float
     dy: float
     dtheta: float
-    # A short corrective velocity the local controller applies at 10Hz.
     vx: float = 0.0
     vy: float = 0.0
     wz: float = 0.0
+
+
+@dataclass(frozen=True)
+class InjectionTick:
+    """One Module 2 injection cycle: drift transform + lookahead waypoint in robot frame."""
+    robot_id: str
+    t_delta: tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]
+    w_abs: Optional[tuple[float, float]]
+    w_internal: Optional[tuple[float, float]]
+    trajectory_complete: bool
+    dx: float
+    dy: float
+    dtheta: float
 
 
 @dataclass

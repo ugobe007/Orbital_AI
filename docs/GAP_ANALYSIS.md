@@ -10,9 +10,9 @@
 | Module | Guide focus | Status | Primary locations |
 |--------|-------------|--------|-------------------|
 | 1 CV Pipeline | ArUco/YOLO → `P_external` | Scaffold | `aria_edge/cv_pipeline.py` (sim only) |
-| 2 TF Hijack | 10 Hz `T_delta` + inject waypoint | Partial | `aria_edge/waypoint_generator.py`, `edge_agent.py` (P-controller ≠ guide math) |
-| 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | `fleet_adapters/*` (sim + capability ceilings) |
-| 4 Safety Halt | Independent 20 Hz watchdog | Partial | `aria_edge/safety_halt.py` (logic OK; same process as edge tick) |
+| 2 TF Hijack | 10 Hz `T_delta` + inject waypoint | Done (sim) | `aria_edge/waypoint_generator.py` (`T_delta`, lookahead, inject); velocity fallback when no traj |
+| 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | Guide API on sim adapters (`inject_waypoint` / `get_internal_pose` / `trigger_estop`); real SDKs still stub |
+| 4 Safety Halt | Independent 20 Hz watchdog | Partial | `pose_bus.py` + `SafetyWatchdog` (thread/bus isolation); not yet a separate OS process |
 | 5 Benchmark | Drift / MTBD / recovery / env | Done (sim) | `orbital_cloud/store.py`, `benchmark.py` (no InfluxDB) |
 | 6 Cloud Orchestration | Missions / trajectory / map / telemetry | Done | `orbital_cloud/routers/edge.py` (+ orchestrator, OEM) |
 | 7 Dashboard | Fleet API + amber UI + RBAC | Done API / Partial UI | `routers/dashboard.py`, `dashboard/` (no RBAC/CRM outreach) |
@@ -28,11 +28,11 @@
 
 ## Highest-impact gaps (abstraction, still no hardware)
 
-1. Module 2 algorithm fidelity (`T_delta`, trajectory lookahead, `inject_waypoint`)
-2. Adapter API parity with the guide + per-vendor protocol stubs
-3. Edge **pull** of missions/trajectories each tick
-4. Safety halt as an isolated process on a shared pose bus
-5. Occupancy map stub → real `/api/v1/map` payload (even synthetic)
+1. ~~Module 2 algorithm fidelity~~ — Done (sim); see Sprint A1
+2. Per-vendor **protocol stubs** (recorded topics / fake BD+Agility servers) — Sprint B
+3. ~~Edge pull of missions/trajectories~~ — Done (cache + HTTP when enabled)
+4. Safety halt as a **separate OS process** (bus exists; process spawn still open)
+5. Occupancy map stub → richer `/api/v1/map` payload
 6. Optional mTLS on edge↔cloud for test harness
 7. Dashboard RBAC (Admin / Operator / Viewer)
 

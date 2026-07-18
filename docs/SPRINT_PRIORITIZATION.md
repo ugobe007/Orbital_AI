@@ -11,12 +11,12 @@ sim backends first; gate hardware (cameras, ROS SDKs, VLAN) behind Sprint D.
 
 **Goal:** Guide-correct ARIA inject path, still 100% simulated.
 
-| ID | Work | Exit criteria |
-|----|------|---------------|
-| A1 | Reimplement Module 2: `T_delta`, trajectory lookahead, `inject_waypoint` | Golden unit tests for transform + inject |
-| A2 | Align `FleetAdapter` with guide (`inject_waypoint`, `get_internal_pose`, `trigger_estop`) | Keep capability ceilings; adapters still sim |
-| A3 | Edge `CloudSync` **pulls** missions + trajectories each tick | Edge uses cloud trajectory, not only local error |
-| A4 | Split safety into independent process + shared pose bus | Halt still fires if correct path is wedged |
+| ID | Work | Exit criteria | Status |
+|----|------|---------------|--------|
+| A1 | Reimplement Module 2: `T_delta`, trajectory lookahead, `inject_waypoint` | Golden unit tests for transform + inject | **Done** (`tests/test_tf_hijack.py`) |
+| A2 | Align `FleetAdapter` with guide (`inject_waypoint`, `get_internal_pose`, `trigger_estop`) | Keep capability ceilings; adapters still sim | **Done** |
+| A3 | Edge `CloudSync` **pulls** missions + trajectories each tick | Edge uses cloud trajectory, not only local error | **Done** (seed/cache + HTTP when enabled) |
+| A4 | Split safety into independent process + shared pose bus | Halt still fires if correct path is wedged | **Partial** — `PoseBus` + `SafetyWatchdog`; OS process spawn deferred |
 
 **Maps to guide:** S1-04, S1-05 (interface), S1-07, S2-06 (consumer side)
 

@@ -24,9 +24,12 @@ class EdgeSettings:
     drift_degraded_m: float = float(os.getenv("ORBITAL_DRIFT_DEGRADED_M", "0.1") or "0.1")
     halt_threshold_m: float = float(os.getenv("ORBITAL_HALT_THRESHOLD_M", "0.5") or "0.5")
 
-    # Proportional gain + clamp for the corrective velocity command.
+    # Proportional gain + clamp for the corrective velocity fallback (no trajectory).
     correction_gain: float = float(os.getenv("ARIA_CORRECTION_GAIN", "1.5") or "1.5")
     max_correction_mps: float = float(os.getenv("ARIA_MAX_CORRECTION_MPS", "0.4") or "0.4")
+
+    # Guide Module 2: lookahead on the global trajectory (meters).
+    lookahead_m: float = float(os.getenv("ARIA_LOOKAHEAD_M", "0.20") or "0.20")
 
 
 edge_settings = EdgeSettings()

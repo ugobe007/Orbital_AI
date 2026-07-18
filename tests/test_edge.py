@@ -50,11 +50,28 @@ def test_edge_agent_nominal_posts_telemetry_only():
     assert len(cloud.telemetry_sent) == 1 and not cloud.alerts_sent
 
 
-def test_edge_agent_corrects_degraded_drift():
+def test_edge_agent_corrects_degraded_drift_via_velocity_without_trajectory():
     agent, cloud, adapter = _agent()
     res = agent.tick(_frame({"rbt-01": Pose2D(0.2, 0.0)}), {"rbt-01": Pose2D(0.0, 0.0)})
     assert res[0]["action"] == "correct"
-    assert adapter.commands  # a corrective cmd_vel was issued
+    assert adapter.commands  # corrective cmd_vel fallback
+
+
+def test_edge_agent_injects_waypoint_when_trajectory_loaded():
+    agent, cloud, adapter = _agent()
+    agent.set_trajectory("rbt-01", [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0)])
+    res = agent.tick(_frame({"rbt-01": Pose2D(0.0, 0.0)}), {"rbt-01": Pose2D(0.15, 0.0)})
+    assert res[0]["action"] == "inject"
+    assert adapter.injected
+    assert res[0]["w_internal"][0] == adapter.injected[-1][0]
+
+
+def test_edge_pulls_seeded_trajectory_each_tick():
+    agent, cloud, adapter = _agent()
+    cloud.seed_trajectory("rbt-01", [(0.0, 0.0), (0.4, 0.0)])
+    res = agent.tick(_frame({"rbt-01": Pose2D(0.0, 0.0)}), {"rbt-01": Pose2D(0.12, 0.0)})
+    assert res[0]["action"] == "inject"
+    assert adapter.injected
 
 
 def test_edge_agent_halts_and_alerts_on_excess_drift():

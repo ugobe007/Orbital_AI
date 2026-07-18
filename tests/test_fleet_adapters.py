@@ -47,6 +47,22 @@ def test_ros2_estop_blocks_velocity():
     assert a.commands[-1] == (0.0, 0.0, 0.0)
 
 
+def test_inject_waypoint_guide_api():
+    a = get_adapter("Unitree", "rbt-01")
+    assert a.inject_waypoint("rbt-01", (1.2, 3.4)) is True
+    assert a.injected[-1] == (1.2, 3.4)
+    pose = a.get_internal_pose("rbt-01")
+    assert {"x", "y", "theta", "timestamp"} <= set(pose)
+    assert a.trigger_estop("rbt-01") is True
+    assert a.inject_waypoint("rbt-01", (0.0, 0.0)) is False  # halted
+
+
+def test_bd_inject_without_velocity():
+    a = get_adapter("Boston Dynamics", "rbt-03")
+    assert a.inject_waypoint("rbt-03", (2.0, 1.0)) is True
+    assert a.injected[-1] == (2.0, 1.0)
+
+
 def test_known_vendors_listed():
     vendors = known_vendors()
     assert "Boston Dynamics" in vendors and "Unitree" in vendors

@@ -8,11 +8,17 @@ onboarding flow then narrows to what the OEM has actually granted.
 
 Capability names are the shared vocabulary between this layer and the OEM API scopes in
 ``orbital_cloud.models.APIScope`` (kept 1:1 on purpose).
+
+Guide parity methods (``inject_waypoint``, ``get_internal_pose``, ``trigger_estop``) sit
+alongside the existing velocity/estop helpers so Sprint A can migrate without breaking
+capability ceilings.
 """
 from __future__ import annotations
 
 import abc
+import time
 from enum import Enum
+from typing import Sequence
 
 from aria_edge.types import Pose2D
 
@@ -20,10 +26,10 @@ from aria_edge.types import Pose2D
 class Capability(str, Enum):
     TELEMETRY = "telemetry.read"        # pose/odometry/battery streams
     STATE = "state.read"               # lifecycle/state + faults
-    VELOCITY = "control.velocity"       # cmd_vel-style correction (TF Hijack path)
+    VELOCITY = "control.velocity"       # cmd_vel-style correction (legacy fallback)
     ESTOP = "control.estop"            # emergency stop
     TELEOP = "control.teleop"          # full remote operation
-    MISSION = "mission.dispatch"        # send goals/waypoints
+    MISSION = "mission.dispatch"        # send goals/waypoints (TF hijack inject path)
     CAMERA = "camera.read"             # onboard camera feeds
     MAP = "map.read"                   # SLAM map access
 
@@ -52,8 +58,11 @@ class FleetAdapter(abc.ABC):
         """The maximum set of capabilities this vendor's protocol can expose."""
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
-    def connect(self) -> None:
+    def connect(self, robot_ip: str = "", credentials: dict | None = None) -> bool:
+        """Guide: establish authenticated connection. Sim adapters ignore credentials."""
+        del robot_ip, credentials
         self._connected = True
+        return True
 
     def disconnect(self) -> None:
         self._connected = False
@@ -71,14 +80,34 @@ class FleetAdapter(abc.ABC):
     def read_battery(self) -> float:
         ...
 
+    def get_internal_pose(self, robot_id: str | None = None) -> dict:
+        """Guide API: dict pose. ``robot_id`` ignored when the adapter is already bound."""
+        del robot_id
+        p = self.read_pose()
+        return {"x": p.x, "y": p.y, "theta": p.theta, "timestamp": time.time()}
+
+    def get_status(self, robot_id: str | None = None) -> dict:
+        del robot_id
+        return {"battery_pct": self.read_battery(), "error_code": "", "state": "ok"}
+
     # ── Control ──────────────────────────────────────────────────────────────
     @abc.abstractmethod
+    def inject_waypoint(self, robot_id: str, waypoint: Sequence[float]) -> bool:
+        """Send a single (x, y) waypoint already transformed into the robot's internal frame."""
+
+    @abc.abstractmethod
     def send_velocity(self, vx: float, vy: float, wz: float) -> None:
-        """Apply a corrective velocity (the edge waypoint generator's output)."""
+        """Legacy corrective velocity (used when no trajectory / ROS2 cmd_vel path)."""
 
     @abc.abstractmethod
     def estop(self) -> None:
         ...
+
+    def trigger_estop(self, robot_id: str | None = None) -> bool:
+        """Guide API alias for ``estop``."""
+        del robot_id
+        self.estop()
+        return True
 
     @abc.abstractmethod
     def resume(self) -> None:

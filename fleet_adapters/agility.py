@@ -1,13 +1,12 @@
 """Agility Robotics (Digit) fleet adapter.
 
 Digit integrates cloud-to-cloud via the Arc REST/WebSocket API rather than an on-prem ROS 2
-graph. Control is mission/goal level over HTTPS; there is no sub-10ms local velocity path,
-so the TF-Hijack correction runs in a degraded "goal nudge" mode and ``VELOCITY`` is not in
-the ceiling. Telemetry arrives over the Arc WebSocket.
-
-Real backend: authenticated Arc REST client + WebSocket telemetry. The scaffold records intent.
+graph. Control is mission/goal level over HTTPS; ``inject_waypoint`` maps to an Arc spatial
+constraint / task nudge. ``VELOCITY`` is not in the ceiling.
 """
 from __future__ import annotations
+
+from typing import Sequence
 
 from aria_edge.types import Pose2D
 
@@ -23,6 +22,7 @@ class SimulatedAgilityAdapter(FleetAdapter):
         self._pose = Pose2D(0.0, 0.0, 0.0)
         self._battery = 100.0
         self.goals: list[Pose2D] = []
+        self.injected: list[tuple[float, float]] = []
         self.estopped = False
 
     @classmethod
@@ -35,9 +35,18 @@ class SimulatedAgilityAdapter(FleetAdapter):
     def read_battery(self) -> float:
         return self._battery
 
+    def inject_waypoint(self, robot_id: str, waypoint: Sequence[float]) -> bool:
+        del robot_id
+        if self.estopped:
+            return False
+        xy = (float(waypoint[0]), float(waypoint[1]))
+        self.injected.append(xy)
+        self.goals.append(Pose2D(xy[0], xy[1], 0.0))
+        return True
+
     def send_velocity(self, vx: float, vy: float, wz: float) -> None:
         raise NotImplementedError(
-            "Agility Arc is cloud/goal-level; no local cmd_vel. Use dispatch_goal()."
+            "Agility Arc is cloud/goal-level; no local cmd_vel. Use inject_waypoint()."
         )
 
     def dispatch_goal(self, pose: Pose2D) -> None:

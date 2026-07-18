@@ -2,13 +2,15 @@
 
 Covers OEMs whose robots expose a ROS 2 nav stack with a cmd_vel override — Unitree,
 AgiBot, Deep Robotics, Fourier, MagicLab. These support the full capability set including
-the high-frequency velocity override the TF-Hijack correction needs.
+high-frequency waypoint inject and velocity override the TF-Hijack correction needs.
 
-The real adapter binds ``rclpy`` (publish ``geometry_msgs/Twist`` on cmd_vel, broadcast
-``TransformStamped`` on /tf, subscribe odometry). ``SimulatedROS2Adapter`` records commands
-so the edge loop is runnable and testable without a ROS 2 graph.
+The real adapter binds ``rclpy`` (NavigateToPose / cmd_vel, TF broadcast, odometry).
+``SimulatedROS2Adapter`` records inject + velocity commands so the edge loop is runnable
+without a ROS 2 graph.
 """
 from __future__ import annotations
+
+from typing import Sequence
 
 from aria_edge.types import Pose2D
 
@@ -32,6 +34,7 @@ class SimulatedROS2Adapter(FleetAdapter):
         self._battery = 100.0
         self._halted = False
         self.commands: list[tuple[float, float, float]] = []
+        self.injected: list[tuple[float, float]] = []
 
     @classmethod
     def capability_ceiling(cls) -> set[Capability]:
@@ -42,6 +45,13 @@ class SimulatedROS2Adapter(FleetAdapter):
 
     def read_battery(self) -> float:
         return self._battery
+
+    def inject_waypoint(self, robot_id: str, waypoint: Sequence[float]) -> bool:
+        del robot_id
+        if self._halted:
+            return False
+        self.injected.append((float(waypoint[0]), float(waypoint[1])))
+        return True
 
     def send_velocity(self, vx: float, vy: float, wz: float) -> None:
         if self._halted:
