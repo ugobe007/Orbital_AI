@@ -31,6 +31,14 @@ digit = get_adapter("Agility Robotics", "digit-1", api_key="arc-key")
 digit.connect({"api_key": "arc-key"})
 digit.inject_waypoint("digit-1", (0.5, 0.1))
 
+# All seven vendors expose ``adapter.oem_api`` (AgiBot / Deep / Fourier / MagicLab too):
+agibot = get_adapter("AgiBot", "a2-1", endpoint="192.168.100.110")
+agibot.connect()
+agibot.inject_waypoint("a2-1", (0.8, 0.2))
+
+# Credentials from env (Fly secrets): ORBITAL_SECRET_ARC_API_KEY, ORBITAL_SECRET_SPOT_JSON, …
+# See fleet_adapters/secrets.py and docs/OEM_API_SECURITY.md
+
 # Standalone client (same shapes):
 client = get_oem_client("Boston Dynamics", "spot-1", host="192.168.50.3", dry_run=True)
 assert client.connect({"username": "user"})
@@ -134,11 +142,12 @@ Capability ceilings in `fleet_adapters` remain authoritative for what Orbital ma
 | # | Task | Owner |
 |---|------|-------|
 | 1 | Install vendor SDK on edge host (`requirements-hw.txt` + vendor packages) | Robotics |
-| 2 | Set `dry_run=False`, pass host/credentials into `get_oem_client` | Robotics |
-| 3 | Wire `UnitreeAdapter` / BD / Agility adapters to call these clients | Robotics |
+| 2 | Set `dry_run=False` / `use_hardware=True` + Fly secrets for credentials | Robotics |
+| 3 | ~~Wire all 7 adapters to OEM clients~~ **done** (`fleet_adapters/oem_wired.py`) | — |
 | 4 | Confirm Agility Arc OpenAPI with partner; update paths | Integrations |
-| 5 | Add per-vendor integration test against fake or lab robot | QA |
+| 5 | Lab integration test per vendor (fake server or robot) | QA |
 | 6 | Keep `list_oem_endpoints()` in sync when vendors change APIs | Docs |
+| 7 | Prod flags: `ORBITAL_RBAC_ENFORCE=1`, `ORBITAL_STRICT_OEM_SCOPES=1` | Ops |
 
 ---
 

@@ -9,17 +9,26 @@ from __future__ import annotations
 from .agility import SimulatedAgilityAdapter
 from .base import Capability, FleetAdapter, Transport
 from .boston_dynamics import SimulatedBostonDynamicsAdapter
+from .oem_wired import (
+    AgiBotAdapter,
+    DeepRoboticsAdapter,
+    FourierAdapter,
+    MagicLabAdapter,
+)
 from .ros2_adapter import SimulatedROS2Adapter
 from .unitree import UnitreeAdapter
 
-# ROS 2-family OEMs share the generic ROS 2 adapter (full cmd_vel override),
-# except Unitree which has a dedicated Sprint D2 adapter (hw bind + latency hooks).
+# ROS 2-family OEMs (full cmd_vel override ceiling).
 _ROS2_VENDORS = {"Unitree", "AgiBot", "Deep Robotics", "Fourier Robotics", "MagicLab"}
 
 _SPECIAL: dict[str, type[FleetAdapter]] = {
     "Unitree": UnitreeAdapter,
     "Boston Dynamics": SimulatedBostonDynamicsAdapter,
     "Agility Robotics": SimulatedAgilityAdapter,
+    "AgiBot": AgiBotAdapter,
+    "Deep Robotics": DeepRoboticsAdapter,
+    "Fourier Robotics": FourierAdapter,
+    "MagicLab": MagicLabAdapter,
 }
 
 
@@ -48,5 +57,6 @@ __all__ = [
     "Capability", "FleetAdapter", "Transport",
     "SimulatedROS2Adapter", "SimulatedBostonDynamicsAdapter", "SimulatedAgilityAdapter",
     "UnitreeAdapter",
+    "AgiBotAdapter", "DeepRoboticsAdapter", "FourierAdapter", "MagicLabAdapter",
     "adapter_class_for", "get_adapter", "capability_ceiling_for", "known_vendors",
 ]

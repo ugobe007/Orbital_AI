@@ -15,6 +15,7 @@ from .base import Capability, Transport
 from .oem_apis import UnitreeRos2Client
 from .protocols import UNITREE, contract_for
 from .ros2_adapter import SimulatedROS2Adapter, _ROS2_CEILING
+from .secrets import resolve_oem_credentials
 
 
 class UnitreeAdapter(SimulatedROS2Adapter):
@@ -60,8 +61,9 @@ class UnitreeAdapter(SimulatedROS2Adapter):
         host = robot_ip or self.endpoint
         if host:
             self.oem_api.host = host
-        ok = super().connect(robot_ip, credentials)
-        api_ok = self.oem_api.connect(credentials)
+        creds = resolve_oem_credentials(self.vendor, credentials)
+        ok = super().connect(robot_ip, creds)
+        api_ok = self.oem_api.connect(creds)
         return ok and api_ok
 
     def inject_waypoint(self, robot_id: str, waypoint: Sequence[float]) -> bool:

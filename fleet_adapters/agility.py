@@ -12,6 +12,7 @@ from aria_edge.types import Pose2D
 from .base import Capability, FleetAdapter, Transport
 from .oem_apis import AgilityArcClient
 from .protocols import AGILITY
+from .secrets import resolve_oem_credentials
 
 if TYPE_CHECKING:
     from .fake_servers import FakeArcServer
@@ -55,8 +56,11 @@ class SimulatedAgilityAdapter(FleetAdapter):
         host = robot_ip or self.endpoint
         if host:
             self.oem_api.host = host
-        ok = super().connect(robot_ip, credentials)
-        return ok and self.oem_api.connect(credentials)
+        creds = resolve_oem_credentials(self.vendor, credentials)
+        if creds and creds.get("api_key") and not self.oem_api.api_key:
+            self.oem_api.api_key = creds["api_key"]
+        ok = super().connect(robot_ip, creds)
+        return ok and self.oem_api.connect(creds)
 
     def read_pose(self) -> Pose2D:
         if self.fake_server is not None:
