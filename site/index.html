@@ -214,7 +214,7 @@
                 referrerpolicy="no-referrer"></iframe>
             </div>
           </div>
-          <p class="mt-2.5 text-[12.5px] text-ink-dim leading-relaxed">Simulated warehouse fleet — telemetry, missions, alerts, and operator waypoints running now.</p>
+          <p class="mt-2.5 text-[12.5px] text-ink-dim leading-relaxed">Live warehouse map — robot positions, fleet status, and mission sequence updating in real time.</p>
         </div>
       </div>
     </div>
@@ -576,7 +576,7 @@
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
     const frame = document.getElementById("demo-frame");
-    if (frame) frame.src = "/app/?embed=1";
+    if (frame) frame.src = "/app/?embed=1&v=20260717a";
 
     const modal = document.getElementById("contact-modal");
     const form = document.getElementById("contact-form");

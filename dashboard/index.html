@@ -29,7 +29,7 @@
       },
     };
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260713d" />
+  <link rel="stylesheet" href="/styles.css?v=20260717a" />
 </head>
 <body class="min-h-screen text-ink md:pl-14">
   <!-- Left nav rail -->
@@ -81,14 +81,14 @@
 
   <!-- Live fleet overview (metrics + interactive status distribution) -->
   <section id="sec-overview" class="max-w-[1500px] mx-auto px-5 pt-4">
-    <div class="card p-3 grid grid-cols-1 xl:grid-cols-[minmax(0,420px)_1fr] gap-3 items-stretch">
+    <div id="overview-grid" class="card p-3 grid grid-cols-1 xl:grid-cols-[minmax(0,420px)_1fr] gap-3 items-stretch">
       <div id="stats" class="grid grid-cols-4 gap-2"></div>
       <div id="fleet-status" class="rounded-lg bg-surface-raised border border-line p-3 flex flex-col"></div>
     </div>
   </section>
 
   <!-- Map + control/alerts -->
-  <section class="max-w-[1500px] mx-auto px-5 pt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4">
+  <section id="embed-hero" class="max-w-[1500px] mx-auto px-5 pt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4">
     <!-- Map -->
     <div id="sec-map" class="card overflow-hidden">
       <div class="card-head px-4 py-2.5 flex items-center gap-3 flex-wrap">
@@ -102,7 +102,7 @@
       <div id="sequence-bar" class="px-4 py-2.5 border-b border-line bg-surface-raised"></div>
       <div class="p-3">
         <svg id="map" class="w-full rounded-lg select-none border border-line" style="background:#0a0d14; cursor: crosshair; touch-action: none; max-height: 62vh;"></svg>
-        <div class="mt-2.5 flex items-center gap-x-4 gap-y-1 text-[10.5px] text-ink-mut flex-wrap">
+        <div id="map-legend" class="mt-2.5 flex items-center gap-x-4 gap-y-1 text-[10.5px] text-ink-mut flex-wrap">
           <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:#00be7d"></span> robot (camera-tracked)</span>
           <span class="flex items-center gap-1.5"><span class="mono" style="color:#7c5cff">◹</span> overhead camera</span>
           <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm border" style="border-color:#3dbfe2;background:#0b2e3a"></span> named station (pick / drop)</span>
@@ -152,49 +152,43 @@
   </section>
 
   <!-- Control capabilities catalog (what OEM vendors unlock, what operators can do) -->
-  <section id="sec-capabilities" class="max-w-[1500px] mx-auto px-5 pt-4">
-    <div class="card overflow-hidden">
-      <div class="card-head px-4 py-2.5 flex items-center gap-2 flex-wrap">
-        <span class="tag">CAP·08</span>
-        <h2 class="font-semibold text-[14px]">Control Capabilities</h2>
-        <span class="text-[11px] text-ink-dim">the operator control surface — each capability is unlocked per-OEM via an API scope</span>
-        <div class="flex-1"></div>
-        <span class="text-[10.5px] text-ink-dim"><span class="text-brand">■</span> live &nbsp; <span class="text-azure">■</span> monitor &nbsp; <span style="color:#3a4658">■</span> not unlocked</span>
+  <section id="sec-capabilities" class="max-w-[1500px] mx-auto px-3 pt-3">
+    <div class="card tight overflow-hidden">
+      <div class="sb-section">
+        <span class="sb-kicker">CAP · 08</span>
+        <h2 class="sb-section-title">Control Capabilities</h2>
+        <p class="sb-section-desc">Operator control surface — each capability unlocked per-OEM via API scope</p>
+        <span class="ml-auto text-[10px] text-ink-dim"><span style="color:var(--brand)">●</span> live · <span style="color:var(--azure)">●</span> monitor · <span class="text-ink-dim">●</span> unlocked</span>
       </div>
-      <div id="capabilities" class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5"></div>
+      <div id="capabilities" class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2"></div>
     </div>
   </section>
 
   <!-- Fleet -->
-  <main id="sec-fleet" class="max-w-[1500px] mx-auto px-5 py-4">
-    <div class="flex items-center gap-3 mb-3 flex-wrap">
-      <span class="tag">FLT</span>
-      <h2 class="font-semibold text-[14px]">Fleet</h2>
-      <div id="tabs" class="flex flex-wrap gap-1.5"></div>
-      <span id="fleet-filter" class="ml-auto"></span>
+  <main id="sec-fleet" class="max-w-[1500px] mx-auto px-3 py-3">
+    <div class="sb-section" style="border: none; padding-left: 0; padding-right: 0;">
+      <span class="sb-kicker" style="color:var(--brand)" id="fleet-kicker">FLT</span>
+      <h2 class="sb-section-title">Fleet</h2>
+      <p class="sb-section-desc" id="fleet-count">filter by category</p>
+      <div id="tabs" class="flex flex-wrap gap-1.5 ml-auto"></div>
+      <span id="fleet-filter"></span>
     </div>
-    <div id="fleet" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3"></div>
+    <div id="fleet" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5"></div>
   </main>
 
   <!-- Benchmark -->
-  <section id="sec-benchmark" class="max-w-[1500px] mx-auto px-5 pb-8">
-    <div class="card overflow-hidden">
-      <div class="card-head px-4 py-2.5 flex items-center gap-2">
-        <h2 class="font-semibold text-[14px]">Benchmark Library</h2>
-        <span class="text-[11px] text-ink-dim">cross-vendor drift performance (licensed to OEMs)</span>
+  <section id="sec-benchmark" class="max-w-[1500px] mx-auto px-3 pb-6">
+    <div class="card tight overflow-hidden">
+      <div class="sb-section">
+        <span class="sb-kicker" style="color:#a855f7">BNCH</span>
+        <h2 class="sb-section-title">Benchmark Library</h2>
+        <p class="sb-section-desc">Cross-vendor drift performance — licensed to OEMs</p>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px]">
-          <thead class="text-ink-dim text-left">
-            <tr class="border-b border-line">
-              <th class="px-4 py-2 font-medium">Vendor</th>
-              <th class="px-4 py-2 font-medium">Robots</th>
-              <th class="px-4 py-2 font-medium">Samples</th>
-              <th class="px-4 py-2 font-medium">Mean drift</th>
-              <th class="px-4 py-2 font-medium">p95 drift</th>
-              <th class="px-4 py-2 font-medium">MTBD</th>
-              <th class="px-4 py-2 font-medium">Recovery</th>
-              <th class="px-4 py-2 font-medium">Env score</th>
+        <table class="sb-table">
+          <thead>
+            <tr>
+              <th>Vendor</th><th>Robots</th><th>Samples</th><th>Mean drift</th><th>P95 drift</th><th>MTBD</th><th>Recovery</th><th>Env score</th>
             </tr>
           </thead>
           <tbody id="benchmark"></tbody>
@@ -204,28 +198,19 @@
   </section>
 
   <!-- OEM partners & API scopes -->
-  <section id="sec-partners" class="max-w-[1500px] mx-auto px-5 pb-12">
-    <div class="card overflow-hidden">
-      <div class="card-head px-4 py-2.5 flex items-center gap-2 flex-wrap">
-        <h2 class="font-semibold text-[14px]">OEM Partners &amp; API Scopes</h2>
-        <span class="text-[11px] text-ink-dim">3rd-party robot companies and the control they've unlocked for Orbital</span>
-        <div class="flex-1"></div>
-        <button id="btn-onboard-2" class="px-2.5 py-1 rounded-md text-[12px] font-medium transition btn-press flex items-center gap-1.5" style="background:#0e2230; border:1px solid rgba(0,165,218,0.5); color:#7fd6f2">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Onboard robot API
-        </button>
+  <section id="sec-partners" class="max-w-[1500px] mx-auto px-3 pb-8">
+    <div class="card tight overflow-hidden">
+      <div class="sb-section flex-wrap">
+        <span class="sb-kicker" style="color:#ffa01f">OEM-07</span>
+        <h2 class="sb-section-title">OEM Partners &amp; API Scopes</h2>
+        <p class="sb-section-desc">3rd-party robot companies and the control they've unlocked for Orbital</p>
+        <button id="btn-onboard-2" class="ml-auto sb-btn text-[12px]">+ Onboard robot API</button>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px]">
-          <thead class="text-ink-dim text-left">
-            <tr class="border-b border-line">
-              <th class="px-4 py-2 font-medium">Company</th>
-              <th class="px-4 py-2 font-medium">Vendor</th>
-              <th class="px-4 py-2 font-medium">Transport</th>
-              <th class="px-4 py-2 font-medium">Status</th>
-              <th class="px-4 py-2 font-medium">Granted / Ceiling</th>
-              <th class="px-4 py-2 font-medium">Readiness</th>
-              <th class="px-4 py-2 font-medium"></th>
+        <table class="sb-table">
+          <thead>
+            <tr>
+              <th>Company</th><th>Vendor</th><th>Transport</th><th>Status</th><th>Granted / Ceiling</th><th>Readiness</th><th></th>
             </tr>
           </thead>
           <tbody id="oems"></tbody>
@@ -239,6 +224,6 @@
   <div id="modal-oem" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-wizard" class="modal hidden"><div class="modal-card modal-card-lg"></div></div>
 
-  <script src="/app.js?v=20260713d"></script>
+  <script src="/app.js?v=20260715c"></script>
 </body>
 </html>

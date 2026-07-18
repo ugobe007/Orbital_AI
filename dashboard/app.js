@@ -2,6 +2,7 @@
    Same-origin FastAPI cloud; live updates over /ws. Supabase-inspired dark console. */
 
 const API = "";
+const EMBED = new URLSearchParams(location.search).has("embed");
 const MAX_SPEED = 2.5; // mirrors ORBITAL_MAX_SPEED_MPS
 const state = {
   facility: null,
@@ -45,6 +46,39 @@ const CAPABILITIES = [
   { scope: "mission.dispatch", label: "Mission", glyph: "◆", kind: "control", desc: "Assign tasks & routes" },
 ];
 
+const FLEET_CATEGORIES = ["All", "Humanoids", "Cleaning", "Delivery", "Inventory"];
+
+function categoryMatches(industry, category) {
+  if (category === "All") return true;
+  const low = (industry || "").toLowerCase();
+  if (category === "Humanoids") return low.includes("humanoid");
+  if (category === "Cleaning") return low.includes("clean");
+  if (category === "Delivery") return low.includes("deliver");
+  if (category === "Inventory") return low.includes("invent");
+  return industry === category;
+}
+
+function industryAccent(industry) {
+  const low = (industry || "").toLowerCase();
+  if (low.includes("humanoid")) return "#00a5da";
+  if (low.includes("clean")) return "#ffa01f";
+  if (low.includes("deliver")) return "#a855f7";
+  if (low.includes("invent")) return "#38bdf8";
+  return "#3dbfe2";
+}
+
+function capStatusKey(cap, partners, robots) {
+  if (partners === 0) return "unlocked";
+  if (cap.kind === "control" && robots > 0) return "live";
+  if (cap.kind === "monitor") return "monitor";
+  if (cap.kind === "control" && partners > 0) return "live";
+  return "unlocked";
+}
+
+function inlineStatus(label, color) {
+  return `<span class="sb-inline" style="color:${color}"><span class="sb-inline-dot"></span>${esc(label)}</span>`;
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; };
@@ -76,14 +110,13 @@ function toast(msg, kind = "info") {
   setTimeout(() => t.remove(), 4000);
 }
 
-const STATE_STYLE = {
-  active:   ["bg-brand/15", "text-brand", "Active"],
-  idle:     ["bg-cta/15", "text-cta", "Idle"],
-  charging: ["bg-azure/15", "text-azure", "Charging"],
-  cooldown: ["bg-red-500/15", "text-red-400", "Task done"],
-  halted:   ["bg-red-500/20", "text-red-400", "Halted"],
-  offline:  ["bg-white/[0.06]", "text-ink-dim", "Offline"],
+const STATE_COLOR = {
+  active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#828c9b",
 };
+const STATE_LABEL = {
+  active: "Active", idle: "Idle", charging: "Charging", cooldown: "Task done", halted: "Halted", offline: "Offline",
+};
+const CAP_STATUS_COLOR = { live: "#00be7d", monitor: "#3dbfe2", unlocked: "#828c9b" };
 const MODE_LABEL = {
   patrol: "Autonomous patrol", visual_nav: "Visual-nav (SLAM bypass)", manual: "Manual jog",
   charging: "Charging", halted: "Halted", idle: "Idle", cooldown: "Between tasks",
@@ -209,6 +242,7 @@ function renderFleetStatus(m) {
         <span class="text-[12px] font-semibold mono ${m.counts[s.key] ? "text-ink" : "text-ink-dim"}">${m.counts[s.key]}</span>
       </div>`);
     chip.onclick = () => {
+      if (EMBED) return;
       state.statusFilter = on ? null : s.key;
       renderStats(); renderFleet();
       document.getElementById("sec-fleet")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -248,20 +282,27 @@ function renderTicker(m) {
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
 function renderTabs() {
-  const tabs = ["All", ...state.industries];
   $("#tabs").innerHTML = "";
-  for (const t of tabs) {
+  for (const t of FLEET_CATEGORIES) {
     const on = t === state.activeTab;
-    const cls = on ? "bg-brand text-[#052e1f] font-semibold" : "bg-surface-input text-ink-mut hover:text-ink hover:bg-line-strong";
-    const btn = el(`<button class="px-2.5 py-1 rounded-md text-[12px] transition ${cls}">${esc(t)}</button>`);
+    const btn = el(`<button type="button" class="seg-tab ${on ? "on" : ""}">${esc(t)}</button>`);
     btn.onclick = () => { state.activeTab = t; renderTabs(); renderFleet(); };
     $("#tabs").appendChild(btn);
   }
 }
 
 // ── fleet ─────────────────────────────────────────────────────────────────────
+function renderFleetHeader() {
+  const k = document.getElementById("fleet-kicker");
+  const c = document.getElementById("fleet-count");
+  const n = state.robots.length;
+  if (k) k.textContent = `FLT-${String(n).padStart(2, "0")}`;
+  if (c) c.textContent = `${n} robots · filter by category`;
+}
+
 function renderFleet() {
-  let list = state.activeTab === "All" ? state.robots : state.robots.filter((r) => r.industry === state.activeTab);
+  renderFleetHeader();
+  let list = state.robots.filter((r) => categoryMatches(r.industry, state.activeTab));
   if (state.statusFilter) list = list.filter((r) => r.state === state.statusFilter);
   renderFleetFilter();
   const grid = $("#fleet");
@@ -272,48 +313,49 @@ function renderFleet() {
     return;
   }
   for (const r of list) {
-    const [bg, fg, label] = STATE_STYLE[r.state] || STATE_STYLE.offline;
+    const label = STATE_LABEL[r.state] || r.state;
+    const stateColor = STATE_COLOR[r.state] || "#828c9b";
     const sel = r.id === state.selectedRobot;
+    const accent = industryAccent(r.industry);
+    const speed = r.speed_mps ?? 0;
     const card = el(`
-      <div class="card p-3.5 transition cursor-pointer ${sel ? "border-brand/60" : "hover:border-line-strong"}">
+      <div class="card fleet-card ${sel ? "selected" : ""}">
         <div class="flex items-start justify-between gap-2">
-          <div class="min-w-0">
-            <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} <span class="text-ink-mut font-normal">${esc(r.model)}</span></div>
-            <div class="text-[11px] text-ink-dim mt-0.5">${esc(r.id)} · ${esc(r.industry)}</div>
-          </div>
-          <span class="text-[10.5px] px-2 py-0.5 rounded-full ${bg} ${fg} whitespace-nowrap">${label}</span>
-        </div>
-        <div class="mt-2.5 flex items-center gap-1.5 text-[11px] ${MODE_STYLE[r.control_mode] || "text-ink-mut"}">
-          <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>${esc(MODE_LABEL[r.control_mode] || r.control_mode)}
-        </div>
-        ${r.mission ? `<div class="mt-1.5 text-[10.5px] text-ink-dim truncate" title="${esc(r.mission)}">
-          <span style="color:${PHASE_COLOR[r.mission_phase] || "#5b667a"}">●</span> ${esc(r.mission)}
-          ${r.current_task ? `<span class="text-ink-mut">· ${esc(r.current_task)}</span>` : ""}
-        </div>` : ""}
-        <div class="mt-2.5 grid grid-cols-2 gap-3 text-[13px]">
-          <div>
-            <div class="text-[11px] text-ink-dim">Drift Δ</div>
-            <div class="font-semibold mono ${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(3)}m</div>
-          </div>
-          <div>
-            <div class="text-[11px] text-ink-dim">Speed</div>
-            <div class="font-semibold mono text-ink">${(r.speed_mps ?? 0).toFixed(2)} m/s</div>
-          </div>
-        </div>
-        <div class="mt-2.5">
-          <div class="flex items-center gap-2">
-            <div class="h-1.5 flex-1 rounded-full bg-surface-input overflow-hidden">
-              <div class="h-full ${batteryColor(r.battery_pct)}" style="width:${Math.max(2, r.battery_pct)}%"></div>
+          <div class="flex gap-2.5 min-w-0">
+            <div class="fleet-icon" style="background:${accent}18;border-color:${accent}44;color:${accent}">⬡</div>
+            <div class="min-w-0">
+              <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
+              <div class="text-[11px] mono mt-0.5" style="color:#3dbfe2">${esc(r.id)} · ${esc(r.industry)}</div>
             </div>
-            <span class="text-[11px] text-ink-mut mono">${Math.round(r.battery_pct)}%</span>
           </div>
+          <span>${inlineStatus(label, stateColor)}</span>
+        </div>
+        <div class="mt-2 flex items-center gap-1.5 text-[11px] ${MODE_STYLE[r.control_mode] || "text-ink-mut"}">
+          <span class="w-1.5 h-1.5 rounded-full bg-current"></span>${esc(MODE_LABEL[r.control_mode] || r.control_mode)}
+        </div>
+        <div class="fleet-metrics">
+          <div class="fleet-metric">
+            <div class="fleet-metric-val ${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(3)}m</div>
+            <div class="fleet-metric-lbl">Drift Δ</div>
+          </div>
+          <div class="fleet-metric">
+            <div class="fleet-metric-val" style="color:#3dbfe2">${speed.toFixed(2)} m/s</div>
+            <div class="fleet-metric-lbl">Speed</div>
+          </div>
+          <div class="fleet-metric">
+            <div class="fleet-metric-val" style="color:#3dbfe2">${Math.round(r.battery_pct)}%</div>
+            <div class="fleet-metric-lbl">Battery</div>
+          </div>
+        </div>
+        <div class="mt-2.5 h-1 rounded-full bg-surface-input overflow-hidden">
+          <div class="h-full ${batteryColor(r.battery_pct)}" style="width:${Math.max(2, r.battery_pct)}%"></div>
         </div>
         <div class="mt-3 flex gap-2">
-          <button data-act="select" class="flex-1 px-2.5 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Control</button>
+          <button data-act="select" class="flex-1 px-2 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Control</button>
           ${r.state === "halted"
-            ? `<button data-act="resume" class="px-2.5 py-1.5 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[12px] font-medium">Resume</button>`
-            : `<button data-act="estop" class="px-2.5 py-1.5 rounded-md bg-red-600 hover:bg-red-500 text-white text-[12px] font-medium">E-Stop</button>`}
-          <button data-act="details" class="px-2.5 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
+            ? `<button data-act="resume" class="flex-1 px-2 py-1.5 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[12px] font-semibold">Resume</button>`
+            : `<button data-act="estop" class="flex-1 px-2 py-1.5 rounded-md text-[12px] font-semibold" style="background:#dc2626;color:#fff">E-Stop</button>`}
+          <button data-act="details" class="flex-1 px-2 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
         </div>
       </div>`);
     card.querySelector('[data-act="select"]').onclick = () => selectRobot(r.id);
@@ -361,6 +403,7 @@ function sectionHead(title, scope, ok) {
 }
 
 function renderControlPanel() {
+  if (EMBED) return;
   const box = $("#control-panel");
   const modeTag = $("#control-mode");
   const r = robotById(state.selectedRobot);
@@ -369,7 +412,8 @@ function renderControlPanel() {
     box.innerHTML = `<div class="text-[13px] text-ink-dim py-6 text-center">Select a robot on the map or a fleet card to drive it.</div>`;
     return;
   }
-  const [bg, fg, label] = STATE_STYLE[r.state] || STATE_STYLE.offline;
+  const label = STATE_LABEL[r.state] || r.state;
+  const stateColor = STATE_COLOR[r.state] || "#828c9b";
   modeTag.innerHTML = `<span class="${MODE_STYLE[r.control_mode] || "text-ink-mut"}">${esc(MODE_LABEL[r.control_mode] || r.control_mode)}</span>`;
   const halted = r.state === "halted";
   const g = vendorGrants(r.vendor);
@@ -384,7 +428,7 @@ function renderControlPanel() {
         <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
         <div class="text-[10.5px] text-ink-dim">${esc(r.id)} · ${g.managed ? esc(r.vendor) + " OEM" : "unmanaged (open)"}</div>
       </div>
-      <span class="text-[10px] px-2 py-0.5 rounded-full ${bg} ${fg} whitespace-nowrap">${label}</span>
+      ${inlineStatus(label, stateColor)}
     </div>
 
     ${(() => {
@@ -473,26 +517,25 @@ function renderCapabilities() {
   box.innerHTML = "";
   for (const cap of CAPABILITIES) {
     const partners = activeOems.filter((o) => (o.granted_scopes || []).includes(cap.scope)).length;
-    // robots we can exercise this on: unmanaged vendors are open; managed need the grant.
     const robots = state.robots.filter((r) => vendorGrants(r.vendor).has(cap.scope)).length;
-    const live = robots > 0;
-    const accent = cap.kind === "control"
-      ? (live ? "text-brand border-brand/30" : "text-ink-dim border-line")
-      : (live ? "text-sky-300 border-sky-500/25" : "text-ink-dim border-line");
+    const st = capStatusKey(cap, partners, robots);
+    const stLabel = st.toUpperCase();
+    const stColor = CAP_STATUS_COLOR[st] || "#828c9b";
+    const iconColor = st === "live" ? "var(--brand)" : st === "monitor" ? "var(--azure)" : "var(--ink-dim)";
     box.appendChild(el(`
-      <div class="rounded-lg bg-surface-raised border ${live ? "border-line-strong" : "border-line"} p-3">
-        <div class="flex items-center gap-2">
-          <span class="w-6 h-6 rounded-md flex items-center justify-center text-[13px] border ${accent}">${cap.glyph}</span>
-          <div class="min-w-0">
-            <div class="text-[12.5px] font-semibold truncate">${cap.label}</div>
-            <div class="mono text-[9.5px] text-ink-dim">${cap.scope}</div>
+      <div class="card tight">
+        <div class="card-body">
+          <div class="flex justify-between items-start mb-2">
+            <span class="fleet-icon" style="width:28px;height:28px;background:${iconColor}10;border-color:${iconColor}44;color:${iconColor}">${cap.glyph}</span>
+            ${inlineStatus(stLabel, stColor)}
           </div>
-          <span class="ml-auto text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${cap.kind === "control" ? "bg-brand/10 text-brand" : "bg-sky-500/10 text-sky-300"}">${cap.kind}</span>
-        </div>
-        <div class="text-[11.5px] text-ink-mut mt-2 leading-snug">${cap.desc}</div>
-        <div class="flex items-center justify-between mt-2 pt-2 border-t border-line text-[10.5px] text-ink-dim mono">
-          <span>${partners} partner${partners === 1 ? "" : "s"}</span>
-          <span class="${live ? "text-brand" : ""}">${robots} robot${robots === 1 ? "" : "s"}</span>
+          <div class="text-[13px] font-semibold">${cap.label}</div>
+          <div class="mono text-[10px] text-ink-dim mt-0.5">${cap.scope}</div>
+          <div class="text-[11.5px] text-ink-mut mt-2 leading-snug">${cap.desc}</div>
+          <div class="flex justify-between mt-2 pt-2 border-t border-line text-[10.5px] text-ink-dim mono">
+            <span>${partners} partner${partners === 1 ? "" : "s"}</span>
+            <span style="color:${robots > 0 ? "var(--azure-light)" : "inherit"}">${robots} robot${robots === 1 ? "" : "s"}</span>
+          </div>
         </div>
       </div>`));
   }
@@ -724,16 +767,23 @@ async function loadBenchmark() {
     const rows = [...data.vendors].sort((a, b) => a.mean_drift_m - b.mean_drift_m);
     const tb = $("#benchmark"); tb.innerHTML = "";
     for (const v of rows) {
+      const env = v.env_degradation_score ?? 0;
+      const envColor = env >= 0.5 ? "#e5484d" : env >= 0.48 ? "#ffa01f" : "#00be7d";
       tb.appendChild(el(`
-        <tr class="border-b border-line/60">
-          <td class="px-4 py-2 font-medium">${esc(v.vendor)}</td>
-          <td class="px-4 py-2 text-ink-mut mono">${v.robots}</td>
-          <td class="px-4 py-2 text-ink-mut mono">${v.samples}</td>
-          <td class="px-4 py-2 mono ${driftColor(v.mean_drift_m)}">${v.mean_drift_m.toFixed(3)}</td>
-          <td class="px-4 py-2 mono ${driftColor(v.p95_drift_m)}">${v.p95_drift_m.toFixed(3)}</td>
-          <td class="px-4 py-2 text-ink-mut mono">${fmtSecs(v.mtbd_seconds)}</td>
-          <td class="px-4 py-2 text-ink-mut mono">${v.mean_recovery_latency_seconds == null ? "—" : v.mean_recovery_latency_seconds + "s"}</td>
-          <td class="px-4 py-2 text-ink-mut mono">${v.env_degradation_score ?? "—"}</td>
+        <tr>
+          <td class="font-medium">${esc(v.vendor)}</td>
+          <td class="mono text-ink-mut">${v.robots}</td>
+          <td class="mono text-ink-mut">${Number(v.samples).toLocaleString()}</td>
+          <td class="mono" style="color:#3dbfe2">${v.mean_drift_m.toFixed(3)}</td>
+          <td class="mono" style="color:#3dbfe2">${v.p95_drift_m.toFixed(3)}</td>
+          <td class="mono text-ink-mut">${fmtSecs(v.mtbd_seconds)}</td>
+          <td class="mono text-ink-mut">${v.mean_recovery_latency_seconds == null ? "—" : v.mean_recovery_latency_seconds.toFixed(2) + "s"}</td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="env-bar"><span style="width:${Math.min(100, env * 100)}%;background:${envColor}"></span></div>
+              <span class="mono text-[12px]" style="color:${envColor}">${env.toFixed(3)}</span>
+            </div>
+          </td>
         </tr>`));
     }
   } catch (e) { console.error(e); }
@@ -744,11 +794,7 @@ const ALL_SCOPES = [
   "telemetry.read", "state.read", "control.velocity", "control.estop",
   "control.teleop", "mission.dispatch", "camera.read", "map.read",
 ];
-const OEM_STATUS_STYLE = {
-  active: ["bg-brand/15", "text-brand"],
-  pending: ["bg-amber-400/15", "text-amber-400"],
-  suspended: ["bg-red-500/20", "text-red-400"],
-};
+const OEM_STATUS_COLOR = { active: "#00be7d", pending: "#ffa01f", suspended: "#e5484d" };
 async function loadOEMs() {
   try {
     const oems = await getJSON("/api/dashboard/oems");
@@ -758,21 +804,24 @@ async function loadOEMs() {
     renderTicker();
     const tb = $("#oems"); tb.innerHTML = "";
     if (!oems.length) {
-      tb.appendChild(el(`<tr><td colspan="7" class="px-4 py-6 text-[13px] text-ink-dim">No OEM partners yet. Use <button class="text-azure hover:underline" onclick="openWizard()">Onboard robot API</button> to register one.</td></tr>`));
+      tb.appendChild(el(`<tr><td colspan="7" class="text-ink-dim">No OEM partners yet. Use <button class="text-azure hover:underline" style="background:none;border:none;cursor:pointer;padding:0" onclick="openWizard()">Onboard robot API</button> to register one.</td></tr>`));
       return;
     }
     for (const o of oems) {
-      const [bg, fg] = OEM_STATUS_STYLE[o.status] || ["bg-surface-input", "text-ink-mut"];
-      const readiness = `${o.monitor_ready ? '<span class="text-brand">monitor</span>' : '<span class="text-ink-dim">monitor</span>'} · ${o.control_ready ? '<span class="text-brand">control</span>' : '<span class="text-ink-dim">control</span>'}`;
+      const statusColor = OEM_STATUS_COLOR[o.status] || "#828c9b";
+      const readiness = [
+        o.control_ready ? `<span style="color:#ffa01f">control</span>` : `<span class="text-ink-dim">control</span>`,
+        o.monitor_ready ? `<span style="color:#3dbfe2">monitor</span>` : `<span class="text-ink-dim">monitor</span>`,
+      ].join(" · ");
       const row = el(`
-        <tr class="border-b border-line/60">
-          <td class="px-4 py-2 font-medium">${esc(o.company_name)}</td>
-          <td class="px-4 py-2 text-ink-mut">${esc(o.vendor)}</td>
-          <td class="px-4 py-2 text-ink-mut">${esc(o.transport)}</td>
-          <td class="px-4 py-2"><span class="text-[10.5px] px-2 py-0.5 rounded-full ${bg} ${fg}">${esc(o.status)}</span></td>
-          <td class="px-4 py-2 text-ink-mut mono">${o.granted_scopes.length} / ${o.ceiling_scopes.length}</td>
-          <td class="px-4 py-2 text-[12px]">${readiness}</td>
-          <td class="px-4 py-2 text-right"><button class="px-2.5 py-1 rounded-md bg-surface-input hover:bg-line-strong text-[11px]">Manage</button></td>
+        <tr>
+          <td class="font-medium">${esc(o.company_name)}</td>
+          <td class="text-ink-mut">${esc(o.vendor)}</td>
+          <td><span class="transport-tag">${esc(o.transport)}</span></td>
+          <td>${inlineStatus(o.status, statusColor)}</td>
+          <td class="mono font-semibold" style="color:#00be7d">${o.granted_scopes.length} / ${o.ceiling_scopes.length}</td>
+          <td class="text-[12px]">${readiness}</td>
+          <td class="text-right"><button class="sb-btn text-[11px]">Manage</button></td>
         </tr>`);
       row.querySelector("button").onclick = () => openOEM(o.oem_id);
       tb.appendChild(row);
@@ -855,7 +904,8 @@ function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.r
 async function openRobot(id) {
   try {
     const r = await getJSON(`/api/dashboard/robot/${id}`);
-    const [bg, fg, label] = STATE_STYLE[r.state] || STATE_STYLE.offline;
+    const label = STATE_LABEL[r.state] || r.state;
+    const stateColor = STATE_COLOR[r.state] || "#828c9b";
     const card = $("#modal-robot .modal-card");
     card.innerHTML = `
       <div class="p-5">
@@ -864,7 +914,7 @@ async function openRobot(id) {
             <div class="text-[16px] font-bold">${esc(r.vendor)} ${esc(r.model)}</div>
             <div class="text-[11px] text-ink-dim">${esc(r.id)} · ${esc(r.industry)} · ${esc(r.facility_id)}</div>
           </div>
-          <span class="text-[10.5px] px-2 py-0.5 rounded-full ${bg} ${fg}">${label}</span>
+          ${inlineStatus(label, stateColor)}
         </div>
         <p class="text-[13px] text-ink-mut mt-3">${esc(r.oem_brief)}</p>
         <div class="grid grid-cols-2 gap-2.5 mt-4 text-[13px]">
@@ -1334,9 +1384,26 @@ function renderWizardDone() {
 
 function closeWizard() { $("#modal-wizard").classList.add("hidden"); state.wizard = null; }
 
+// ── embed mode (marketing site iframe) — warehouse map + live metrics only ─
+function initEmbedMode() {
+  if (!EMBED) return;
+  document.documentElement.classList.add("embed-mode", "embed-preview");
+  document.body.classList.add("embed-mode", "embed-preview");
+  document.getElementById("rail")?.classList.add("hidden");
+  document.getElementById("sec-capabilities")?.classList.add("embed-hidden");
+  document.getElementById("sec-fleet")?.classList.add("embed-hidden");
+  document.getElementById("sec-benchmark")?.classList.add("embed-hidden");
+  document.getElementById("sec-partners")?.classList.add("embed-hidden");
+  document.querySelector("section:has(#logic)")?.classList.add("embed-hidden");
+  document.getElementById("btn-onboard")?.classList.add("embed-hidden");
+  document.getElementById("btn-dispatch")?.classList.add("embed-hidden");
+  document.getElementById("embed-hero")?.querySelector("aside")?.classList.add("embed-hidden");
+}
+
 // ── boot ─────────────────────────────────────────────────────────────────────
 async function init() {
-  initRail();
+  initEmbedMode();
+  if (!EMBED) initRail();
   $("#btn-dispatch").onclick = () => openDispatch();
   $("#btn-onboard").onclick = () => openWizard();
   const onboard2 = $("#btn-onboard-2"); if (onboard2) onboard2.onclick = () => openWizard();
@@ -1352,7 +1419,8 @@ async function init() {
   // Auto-select a live robot so the control surface is populated the moment the page loads.
   state.selectedRobot = (fleet.robots.find((r) => r.state !== "halted") || fleet.robots[0] || {}).id || null;
   $("#facility-name").textContent = fleet.facility.name;
-  renderTabs(); renderFleet(); renderStats(); renderSequence(); renderControlPanel();
+  renderTabs(); renderFleet(); renderStats(); renderSequence();
+  if (!EMBED) renderControlPanel();
 
   wireMap();
   await loadMap();

@@ -233,3 +233,184 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .switch input:checked + .track { background: rgba(0,190,125,0.25); border-color: var(--brand); }
 .switch input:checked + .track::before { transform: translateX(17px); background: var(--brand); }
+
+/* ── Supabase compact — inline status, tight tables, zero card fluff ───────── */
+.sb-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.sb-table th {
+  padding: 0.5rem 0.75rem; text-align: left; font-size: 0.625rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim);
+  border-bottom: 1px solid var(--line); background: var(--panel); white-space: nowrap;
+}
+.sb-table td {
+  padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); color: var(--ink);
+  vertical-align: middle;
+}
+.sb-table tr:last-child td { border-bottom: none; }
+.sb-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+.sb-inline {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.8125rem; font-weight: 500; white-space: nowrap;
+}
+.sb-inline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+
+.sb-section {
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0.75rem;
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.375rem 0.625rem;
+}
+.sb-section-title { font-size: 0.875rem; font-weight: 600; margin: 0; }
+.sb-section-desc { font-size: 0.75rem; color: var(--ink-dim); margin: 0; }
+.sb-kicker {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.625rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--azure-light);
+}
+
+.card.tight { padding: 0; }
+.card.tight > .card-head { padding: 0.5rem 0.75rem; }
+.card.tight > .card-body { padding: 0.75rem; }
+
+.fleet-card { padding: 0.75rem; cursor: pointer; transition: border-color 0.12s; }
+.fleet-card.selected { border-color: rgba(0,165,218,0.55); box-shadow: 0 0 0 1px rgba(0,165,218,0.2); }
+.fleet-icon {
+  width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid; font-size: 14px;
+}
+.fleet-state {
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 4px;
+}
+.fleet-metrics { display: flex; gap: 4px; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+.fleet-metric { flex: 1; text-align: center; }
+.fleet-metric-val { font-family: "JetBrains Mono", monospace; font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fleet-metric-lbl { font-size: 0.625rem; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+
+.cap-badge {
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 4px;
+}
+.cap-live { background: rgba(0,190,125,0.14); color: var(--brand); }
+.cap-monitor { background: rgba(0,165,218,0.14); color: var(--azure-light); }
+.cap-unlocked { background: rgba(255,255,255,0.06); color: var(--ink-dim); }
+
+.seg-tab {
+  padding: 6px 14px; border-radius: 6px; font-size: 0.78rem; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--ink-mut);
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+.seg-tab.on { border-color: var(--azure); color: var(--azure-light); background: rgba(0,165,218,0.1); }
+
+.transport-tag {
+  font-family: "JetBrains Mono", monospace; font-size: 0.625rem; color: var(--azure-light);
+}
+
+.env-bar { flex: 1; max-width: 72px; height: 6px; border-radius: 999px; background: var(--input); overflow: hidden; }
+.env-bar > span { display: block; height: 100%; border-radius: 999px; }
+
+/* ── Marketing embed (?embed=1) — warehouse map + live metrics, no control panel ─ */
+html.embed-mode, html.embed-mode body {
+  height: 100%;
+  overflow: hidden;
+}
+body.embed-mode {
+  padding-left: 0 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+body.embed-mode .embed-hidden { display: none !important; }
+body.embed-mode header {
+  position: relative;
+  flex-shrink: 0;
+}
+body.embed-mode header .border-l {
+  display: none;
+}
+body.embed-mode .ticker {
+  position: relative;
+  top: auto;
+  flex-shrink: 0;
+}
+body.embed-preview #overview-grid {
+  grid-template-columns: 1fr;
+  padding: 0.5rem 0.65rem;
+  gap: 0.5rem;
+}
+@media (min-width: 520px) {
+  body.embed-preview #overview-grid {
+    grid-template-columns: minmax(0, 280px) 1fr;
+  }
+}
+body.embed-preview #sec-overview {
+  flex-shrink: 0;
+  max-width: none;
+  width: 100%;
+  padding-top: 0.35rem;
+  padding-bottom: 0;
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
+}
+body.embed-preview #sec-overview > .card {
+  padding: 0;
+}
+body.embed-preview #stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 520px) {
+  body.embed-preview #stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+body.embed-preview #fleet-status {
+  padding: 0.5rem 0.65rem;
+}
+body.embed-preview #status-chips {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+body.embed-preview #status-chips .status-chip {
+  padding: 0.25rem 0.35rem;
+}
+body.embed-mode #embed-hero {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  width: 100%;
+  padding-top: 0.35rem;
+  padding-bottom: 0.5rem;
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr);
+}
+body.embed-preview #embed-hero > aside {
+  display: none !important;
+}
+body.embed-mode #sec-map {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+body.embed-mode #sec-map .card-head .text-ink-dim {
+  display: none;
+}
+body.embed-mode #sec-map > .p-3 {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+}
+body.embed-mode #map-legend {
+  display: none;
+}
+body.embed-mode #sequence-bar {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.68rem;
+}
+body.embed-mode #map {
+  flex: 1;
+  min-height: 180px;
+  max-height: none !important;
+}
