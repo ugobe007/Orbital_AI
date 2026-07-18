@@ -28,15 +28,19 @@ ADMIN_TOK="$(openssl rand -hex 24)"
 OPS_TOK="$(openssl rand -hex 24)"
 VIEW_TOK="$(openssl rand -hex 24)"
 
-# Shell double-quotes are NOT stored in the secret — they only protect the string.
-# Correct stored value looks like:  admin:abc...,operator:def...,viewer:ghi...
-# Wrong:  "admin:abc..."   or   ""admin:abc...""  (literal quote characters)
+# DO NOT INCLUDE quotation marks in the secret VALUE.
+# Wrong (literal " stored):   "admin:abc..."     or    ""1""
+# Correct:                    admin:abc...       or    1
+#
+# Preferred: use the reset script (never puts " into values):
+#   ./scripts/set_fly_rbac_secrets.sh
+#   ./scripts/set_fly_rbac_secrets.sh --deploy   # only when ready to lock public APIs
+
 fly secrets set -a orbital-ai \
   ORBITAL_RBAC_ENFORCE=1 \
   ORBITAL_STRICT_OEM_SCOPES=1 \
-  ORBITAL_RBAC_TOKENS="admin:${ADMIN_TOK},operator:${OPS_TOK},viewer:${VIEW_TOK}"
+  "ORBITAL_RBAC_TOKENS=admin:${ADMIN_TOK},operator:${OPS_TOK},viewer:${VIEW_TOK}"
 
-# Apply staged secrets (required — set alone does not restart the app):
 fly secrets deploy -a orbital-ai
 ```
 
@@ -48,7 +52,9 @@ fly secrets deploy -a orbital-ai
 
 Do **not** create Fly secrets named `ADMIN_TOK` / `OPS_TOK` / `VIEW_TOK`. Those are only local shell variables. The app reads **`ORBITAL_RBAC_TOKENS` only**.
 
-**Public demo warning:** With `ORBITAL_RBAC_ENFORCE=1`, anonymous `/app/` and the marketing embed get `401` on fleet/map unless the UI sends a Bearer token. Keep RBAC off for the open simulator, or wait until the embed carries a viewer token.
+**Public demo:** With `ORBITAL_RBAC_ENFORCE=1`, anonymous callers are **Viewers** by default
+(`ORBITAL_RBAC_ANON_VIEWER=1`). Fleet/map stay public; E-Stop / dispatch / OEM admin need Bearer tokens.
+Set `ORBITAL_RBAC_ANON_VIEWER=0` only if you want every API to require a token.
 
 **How clients authenticate after lockdown**
 

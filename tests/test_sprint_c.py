@@ -153,8 +153,18 @@ def test_rbac_viewer_can_read_fleet(monkeypatch):
     assert r.status_code == 200
 
 
-def test_rbac_enforce_requires_role(monkeypatch):
+def test_rbac_enforce_anon_is_viewer_by_default(monkeypatch):
     monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.delenv("ORBITAL_RBAC_ANON_VIEWER", raising=False)
+    r = client.get("/api/dashboard/fleet")
+    assert r.status_code == 200  # public read
+    rid = r.json()["robots"][0]["id"]
+    assert client.post(f"/api/dashboard/robot/{rid}/estop").status_code == 403
+
+
+def test_rbac_enforce_strict_requires_token(monkeypatch):
+    monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.setenv("ORBITAL_RBAC_ANON_VIEWER", "0")
     r = client.get("/api/dashboard/fleet")
     assert r.status_code == 401
 
@@ -164,3 +174,11 @@ def test_resolve_role_token_map(monkeypatch):
     monkeypatch.setenv("ORBITAL_RBAC_TOKENS", "admin:adm-secret,viewer:view-secret")
     assert resolve_role(authorization="Bearer adm-secret") == Role.ADMIN
     assert resolve_role(authorization="Bearer view-secret") == Role.VIEWER
+
+
+def test_resolve_role_strips_wrapping_quotes(monkeypatch):
+    """If someone pasted quotes into Fly, strip one wrapping layer so tokens still match."""
+    monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.setenv("ORBITAL_RBAC_TOKENS", '"admin:adm-secret,viewer:view-secret"')
+    assert resolve_role(authorization="Bearer adm-secret") == Role.ADMIN
+    assert resolve_role(authorization='Bearer "view-secret"') == Role.VIEWER
