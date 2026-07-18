@@ -1,0 +1,12 @@
+{
+  "name": "orbital-ai-frontend",
+  "private": true,
+  "description": "Build step for marketing + dashboard Tailwind utilities (no CDN).",
+  "scripts": {
+    "build:css": "tailwindcss -i ./frontend/tw.input.css -o ./dashboard/tw.css --minify",
+    "watch:css": "tailwindcss -i ./frontend/tw.input.css -o ./dashboard/tw.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

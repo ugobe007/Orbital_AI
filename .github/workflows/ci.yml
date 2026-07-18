@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   test:
-    name: Pytest + site smoke
+    name: CSS build + Pytest + site smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -24,13 +24,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Build Tailwind CSS
+        run: |
+          npm ci
+          npm run build:css
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: pip install -r requirements.txt
 
       - name: Run pytest

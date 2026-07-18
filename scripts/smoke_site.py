@@ -5,6 +5,7 @@ Catches the class of regressions that already bit production:
   - missing major sections
   - .reveal hidden until scroll (opacity: 0)
   - auto-loading the heavy /app embed iframe
+  - Tailwind CDN (runtime JIT) instead of built /tw.css
 """
 from __future__ import annotations
 
@@ -14,13 +15,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site" / "index.html"
+DASHBOARD = ROOT / "dashboard" / "index.html"
+TW_CSS = ROOT / "dashboard" / "tw.css"
 
 REQUIRED_SECTION_IDS = ("stack", "platform", "how", "data", "oem")
 REQUIRED_SNIPPETS = (
     "Launch the live demo",
     "Load live preview",
     "demo-load-btn",
-    "cdn.tailwindcss.com",
+    '/tw.css',
 )
 
 
@@ -32,8 +35,13 @@ def fail(msg: str) -> None:
 def main() -> None:
     if not SITE.is_file():
         fail(f"missing {SITE.relative_to(ROOT)}")
+    if not DASHBOARD.is_file():
+        fail(f"missing {DASHBOARD.relative_to(ROOT)}")
+    if not TW_CSS.is_file() or TW_CSS.stat().st_size < 1000:
+        fail("missing or empty dashboard/tw.css — run: npm run build:css")
 
     html = SITE.read_text(encoding="utf-8")
+    dash = DASHBOARD.read_text(encoding="utf-8")
 
     for tag in ("html", "head", "body", "section", "div"):
         opens = len(re.findall(rf"<{tag}[\s>]", html, flags=re.I))
@@ -53,6 +61,12 @@ def main() -> None:
         if snippet not in html:
             fail(f"missing required snippet: {snippet!r}")
 
+    if "cdn.tailwindcss.com" in html or "cdn.tailwindcss.com" in dash:
+        fail("Tailwind CDN is forbidden — use built /tw.css")
+
+    if '/tw.css' not in dash:
+        fail("dashboard must link /tw.css")
+
     # Hide-until-scroll was the "70% of site missing" bug.
     if re.search(r"\.reveal\s*\{[^}]*opacity\s*:\s*0", html):
         fail(".reveal must not default to opacity:0")
@@ -61,14 +75,10 @@ def main() -> None:
     if re.search(r'id=["\']demo-frame["\'][^>]*\ssrc=', html):
         fail("demo-frame must not have a static src (use click-to-load)")
 
-    # Tailwind in <head> blocks first paint on this large page.
-    head = html.split("</head>", 1)[0]
-    if "cdn.tailwindcss.com" in head:
-        fail("Tailwind CDN must not be in <head>; keep it at page bottom")
-
     print(
         f"OK: site smoke passed "
-        f"({section_count} sections, ids={','.join(REQUIRED_SECTION_IDS)})"
+        f"({section_count} sections, tw.css={TW_CSS.stat().st_size}B, "
+        f"ids={','.join(REQUIRED_SECTION_IDS)})"
     )
 
 
