@@ -72,4 +72,6 @@ def test_edge_trajectory_missions_map():
     rid = _a_robot_id()
     assert "waypoints" in client.get(f"/api/v1/trajectory/{rid}").json()
     assert "missions" in client.get("/api/v1/missions/facility-sf-001").json()
-    assert client.get("/api/v1/map/facility-sf-001").json()["width"] == 400
+    body = client.get("/api/v1/map/facility-sf-001").json()
+    assert body["width"] == int(round(24.0 / 0.05))
+    assert "data" in body and body["stats"]["occupied"] > 0

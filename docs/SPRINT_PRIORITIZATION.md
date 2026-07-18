@@ -40,12 +40,12 @@ sim backends first; gate hardware (cameras, ROS SDKs, VLAN) behind Sprint D.
 
 **Goal:** Production-shaped seams without hardware.
 
-| ID | Work | Exit criteria |
-|----|------|---------------|
-| C1 | `TelemetryStore` interface (memory ↔ optional Influx) | Benchmark API unchanged |
-| C2 | Synthetic occupancy payload for `GET /api/v1/map/{facility}` | Edge/dashboard can consume map |
-| C3 | Optional mTLS on edge↔cloud in local/docker test | Certs in `docs/` or `scripts/` only |
-| C4 | Dashboard RBAC: Admin / Operator / Viewer | Routes enforce roles |
+| ID | Work | Exit criteria | Status |
+|----|------|---------------|--------|
+| C1 | `TelemetryStore` interface (memory ↔ optional Influx) | Benchmark API unchanged | **Done** |
+| C2 | Synthetic occupancy payload for `GET /api/v1/map/{facility}` | Edge/dashboard can consume map | **Done** |
+| C3 | Optional mTLS on edge↔cloud in local/docker test | Certs in `docs/` or `scripts/` only | **Done** |
+| C4 | Dashboard RBAC: Admin / Operator / Viewer | Routes enforce roles | **Done** (`ORBITAL_RBAC_ENFORCE=1`) |
 
 **Maps to guide:** S2-03, Module 6 map, S3-03/S3-04 (scaffold), Module 7 RBAC
 

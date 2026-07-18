@@ -1,7 +1,7 @@
 """Module 7 — Fleet Management Dashboard API (+ monitor/control actions)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, WAREHOUSE, settings
@@ -28,6 +28,7 @@ from ..models import (
 from ..oem_store import ceiling_scopes_for_vendor, oem_store
 from fleet_adapters import known_vendors
 from ..orchestrator import orchestrator
+from ..rbac import RequireAdmin, RequireOperator, RequireViewer, Role
 from .. import scope_guard
 from ..store import store
 
@@ -40,7 +41,7 @@ async def _broadcast_fleet() -> None:
 
 
 @router.get("/fleet")
-async def get_fleet() -> dict:
+async def get_fleet(_role: Role = Depends(RequireViewer)) -> dict:
     return {
         "facility": {"id": settings.facility_id, "name": settings.facility_name},
         "industries": INDUSTRIES,
@@ -51,7 +52,7 @@ async def get_fleet() -> dict:
 
 
 @router.get("/robot/{robot_id}", response_model=RobotDetail)
-async def get_robot(robot_id: str) -> RobotDetail:
+async def get_robot(robot_id: str, _role: Role = Depends(RequireViewer)) -> RobotDetail:
     detail = store.robot_detail(robot_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="robot not found")
@@ -59,7 +60,7 @@ async def get_robot(robot_id: str) -> RobotDetail:
 
 
 @router.get("/robot/{robot_id}/sensors")
-async def get_robot_sensors(robot_id: str) -> dict:
+async def get_robot_sensors(robot_id: str, _role: Role = Depends(RequireViewer)) -> dict:
     if robot_id not in store.robots:
         raise HTTPException(status_code=404, detail="robot not found")
     snapshot = store.latest_sensors(robot_id)
@@ -67,13 +68,13 @@ async def get_robot_sensors(robot_id: str) -> dict:
 
 
 @router.get("/map")
-async def get_map() -> dict:
+async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
     """The warehouse floor plan operators drop waypoints on (Global Spatial Map)."""
     return WAREHOUSE
 
 
 @router.post("/robot/{robot_id}/navigate")
-async def navigate(robot_id: str, body: NavigateIn) -> dict:
+async def navigate(robot_id: str, body: NavigateIn, _role: Role = Depends(RequireOperator)) -> dict:
     """Set operator waypoints — Orbital drives the robot there via visual control, bypassing
     its onboard SLAM. Gated on control.velocity (the visual servo issues velocity commands)."""
     if not body.waypoints:
@@ -87,7 +88,7 @@ async def navigate(robot_id: str, body: NavigateIn) -> dict:
 
 
 @router.post("/robot/{robot_id}/navigate/clear")
-async def navigate_clear(robot_id: str) -> dict:
+async def navigate_clear(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
     if not store.clear_waypoints(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
     await _broadcast_fleet()
@@ -95,7 +96,7 @@ async def navigate_clear(robot_id: str) -> dict:
 
 
 @router.post("/robot/{robot_id}/speed")
-async def set_speed(robot_id: str, body: SpeedIn) -> dict:
+async def set_speed(robot_id: str, body: SpeedIn, _role: Role = Depends(RequireOperator)) -> dict:
     """Operator speed override (m/s). Scales patrol, visual-nav, and manual motion.
     Gated on control.velocity."""
     _enforce(robot_id, APIScope.VELOCITY)
@@ -107,7 +108,7 @@ async def set_speed(robot_id: str, body: SpeedIn) -> dict:
 
 
 @router.post("/robot/{robot_id}/drive")
-async def drive(robot_id: str, body: DriveIn) -> dict:
+async def drive(robot_id: str, body: DriveIn, _role: Role = Depends(RequireOperator)) -> dict:
     """Manual jog along a heading (deg, 0 = east, CCW). Overrides patrol / clears waypoints.
     Gated on control.velocity."""
     import math
@@ -121,7 +122,7 @@ async def drive(robot_id: str, body: DriveIn) -> dict:
 
 
 @router.post("/robot/{robot_id}/drive/stop")
-async def drive_stop(robot_id: str) -> dict:
+async def drive_stop(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
     _enforce(robot_id, APIScope.VELOCITY)
     if not store.stop_manual_drive(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
@@ -130,7 +131,7 @@ async def drive_stop(robot_id: str) -> dict:
 
 
 @router.get("/tasks", response_model=list[Task])
-async def list_tasks() -> list[Task]:
+async def list_tasks(_role: Role = Depends(RequireViewer)) -> list[Task]:
     return store.active_tasks()
 
 
@@ -144,7 +145,7 @@ def _enforce(robot_id: str, scope: APIScope) -> None:
 
 
 @router.post("/tasks", response_model=Task, status_code=201)
-async def create_task(task: TaskIn) -> Task:
+async def create_task(task: TaskIn, _role: Role = Depends(RequireOperator)) -> Task:
     if task.robot_id not in store.robots:
         raise HTTPException(status_code=404, detail="robot not found")
     _enforce(task.robot_id, APIScope.MISSION)
@@ -154,19 +155,19 @@ async def create_task(task: TaskIn) -> Task:
 
 
 @router.get("/alerts", response_model=list[Alert])
-async def list_alerts(limit: int = 50) -> list[Alert]:
+async def list_alerts(limit: int = 50, _role: Role = Depends(RequireViewer)) -> list[Alert]:
     return store.recent_alerts(limit=limit)
 
 
 @router.post("/alerts/{alert_id}/ack")
-async def ack_alert(alert_id: str) -> dict:
+async def ack_alert(alert_id: str, _role: Role = Depends(RequireOperator)) -> dict:
     if not store.acknowledge_alert(alert_id):
         raise HTTPException(status_code=404, detail="alert not found")
     return {"ok": True}
 
 
 @router.get("/benchmark")
-async def benchmark_report() -> dict:
+async def benchmark_report(_role: Role = Depends(RequireViewer)) -> dict:
     return {
         "report": render_benchmark_report(store),
         "vendors": [store.benchmark(v).model_dump(mode="json") for v in store.vendors()],
@@ -174,17 +175,17 @@ async def benchmark_report() -> dict:
 
 
 @router.get("/benchmark/{vendor}", response_model=VendorBenchmark)
-async def benchmark_for_vendor(vendor: str) -> VendorBenchmark:
+async def benchmark_for_vendor(vendor: str, _role: Role = Depends(RequireViewer)) -> VendorBenchmark:
     return store.benchmark(vendor)
 
 
 @router.get("/orchestrator", response_model=OrchestratorStatus)
-async def orchestrator_status() -> OrchestratorStatus:
+async def orchestrator_status(_role: Role = Depends(RequireViewer)) -> OrchestratorStatus:
     return orchestrator.status()
 
 
 @router.post("/orchestrator/run", response_model=OrchestratorStatus)
-async def orchestrator_run() -> OrchestratorStatus:
+async def orchestrator_run(_role: Role = Depends(RequireOperator)) -> OrchestratorStatus:
     """Trigger one supervisory pass on demand (useful for demos + tests)."""
     status = orchestrator.evaluate()
     await orchestrator.refresh_narrative()
@@ -194,7 +195,7 @@ async def orchestrator_run() -> OrchestratorStatus:
 
 
 @router.post("/robot/{robot_id}/estop")
-async def estop(robot_id: str) -> dict:
+async def estop(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
     _enforce(robot_id, APIScope.ESTOP)
     if not store.estop(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
@@ -203,7 +204,7 @@ async def estop(robot_id: str) -> dict:
 
 
 @router.post("/robot/{robot_id}/resume")
-async def resume(robot_id: str) -> dict:
+async def resume(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
     _enforce(robot_id, APIScope.ESTOP)
     if not store.resume(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
@@ -212,10 +213,7 @@ async def resume(robot_id: str) -> dict:
 
 
 # ── OEM governance (operator surface) ─────────────────────────────────────────
-# Operators view every partner and can revoke/suspend defensively. Granting stays
-# OEM-initiated in production (POST /api/oem/{id}/scopes with the partner's key); the
-# operator grant here is a convenience for the console/demo. Open in v0 — production
-# gates this behind operator RBAC.
+# Mutating OEM grants requires Admin when ORBITAL_RBAC_ENFORCE=1. Reads need Viewer+.
 
 def _profile_or_404(oem_id: str) -> IntegrationProfile:
     profile = oem_store.profile(oem_id)
@@ -237,7 +235,7 @@ _SCOPE_META: dict[str, str] = {
 
 
 @router.get("/oem-catalog")
-async def oem_catalog() -> dict:
+async def oem_catalog(_role: Role = Depends(RequireViewer)) -> dict:
     """Everything the onboarding wizard needs: known vendors and the API scopes each
     protocol can support, the transports, and the default governance policies."""
     vendors = [
@@ -253,7 +251,7 @@ async def oem_catalog() -> dict:
 
 
 @router.post("/oems", response_model=dict, status_code=201)
-async def onboard_oem(body: OEMOnboardIn) -> dict:
+async def onboard_oem(body: OEMOnboardIn, _role: Role = Depends(RequireAdmin)) -> dict:
     """Wizard endpoint — register a new robot-API partner, unlock the requested scopes,
     set governance policies, and return the profile + the one-time API key."""
     partner, credential = oem_store.register(body)
@@ -266,52 +264,52 @@ async def onboard_oem(body: OEMOnboardIn) -> dict:
 
 
 @router.post("/oems/{oem_id}/policies", response_model=IntegrationProfile)
-async def update_oem_policies(oem_id: str, body: OEMPolicies) -> IntegrationProfile:
+async def update_oem_policies(oem_id: str, body: OEMPolicies, _role: Role = Depends(RequireAdmin)) -> IntegrationProfile:
     if oem_store.set_policies(oem_id, body) is None:
         raise HTTPException(status_code=404, detail="OEM not found")
     return _profile_or_404(oem_id)
 
 
 @router.get("/oems", response_model=list[IntegrationProfile])
-async def list_oems() -> list[IntegrationProfile]:
+async def list_oems(_role: Role = Depends(RequireViewer)) -> list[IntegrationProfile]:
     return [p for p in (oem_store.profile(o.id) for o in oem_store.list()) if p is not None]
 
 
 @router.get("/oems/{oem_id}", response_model=IntegrationProfile)
-async def get_oem(oem_id: str) -> IntegrationProfile:
+async def get_oem(oem_id: str, _role: Role = Depends(RequireViewer)) -> IntegrationProfile:
     return _profile_or_404(oem_id)
 
 
 @router.post("/oems/{oem_id}/grant", response_model=IntegrationProfile)
-async def operator_grant(oem_id: str, body: ScopeGrantIn) -> IntegrationProfile:
+async def operator_grant(oem_id: str, body: ScopeGrantIn, _role: Role = Depends(RequireAdmin)) -> IntegrationProfile:
     if oem_store.grant_scopes(oem_id, body.scopes) is None:
         raise HTTPException(status_code=404, detail="OEM not found")
     return _profile_or_404(oem_id)
 
 
 @router.post("/oems/{oem_id}/revoke", response_model=IntegrationProfile)
-async def operator_revoke(oem_id: str, body: ScopeGrantIn) -> IntegrationProfile:
+async def operator_revoke(oem_id: str, body: ScopeGrantIn, _role: Role = Depends(RequireAdmin)) -> IntegrationProfile:
     if oem_store.revoke_scopes(oem_id, body.scopes) is None:
         raise HTTPException(status_code=404, detail="OEM not found")
     return _profile_or_404(oem_id)
 
 
 @router.delete("/oems/{oem_id}")
-async def remove_oem(oem_id: str) -> dict:
+async def remove_oem(oem_id: str, _role: Role = Depends(RequireAdmin)) -> dict:
     if not oem_store.remove(oem_id):
         raise HTTPException(status_code=404, detail="OEM not found")
     return {"ok": True, "oem_id": oem_id}
 
 
 @router.post("/oems/{oem_id}/suspend", response_model=IntegrationProfile)
-async def suspend_oem(oem_id: str) -> IntegrationProfile:
+async def suspend_oem(oem_id: str, _role: Role = Depends(RequireAdmin)) -> IntegrationProfile:
     if oem_store.set_status(oem_id, OEMStatus.SUSPENDED) is None:
         raise HTTPException(status_code=404, detail="OEM not found")
     return _profile_or_404(oem_id)
 
 
 @router.post("/oems/{oem_id}/reactivate", response_model=IntegrationProfile)
-async def reactivate_oem(oem_id: str) -> IntegrationProfile:
+async def reactivate_oem(oem_id: str, _role: Role = Depends(RequireAdmin)) -> IntegrationProfile:
     partner = oem_store.get(oem_id)
     if partner is None:
         raise HTTPException(status_code=404, detail="OEM not found")

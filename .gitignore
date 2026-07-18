@@ -9,3 +9,4 @@ venv/
 *.log
 node_modules/
 dist/
+scripts/mtls/certs/

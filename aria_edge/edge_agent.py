@@ -52,7 +52,7 @@ class RobotBinding:
 
 @dataclass
 class CloudSync:
-    """Posts telemetry/alerts and pulls missions/trajectories from the Orbital AI Cloud."""
+    """Posts telemetry/alerts and pulls missions/trajectories/map from the Orbital AI Cloud."""
     base_url: str = edge_settings.cloud_url
     api_key: str = edge_settings.cloud_api_key
     enabled: bool = False  # opt in explicitly; tests + offline edges stay record-only
@@ -61,12 +61,25 @@ class CloudSync:
     # Record-only cache for pull APIs (also filled when enabled + HTTP succeeds).
     trajectories: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
     missions: list[dict] = field(default_factory=list)
+    maps: dict[str, dict] = field(default_factory=dict)
+    mtls: Any = None  # aria_edge.mtls.MtlsConfig | None
+
+    def __post_init__(self) -> None:
+        if self.mtls is None:
+            from .mtls import load_mtls_config
+            self.mtls = load_mtls_config()
 
     def _headers(self) -> dict[str, str]:
         h = {"content-type": "application/json"}
         if self.api_key:
             h["authorization"] = f"Bearer {self.api_key}"
         return h
+
+    def _httpx_kwargs(self) -> dict:
+        kw: dict = {"timeout": 5.0, "headers": self._headers()}
+        if self.mtls is not None:
+            kw.update(self.mtls.httpx_kwargs())
+        return kw
 
     def post_telemetry(self, payload: dict) -> None:
         self.telemetry_sent.append(payload)
@@ -103,11 +116,22 @@ class CloudSync:
                 self.missions = list(data.get("missions") or [])
         return list(self.missions)
 
+    def pull_map(self, facility_id: str | None = None) -> dict:
+        """GET /api/v1/map/{facility}. Returns cached occupancy grid when offline."""
+        fid = facility_id or edge_settings.facility_id
+        if self.enabled:
+            data = self._get(f"/api/v1/map/{fid}")
+            if data is not None:
+                self.maps[fid] = data
+        return dict(self.maps.get(fid) or {})
+
     def _post(self, path: str, payload: dict) -> None:
         try:
             import httpx
 
-            httpx.post(f"{self.base_url}{path}", json=payload, headers=self._headers(), timeout=5.0)
+            kw = self._httpx_kwargs()
+            headers = kw.pop("headers")
+            httpx.post(f"{self.base_url}{path}", json=payload, headers=headers, **kw)
         except Exception as exc:  # noqa: BLE001 — cloud sync is best-effort, never blocks control
             logger.warning("[edge] cloud sync %s failed: %s", path, exc)
 
@@ -115,7 +139,10 @@ class CloudSync:
         try:
             import httpx
 
-            resp = httpx.get(f"{self.base_url}{path}", headers=self._headers(), timeout=5.0)
+            # headers already in kwargs; don't double-pass
+            kw = self._httpx_kwargs()
+            headers = kw.pop("headers")
+            resp = httpx.get(f"{self.base_url}{path}", headers=headers, **kw)
             if resp.status_code >= 400:
                 logger.warning("[edge] cloud GET %s -> %s", path, resp.status_code)
                 return None

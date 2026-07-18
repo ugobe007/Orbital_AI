@@ -18,6 +18,7 @@ from typing import Optional
 
 from .config import SEED_FLEET, VENDOR_BRIEFS, WAREHOUSE, settings
 from . import persistence
+from .telemetry_store import TelemetryStore, build_telemetry_store
 from .models import (
     Alert,
     AlertIn,
@@ -141,10 +142,12 @@ class RobotRuntime:
 
 
 class Store:
-    def __init__(self) -> None:
+    def __init__(self, telemetry_backend: TelemetryStore | None = None) -> None:
         self._lock = threading.RLock()
         self.robots: dict[str, RobotRuntime] = {}
-        self.telemetry: dict[str, deque[tuple[float, float]]] = {}
+        self._telemetry: TelemetryStore = telemetry_backend or build_telemetry_store()
+        # Back-compat: tests/code may still read ``store.telemetry`` as a dict of deques.
+        self.telemetry = self._telemetry.as_dict()
         self.sensors: dict[str, SensorSnapshot] = {}
         self.alerts: list[Alert] = []
         self.tasks: dict[str, Task] = {}
@@ -175,14 +178,16 @@ class Store:
     def _seed(self) -> None:
         for seed in SEED_FLEET:
             self.robots[seed["id"]] = RobotRuntime(seed)
-            self.telemetry[seed["id"]] = deque(maxlen=5000)
+            self._telemetry.ensure_robot(seed["id"])
+        self.telemetry = self._telemetry.as_dict()
 
     # ── Telemetry ingest (shared by simulator + POST /api/v1/telemetry) ──────────
     def ingest_telemetry(self, t: TelemetryIn) -> None:
         with self._lock:
             robot = self.robots.get(t.robot_id)
             ts = t.ts or time.time()
-            self.telemetry.setdefault(t.robot_id, deque(maxlen=5000)).append((ts, t.delta_meters))
+            self._telemetry.append(t.robot_id, ts, t.delta_meters)
+            self.telemetry = self._telemetry.as_dict()
 
             # Capture the multi-modal snapshot (battery/motors/imu/spatial/temps) if present.
             if any([t.battery, t.motors, t.imu, t.spatial, t.temperatures_c, t.extra]):
@@ -379,7 +384,7 @@ class Store:
             robot = self.robots.get(robot_id)
             if robot is None:
                 return None
-            deltas = [d for _, d in self.telemetry.get(robot_id, ())]
+            deltas = [d for _, d in self._telemetry.series(robot_id)]
             return RobotDetail(
                 **robot.summary().model_dump(),
                 facility_id=settings.facility_id,
@@ -409,7 +414,7 @@ class Store:
             robots = [r for r in self.robots.values() if r.vendor.lower() == vendor.lower()]
             deltas: list[float] = []
             for r in robots:
-                deltas.extend(d for _, d in self.telemetry.get(r.id, ()))
+                deltas.extend(d for _, d in self._telemetry.series(r.id))
             total_uptime = sum(r.uptime_seconds for r in robots)
             total_events = sum(r.degradation_events for r in robots)
             recoveries: list[float] = []

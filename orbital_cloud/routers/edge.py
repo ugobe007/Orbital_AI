@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from ..events import hub
 from ..models import AlertIn, TelemetryIn
+from ..occupancy import synthetic_occupancy_grid
 from ..store import store
 
 router = APIRouter(prefix="/api/v1", tags=["edge"])
@@ -32,15 +33,8 @@ async def get_trajectory(robot_id: str) -> dict:
 
 @router.get("/map/{facility_id}")
 async def get_map(facility_id: str) -> dict:
-    """Stub Global Spatial Map (nav_msgs/OccupancyGrid shape) for the demo."""
-    return {
-        "facility_id": facility_id,
-        "resolution": 0.05,
-        "width": 400,
-        "height": 300,
-        "origin": {"x": -2.0, "y": -2.0, "theta": 0.0},
-        "note": "occupancy data omitted in v0 demo",
-    }
+    """Synthetic Global Spatial Map (nav_msgs/OccupancyGrid shape) for edge consumers."""
+    return synthetic_occupancy_grid(facility_id)
 
 
 @router.post("/telemetry", status_code=202)

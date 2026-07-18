@@ -13,10 +13,10 @@
 | 2 TF Hijack | 10 Hz `T_delta` + inject waypoint | Done (sim) | `waypoint_generator.py` + `tf_publisher.py` (map→odom record @ 30 Hz) |
 | 3 Fleet Adapters | Per-OEM SDK + `inject_waypoint` | Partial | Guide API + protocol contracts + fake BD/Arc servers; real SDKs still stub |
 | 4 Safety Halt | Independent 20 Hz watchdog | Partial | `pose_bus.py` + `SafetyWatchdog` (thread/bus isolation); not yet a separate OS process |
-| 5 Benchmark | Drift / MTBD / recovery / env | Done (sim) | `orbital_cloud/store.py`, `benchmark.py` (no InfluxDB) |
-| 6 Cloud Orchestration | Missions / trajectory / map / telemetry | Done | `orbital_cloud/routers/edge.py` (+ orchestrator, OEM) |
-| 7 Dashboard | Fleet API + amber UI + RBAC | Done API / Partial UI | `routers/dashboard.py`, `dashboard/` (no RBAC/CRM outreach) |
-| Cybersecurity | VLAN / mTLS / SROS2 | Missing | Comments only; OEM scopes ≠ transport security |
+| 5 Benchmark | Drift / MTBD / recovery / env | Done (sim) | `TelemetryStore` (memory ± optional Influx dual-write); benchmark API unchanged |
+| 6 Cloud Orchestration | Missions / trajectory / map / telemetry | Done | Synthetic occupancy on `/api/v1/map`; edge pull_map |
+| 7 Dashboard | Fleet API + amber UI + RBAC | Done API / Partial UI | RBAC Admin/Operator/Viewer when `ORBITAL_RBAC_ENFORCE=1` |
+| Cybersecurity | VLAN / mTLS / SROS2 | Partial | Edge mTLS client + `scripts/gen_mtls_certs.sh`; VLAN/SROS2 still open |
 
 ## What already works for testing
 
@@ -32,9 +32,10 @@
 2. ~~Per-vendor protocol stubs~~ — Done (Sprint B); real SDK bind still open
 3. ~~Edge pull of missions/trajectories~~ — Done (cache + HTTP when enabled)
 4. Safety halt as a **separate OS process** (bus exists; process spawn still open)
-5. Occupancy map stub → richer `/api/v1/map` payload
-6. Optional mTLS on edge↔cloud for test harness
-7. Dashboard RBAC (Admin / Operator / Viewer)
+5. ~~Occupancy map~~ — Done (synthetic grid, Sprint C2)
+6. ~~Optional mTLS harness~~ — Done (client + cert script; prod VLAN still open)
+7. ~~Dashboard RBAC~~ — Done (enforce via `ORBITAL_RBAC_ENFORCE=1`)
+8. Real OEM SDK binds (hardware — Sprint D)
 
 ## Guide sprint items vs sim
 
@@ -42,7 +43,7 @@
 |--------|----------------------|------------|
 | S1 Core loop | Sim CV, sim Unitree adapter, edge tick @ 10 Hz config | Lab hardware, ArUco, true TF hijack, TF publisher, latency harness, isolated safety process |
 | S2 Multi-robot & benchmark | MTBD/report, FastAPI cloud, trajectory API endpoints | Open-RMF, InfluxDB, edge trajectory consumer, real AgiBot SDK |
-| S3 BD & dashboard | Dashboard API, sim BD ceilings | Real bosdyn gRPC, SROS2/mTLS, security audit, RBAC |
+| S3 BD & dashboard | Dashboard API, sim BD, fake Arc/BD, RBAC, mTLS client | Real bosdyn gRPC, SROS2, security audit |
 | S4 Pilot | Sim Fourier/Deep/MagicLab/Agility registry | Real SDKs, YOLO B, hardware pilot, live OEM licensing data |
 
 ## Structural note
