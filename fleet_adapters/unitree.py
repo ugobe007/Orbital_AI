@@ -1,8 +1,8 @@
-"""Unitree fleet adapter — real ROS 2 bind when available, sim otherwise (Sprint D2).
+"""Unitree fleet adapter — wired to ``UnitreeRos2Client`` (public Nav2 / cmd_vel API).
 
-``UnitreeAdapter`` speaks the guide inject path (``navigate_to_pose`` / ``cmd_vel``).
-When ``use_hardware=True`` it attempts to import ``rclpy``; without the SDK it raises
-so lab deploys cannot silently stay on the simulator.
+Sim path: records inject locally + dry-runs the OEM client call shapes.
+Hardware path (``use_hardware=True``): requires ``rclpy``; OEM client runs with
+``dry_run=False`` so lab binds exercise the documented NavigateToPose surface.
 """
 from __future__ import annotations
 
@@ -12,40 +12,13 @@ from typing import Sequence
 from aria_edge.types import Pose2D
 
 from .base import Capability, Transport
+from .oem_apis import UnitreeRos2Client
 from .protocols import UNITREE, contract_for
 from .ros2_adapter import SimulatedROS2Adapter, _ROS2_CEILING
 
 
-class UnitreeHardwareTransport:
-    """Thin rclpy bind — only constructed when ``use_hardware=True``."""
-
-    def __init__(self, robot_id: str, namespace: str = "unitree") -> None:
-        try:
-            import rclpy  # type: ignore  # noqa: F401
-        except ImportError as exc:  # pragma: no cover - requires lab ROS
-            raise RuntimeError(
-                "Unitree hardware mode requires rclpy / unitree_ros2 on the edge host"
-            ) from exc
-        self.robot_id = robot_id
-        self.namespace = namespace
-        self.connected = False
-
-    def connect(self) -> None:  # pragma: no cover - lab
-        self.connected = True
-
-    def inject_waypoint(self, waypoint: Sequence[float]) -> bool:  # pragma: no cover - lab
-        # Real impl: NavigateToPose action or cmd_vel toward goal.
-        return self.connected
-
-    def read_pose(self) -> Pose2D:  # pragma: no cover - lab
-        return Pose2D(0.0, 0.0, 0.0)
-
-    def estop(self) -> None:  # pragma: no cover - lab
-        pass
-
-
 class UnitreeAdapter(SimulatedROS2Adapter):
-    """Unitree-specific adapter with optional hardware transport + latency hooks."""
+    """Unitree-specific adapter with OEM API client + latency hooks."""
 
     vendor = "Unitree"
     transport = Transport.ROS2
@@ -58,48 +31,85 @@ class UnitreeAdapter(SimulatedROS2Adapter):
         use_hardware: bool = False,
         namespace: str = "unitree",
         inject_latency_s: float = 0.0,
+        oem_api: UnitreeRos2Client | None = None,
     ) -> None:
         super().__init__(robot_id, endpoint, vendor="Unitree")
         self.namespace = namespace
         self.use_hardware = use_hardware
         self.inject_latency_s = inject_latency_s
-        self._hw: UnitreeHardwareTransport | None = None
         self.inject_timestamps: list[float] = []
         if use_hardware:
-            self._hw = UnitreeHardwareTransport(robot_id, namespace=namespace)
+            try:
+                import rclpy  # noqa: F401
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Unitree hardware mode requires rclpy / unitree_ros2 on the edge host"
+                ) from exc
+        self.oem_api = oem_api or UnitreeRos2Client(
+            robot_id,
+            host=endpoint,
+            dry_run=not use_hardware,
+            namespace=namespace,
+        )
 
     @classmethod
     def capability_ceiling(cls) -> set[Capability]:
         return set(_ROS2_CEILING)
 
     def connect(self, robot_ip: str = "", credentials: dict | None = None) -> bool:
+        host = robot_ip or self.endpoint
+        if host:
+            self.oem_api.host = host
         ok = super().connect(robot_ip, credentials)
-        if self._hw is not None:
-            self._hw.connect()
-        return ok
+        api_ok = self.oem_api.connect(credentials)
+        return ok and api_ok
 
     def inject_waypoint(self, robot_id: str, waypoint: Sequence[float]) -> bool:
         t0 = time.perf_counter()
         if self.inject_latency_s > 0:
             time.sleep(self.inject_latency_s)
-        if self._hw is not None:
-            ok = self._hw.inject_waypoint(waypoint)
-            if ok:
-                xy = (float(waypoint[0]), float(waypoint[1]))
-                self.injected.append(xy)
-                self.protocol_ops.append(UNITREE.inject_op)
-        else:
-            ok = super().inject_waypoint(robot_id, waypoint)
+        if self._halted:
+            self.inject_timestamps.append(time.perf_counter() - t0)
+            return False
+
+        xy = (float(waypoint[0]), float(waypoint[1]))
+        theta = float(waypoint[2]) if len(waypoint) > 2 else 0.0
+        api_ok = self.oem_api.inject_waypoint(xy[0], xy[1], theta)
+        if not api_ok and self.use_hardware:
+            self.inject_timestamps.append(time.perf_counter() - t0)
+            return False
+
+        self.injected.append(xy)
+        self.protocol_ops.append(UNITREE.inject_op)
+        self.protocol_calls.append({
+            "op": UNITREE.inject_op,
+            "waypoint": xy,
+            "oem_api": self.oem_api.calls[-1].payload if self.oem_api.calls else {},
+        })
         self.inject_timestamps.append(time.perf_counter() - t0)
-        return ok
+        return True
 
     def read_pose(self) -> Pose2D:
-        if self._hw is not None:
-            return self._hw.read_pose()
-        return super().read_pose()
+        if self.use_hardware:
+            pose = self.oem_api.get_internal_pose()
+            self._pose = Pose2D(
+                float(pose["x"]), float(pose["y"]), float(pose.get("theta", 0.0)),
+            )
+        return self._pose
 
     def get_internal_pose(self, robot_id: str | None = None) -> dict:
+        if self.use_hardware:
+            return self.oem_api.get_internal_pose()
         return super().get_internal_pose(robot_id)
+
+    def estop(self) -> None:
+        super().estop()
+        self.oem_api.trigger_estop()
+
+    def send_velocity(self, vx: float, vy: float, wz: float) -> None:
+        super().send_velocity(vx, vy, wz)
+        if not self._halted:
+            self.oem_api.send_velocity(vx, vy, wz)
 
     def protocol_contract(self):
         return contract_for("Unitree")

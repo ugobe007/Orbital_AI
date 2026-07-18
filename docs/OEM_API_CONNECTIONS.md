@@ -14,16 +14,33 @@ OpenAPI (e.g. full Agility Arc) is called out where documentation is gated.
 ## How to use in code
 
 ```python
+from fleet_adapters import get_adapter
 from fleet_adapters.oem_apis import get_oem_client, list_oem_endpoints
 
-client = get_oem_client("Boston Dynamics", "spot-1", host="192.168.50.3", dry_run=True)
-assert client.connect({"username": "user", "password": "***"})
-assert client.inject_waypoint(1.2, 0.4, 0.0)
-print(client.calls[-1].op, client.calls[-1].payload)
+# Fleet adapters now own an ``oem_api`` client (dry-run by default):
+unitree = get_adapter("Unitree", "rbt-01")
+unitree.connect()
+unitree.inject_waypoint("rbt-01", (1.0, 2.0))
+assert unitree.oem_api.calls[-1].payload["type"] == "nav2_msgs/action/NavigateToPose"
 
-# Full catalog for dashboards / OEM onboarding:
+spot = get_adapter("Boston Dynamics", "spot-1", endpoint="192.168.50.3")
+spot.connect({"username": "user", "password": "***"})
+spot.inject_waypoint("spot-1", (1.2, 0.4))  # OEM client + optional FakeBosdynServer
+
+digit = get_adapter("Agility Robotics", "digit-1", api_key="arc-key")
+digit.connect({"api_key": "arc-key"})
+digit.inject_waypoint("digit-1", (0.5, 0.1))
+
+# Standalone client (same shapes):
+client = get_oem_client("Boston Dynamics", "spot-1", host="192.168.50.3", dry_run=True)
+assert client.connect({"username": "user"})
+assert client.inject_waypoint(1.2, 0.4, 0.0)
+
 list_oem_endpoints()
 ```
+
+Lab hardware: `get_adapter("Unitree", "rbt-01", use_hardware=True)` (requires `rclpy`),
+or `get_adapter("Boston Dynamics", ..., use_hardware=True)` / Agility with API key.
 
 CLI dump:
 
