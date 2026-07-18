@@ -9,27 +9,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            emerald: { DEFAULT: "#3ecf8e", 400: "#4ade9a", 600: "#22b573", dim: "#164a37" },
-            amber:   { DEFAULT: "#ffb020", 400: "#ffc24d", 600: "#e8930c" },
-            surface: { DEFAULT: "#0b0e13", panel: "#0f131b", raised: "#141a24", input: "#161d28" },
-            line:    { DEFAULT: "#1e2530", strong: "#2a3340" },
-            ink:     { DEFAULT: "#e8ecf1", mut: "#9aa4b2", dim: "#697585" },
-          },
-          fontFamily: {
-            sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui'],
-            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
-          },
-        },
-      },
-    };
-  </script>
   <style>
     :root { --line:#1e2530; --line-strong:#2a3340; --emerald:#3ecf8e; --amber:#ffb020; }
     html { scroll-behavior: smooth; }
@@ -124,7 +103,17 @@
       margin:0 auto;
       padding:1.25rem max(1.25rem, calc(50vw - 640px)) 1.75rem;
     }
-    .demo-frame-wrap { overflow:hidden; border-radius:12px; border:1px solid var(--line-strong); }
+    .demo-frame-wrap { overflow:hidden; border-radius:12px; border:1px solid var(--line-strong); position:relative; }
+    .demo-frame-loading {
+      position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.75rem;
+      background:#0b0e13; color:#697585; font-size:13px; pointer-events:none; transition:opacity .35s ease;
+    }
+    .demo-frame-loading.hide { opacity:0; }
+    .demo-frame-spinner {
+      width:28px; height:28px; border-radius:999px; border:2px solid rgba(62,207,142,0.2); border-top-color:#3ecf8e;
+      animation:demo-spin .8s linear infinite;
+    }
+    @keyframes demo-spin { to { transform:rotate(360deg); } }
     .arch-diagram { width:100%; max-width:920px; margin:0 auto; display:block; }
     .data-cat { background:linear-gradient(180deg,#141a24,#10141c); border:1px solid var(--line-strong); border-radius:12px; }
     .trust-logo { color:#697585; font-size:13px; font-weight:500; white-space:nowrap; }
@@ -266,9 +255,13 @@
           <span class="flex items-center gap-1.5 text-[11px] text-ink-mut"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--emerald)"></span> live</span>
         </div>
         <div class="demo-frame-wrap">
+          <div id="demo-frame-loading" class="demo-frame-loading">
+            <div class="demo-frame-spinner" aria-hidden="true"></div>
+            <span class="mono text-[11px] eyebrow uppercase">Loading live warehouse map…</span>
+          </div>
           <iframe id="demo-frame" title="Orbital AI live warehouse map"
             style="width:100%; height:min(640px, 70vh); min-height:480px; border:0; display:block; background:#0b0e13"
-            referrerpolicy="no-referrer"></iframe>
+            referrerpolicy="no-referrer" loading="lazy"></iframe>
         </div>
       </div>
     </div>
@@ -625,6 +618,27 @@
     </div>
   </div>
 
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            emerald: { DEFAULT: "#3ecf8e", 400: "#4ade9a", 600: "#22b573", dim: "#164a37" },
+            amber:   { DEFAULT: "#ffb020", 400: "#ffc24d", 600: "#e8930c" },
+            surface: { DEFAULT: "#0b0e13", panel: "#0f131b", raised: "#141a24", input: "#161d28" },
+            line:    { DEFAULT: "#1e2530", strong: "#2a3340" },
+            ink:     { DEFAULT: "#e8ecf1", mut: "#9aa4b2", dim: "#697585" },
+          },
+          fontFamily: {
+            sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
 
@@ -634,7 +648,32 @@
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
     const frame = document.getElementById("demo-frame");
-    if (frame) frame.src = "/app/?embed=1&v=20260718b";
+    const frameLoading = document.getElementById("demo-frame-loading");
+    const EMBED_SRC = "/app/?embed=1&v=20260718c";
+    function hideFrameLoading() {
+      if (frameLoading) frameLoading.classList.add("hide");
+    }
+    function loadDemoFrame() {
+      if (!frame || frame.dataset.loaded === "1") return;
+      frame.dataset.loaded = "1";
+      frame.addEventListener("load", hideFrameLoading, { once: true });
+      frame.src = EMBED_SRC;
+      setTimeout(hideFrameLoading, 12000);
+    }
+    if (frame) {
+      const demoSection = frame.closest(".demo-showcase") || frame;
+      if ("IntersectionObserver" in window) {
+        const demoIo = new IntersectionObserver((entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            loadDemoFrame();
+            demoIo.disconnect();
+          }
+        }, { rootMargin: "500px 0px" });
+        demoIo.observe(demoSection);
+      } else {
+        setTimeout(loadDemoFrame, 2000);
+      }
+    }
 
     const modal = document.getElementById("contact-modal");
     const form = document.getElementById("contact-form");

@@ -1051,7 +1051,7 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.sequence) state.sequence = msg.sequence; renderFleet(); renderStats(); renderSequence(); renderMap(); renderControlPanel(); renderCapabilities(); }
+    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.sequence) state.sequence = msg.sequence; onFleetUpdate(); }
     else if (msg.type === "alert") {
       state.alerts.unshift(msg.alert); state.alerts = state.alerts.slice(0, 200);
       renderAlerts(); renderStats();
@@ -1391,7 +1391,6 @@ function initEmbedMode() {
   document.body.classList.add("embed-mode", "embed-preview");
   document.getElementById("rail")?.classList.add("embed-hidden");
   document.querySelector("header")?.classList.add("embed-hidden");
-  document.getElementById("sec-overview")?.classList.add("embed-hidden");
   document.getElementById("sec-capabilities")?.classList.add("embed-hidden");
   document.getElementById("sec-fleet")?.classList.add("embed-hidden");
   document.getElementById("sec-benchmark")?.classList.add("embed-hidden");
@@ -1404,15 +1403,40 @@ function initEmbedMode() {
   document.querySelector("#sec-map .card-head")?.classList.add("embed-hidden");
 }
 
+let _embedRenderTimer = null;
+function scheduleEmbedRender() {
+  if (_embedRenderTimer) return;
+  _embedRenderTimer = setTimeout(() => {
+    _embedRenderTimer = null;
+    renderStats();
+    renderSequence();
+    renderMap();
+  }, 250);
+}
+
+function onFleetUpdate() {
+  if (EMBED) scheduleEmbedRender();
+  else {
+    renderFleet();
+    renderStats();
+    renderSequence();
+    renderMap();
+    renderControlPanel();
+    renderCapabilities();
+  }
+}
+
 // ── boot ─────────────────────────────────────────────────────────────────────
 async function init() {
   initEmbedMode();
   if (!EMBED) initRail();
-  $("#btn-dispatch").onclick = () => openDispatch();
-  $("#btn-onboard").onclick = () => openWizard();
-  const onboard2 = $("#btn-onboard-2"); if (onboard2) onboard2.onclick = () => openWizard();
-  document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModals(); }));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModals(); });
+  if (!EMBED) {
+    $("#btn-dispatch").onclick = () => openDispatch();
+    $("#btn-onboard").onclick = () => openWizard();
+    const onboard2 = $("#btn-onboard-2"); if (onboard2) onboard2.onclick = () => openWizard();
+    document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModals(); }));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModals(); });
+  }
 
   const fleet = await getJSON("/api/dashboard/fleet");
   state.facility = fleet.facility;
@@ -1420,24 +1444,35 @@ async function init() {
   state.vendors = fleet.vendors;
   state.robots = fleet.robots;
   state.sequence = fleet.sequence || null;
-  // Auto-select a live robot so the control surface is populated the moment the page loads.
   state.selectedRobot = (fleet.robots.find((r) => r.state !== "halted") || fleet.robots[0] || {}).id || null;
-  $("#facility-name").textContent = fleet.facility.name;
-  renderTabs(); renderFleet(); renderStats(); renderSequence();
-  if (!EMBED) renderControlPanel();
+  const facilityEl = $("#facility-name");
+  if (facilityEl) facilityEl.textContent = fleet.facility.name;
+
+  if (EMBED) {
+    renderStats();
+    renderSequence();
+  } else {
+    renderTabs();
+    renderFleet();
+    renderStats();
+    renderSequence();
+    renderControlPanel();
+  }
 
   wireMap();
   await loadMap();
 
-  state.alerts = await getJSON("/api/dashboard/alerts");
-  renderAlerts();
-  await loadBenchmark();
-  await loadCatalog();
-  await loadOEMs();
-  await loadOrchestrator();
-  setInterval(loadBenchmark, 5000);
-  setInterval(loadOEMs, 8000);
-  setInterval(loadOrchestrator, 5000);
+  if (!EMBED) {
+    state.alerts = await getJSON("/api/dashboard/alerts");
+    renderAlerts();
+    await loadBenchmark();
+    await loadCatalog();
+    await loadOEMs();
+    await loadOrchestrator();
+    setInterval(loadBenchmark, 5000);
+    setInterval(loadOEMs, 8000);
+    setInterval(loadOrchestrator, 5000);
+  }
   connectWS();
 }
 

@@ -23,7 +23,7 @@ primary_region = "sjc"   # SF Bay — matches the seed facility (facility-sf-001
   # The dashboard re-seeds the simulated fleet on start, so a cold start is harmless.
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [[http_service.checks]]
     interval = "30s"
