@@ -372,16 +372,21 @@ body.embed-preview #status-chips {
 body.embed-preview #status-chips .status-chip {
   padding: 0.25rem 0.35rem;
 }
-body.embed-mode #embed-hero {
+body.embed-preview #embed-hero {
   flex: 1;
   min-height: 0;
   max-width: none;
   width: 100%;
-  padding-top: 0.35rem;
-  padding-bottom: 0.5rem;
+  padding: 0 !important;
+  margin: 0;
   align-items: stretch;
   grid-template-columns: minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr);
+}
+body.embed-preview #sec-map {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 body.embed-preview #embed-hero > aside {
   display: none !important;

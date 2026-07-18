@@ -1389,7 +1389,9 @@ function initEmbedMode() {
   if (!EMBED) return;
   document.documentElement.classList.add("embed-mode", "embed-preview");
   document.body.classList.add("embed-mode", "embed-preview");
-  document.getElementById("rail")?.classList.add("hidden");
+  document.getElementById("rail")?.classList.add("embed-hidden");
+  document.querySelector("header")?.classList.add("embed-hidden");
+  document.getElementById("sec-overview")?.classList.add("embed-hidden");
   document.getElementById("sec-capabilities")?.classList.add("embed-hidden");
   document.getElementById("sec-fleet")?.classList.add("embed-hidden");
   document.getElementById("sec-benchmark")?.classList.add("embed-hidden");
@@ -1398,6 +1400,8 @@ function initEmbedMode() {
   document.getElementById("btn-onboard")?.classList.add("embed-hidden");
   document.getElementById("btn-dispatch")?.classList.add("embed-hidden");
   document.getElementById("embed-hero")?.querySelector("aside")?.classList.add("embed-hidden");
+  document.getElementById("sequence-bar")?.classList.add("embed-hidden");
+  document.querySelector("#sec-map .card-head")?.classList.add("embed-hidden");
 }
 
 // ── boot ─────────────────────────────────────────────────────────────────────

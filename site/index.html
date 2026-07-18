@@ -112,13 +112,19 @@
       border-top:1px solid var(--line);
       background:linear-gradient(180deg, rgba(62,207,142,0.025) 0%, transparent 100%);
     }
-    .demo-embed-outer {
+    .demo-showcase {
       width:100vw;
       margin-left:calc(50% - 50vw);
-      padding-left:max(1.25rem, calc(50vw - 590px));
-      padding-right:max(1.25rem, calc(50vw - 590px));
+      background:linear-gradient(180deg,#0d1118 0%,#0b0e13 100%);
+      border-top:1px solid var(--line);
+      border-bottom:1px solid var(--line);
     }
-    .demo-frame-wrap { overflow:hidden; border-radius:0 0 12px 12px; }
+    .demo-showcase-inner {
+      max-width:1280px;
+      margin:0 auto;
+      padding:1.25rem max(1.25rem, calc(50vw - 640px)) 1.75rem;
+    }
+    .demo-frame-wrap { overflow:hidden; border-radius:12px; border:1px solid var(--line-strong); }
     .arch-diagram { width:100%; max-width:920px; margin:0 auto; display:block; }
     .data-cat { background:linear-gradient(180deg,#141a24,#10141c); border:1px solid var(--line-strong); border-radius:12px; }
     .trust-logo { color:#697585; font-size:13px; font-weight:500; white-space:nowrap; }
@@ -156,72 +162,70 @@
     </div>
   </header>
 
-  <!-- Hero + live embed -->
+  <!-- Hero — copy only (Manus layout: demo is full-width below) -->
   <section class="relative overflow-hidden border-b border-line">
     <div class="absolute inset-0 grid-bg pointer-events-none"></div>
-    <div class="relative max-w-[1180px] mx-auto px-5 pt-14 pb-6 md:pt-20 md:pb-8">
-      <div class="grid lg:grid-cols-[1fr_1.05fr] gap-10 lg:gap-12 items-start">
-        <div>
-          <div class="inline-flex items-center gap-2 chip rounded-full px-3 py-1 mb-5">
-            <span class="w-1.5 h-1.5 rounded-full" style="background:var(--emerald); box-shadow:0 0 8px var(--emerald)"></span>
-            <span class="mono text-[11px] eyebrow text-ink-mut uppercase">Live · operational layer for physical AI</span>
-          </div>
-          <h1 class="text-[34px] leading-[1.04] md:text-[56px] lg:text-[62px] md:leading-[0.98] font-semibold tracking-tight">
-            <span class="grad-text">Orbital AI</span> runs your fleet from the cloud.
-            <span class="text-ink"> ARIA</span> keeps it on course at the <span class="text-amber">edge</span>.
-          </h1>
-          <p class="mt-5 text-[16px] md:text-[17px] text-ink-mut leading-relaxed max-w-xl">
-            Foundation models teach robots how to act. Orbital AI operates them once they're on the floor —
-            a <span class="text-ink">cloud control plane</span> for telemetry, scope-enforced control, and orchestration,
-            paired with <span class="text-ink">ARIA</span>, the on-robot edge agent doing camera-based visual navigation and safety in real time.
-          </p>
-          <div class="mt-7 flex flex-wrap items-center gap-3">
-            <a href="/app/" class="px-5 py-2.5 rounded-lg text-[14.5px] font-semibold btn-primary transition flex items-center gap-2">
-              Launch the live demo
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </a>
-            <button type="button" data-contact="early-access" class="px-4 py-2.5 rounded-lg text-[14.5px] font-medium btn-text transition">Request early access</button>
-          </div>
-          <div class="mt-6 flex flex-wrap items-center gap-2.5">
-            <span class="transport-pill-label">Works with any OEM</span>
-            <span class="transport-pill">ROS2</span>
-            <span class="transport-pill">gRPC</span>
-            <span class="transport-pill">REST</span>
-          </div>
+    <div class="relative max-w-[1180px] mx-auto px-5 pt-14 pb-12 md:pt-20 md:pb-16">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 chip rounded-full px-3 py-1 mb-5">
+          <span class="w-1.5 h-1.5 rounded-full" style="background:var(--emerald); box-shadow:0 0 8px var(--emerald)"></span>
+          <span class="mono text-[11px] eyebrow text-ink-mut uppercase">Live · operational layer for physical AI</span>
         </div>
-
-        <!-- Live dashboard embed — larger, hero-adjacent -->
-        <div class="reveal in">
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <span class="mono text-[11px] eyebrow uppercase text-emerald">● Live control plane</span>
-            <a href="/app/" class="text-[12.5px] text-ink-mut hover:text-emerald transition flex items-center gap-1.5">
-              Open full dashboard
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
-            </a>
-          </div>
-          <div class="card overflow-hidden glow-soft glow-em">
-            <div class="flex items-center gap-2 px-4 py-2 border-b border-line" style="background:#0b0e13">
-              <span class="browser-dot" style="background:#ff5f57"></span>
-              <span class="browser-dot" style="background:#febc2e"></span>
-              <span class="browser-dot" style="background:#28c840"></span>
-              <span class="ml-3 mono text-[11px] text-ink-dim">orbital-ai · fleet control · ARIA edge</span>
-              <span class="flex-1"></span>
-              <span class="flex items-center gap-1.5 text-[11px] text-ink-mut"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--emerald)"></span> live</span>
-            </div>
-            <div class="demo-frame-wrap">
-              <iframe id="demo-frame" title="Orbital AI live fleet control demo"
-                style="width:100%; height:min(780px, 82vh); min-height:520px; border:0; display:block; background:#0b0e13"
-                referrerpolicy="no-referrer"></iframe>
-            </div>
-          </div>
-          <p class="mt-2.5 text-[12.5px] text-ink-dim leading-relaxed">Live warehouse map — robot positions, fleet status, and mission sequence updating in real time.</p>
+        <h1 class="text-[38px] leading-[1.04] md:text-[62px] md:leading-[0.98] font-semibold tracking-tight max-w-4xl">
+          <span class="grad-text">Orbital AI</span> runs your fleet from the cloud.
+          <br class="hidden md:block" />
+          <span class="text-ink">ARIA</span> keeps it on course at the <span class="text-amber">edge</span>.
+        </h1>
+        <p class="mt-5 text-[16px] md:text-[18px] text-ink-mut leading-relaxed max-w-2xl">
+          Foundation models teach robots how to act. Orbital AI operates them once they're on the floor —
+          a <span class="text-ink">cloud control plane</span> for telemetry, scope-enforced control, and orchestration,
+          paired with <span class="text-ink">ARIA</span>, the on-robot edge agent doing camera-based visual navigation and safety in real time.
+        </p>
+        <div class="mt-7 flex flex-wrap items-center gap-3">
+          <a href="/app/" class="px-5 py-2.5 rounded-lg text-[14.5px] font-semibold btn-primary transition flex items-center gap-2">
+            Launch the live demo
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <button type="button" data-contact="early-access" class="px-4 py-2.5 rounded-lg text-[14.5px] font-medium btn-text transition">Request early access</button>
+        </div>
+        <div class="mt-6 flex flex-wrap items-center gap-2.5">
+          <span class="transport-pill-label">Works with any OEM</span>
+          <span class="transport-pill">ROS2</span>
+          <span class="transport-pill">gRPC</span>
+          <span class="transport-pill">REST</span>
         </div>
       </div>
     </div>
+  </section>
 
-    <!-- Full-bleed wide embed on large screens (optional scroll focus) -->
-    <div class="hidden xl:block demo-embed-outer pb-10">
-      <p class="mono text-[10.5px] eyebrow uppercase text-ink-dim mb-3 text-center">Spatial map · live telemetry</p>
+  <!-- Live warehouse map — full-width showcase (not cramped in a side panel) -->
+  <section class="demo-showcase">
+    <div class="demo-showcase-inner">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div>
+          <span class="mono text-[11px] eyebrow uppercase text-emerald">● Live control plane</span>
+          <p class="mt-1 text-[14px] text-ink-mut">Simulated warehouse fleet — spatial map, robot positions, and live fleet metrics.</p>
+        </div>
+        <a href="/app/" class="px-4 py-2 rounded-lg text-[13px] font-semibold btn-primary transition flex items-center gap-2 shrink-0">
+          Open full dashboard
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        </a>
+      </div>
+      <div class="card overflow-hidden glow-soft glow-em">
+        <div class="flex items-center gap-2 px-4 py-2 border-b border-line" style="background:#0b0e13">
+          <span class="browser-dot" style="background:#ff5f57"></span>
+          <span class="browser-dot" style="background:#febc2e"></span>
+          <span class="browser-dot" style="background:#28c840"></span>
+          <span class="ml-3 mono text-[11px] text-ink-dim">orbital-ai · warehouse spatial map · live fleet</span>
+          <span class="flex-1"></span>
+          <span class="flex items-center gap-1.5 text-[11px] text-ink-mut"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--emerald)"></span> live</span>
+        </div>
+        <div class="demo-frame-wrap">
+          <iframe id="demo-frame" title="Orbital AI live warehouse map"
+            style="width:100%; height:min(640px, 70vh); min-height:480px; border:0; display:block; background:#0b0e13"
+            referrerpolicy="no-referrer"></iframe>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -576,7 +580,7 @@
     document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
     const frame = document.getElementById("demo-frame");
-    if (frame) frame.src = "/app/?embed=1&v=20260717a";
+    if (frame) frame.src = "/app/?embed=1&v=20260718a";
 
     const modal = document.getElementById("contact-modal");
     const form = document.getElementById("contact-form");
