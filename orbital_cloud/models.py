@@ -85,6 +85,8 @@ class RobotSummary(BaseModel):
     # Aisle AB → Dock") and which leg it's on (en_route_pickup | working | carrying | idle).
     mission: Optional[str] = None
     mission_phase: Optional[str] = None
+    # Fleet sim role: lead robots publish relay waypoints; shuttles run between them.
+    fleet_role: Optional[str] = None  # "lead" | "shuttle" | None
     error_code: Optional[str] = None
     # Autonomous task cycle: the robot this one just handed its payload off to (drawn as a
     # transient link on the map during the cooldown pause). None outside a hand-off.

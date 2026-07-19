@@ -128,6 +128,8 @@ WAREHOUSE: dict = {
 # and each robot gets a fresh pick→drop assignment, so the floor never looks stale. Each
 # theme names a verb, an objective sentence, and which stations are sources vs. destinations.
 SEQUENCE_PERIOD_S: float = float(os.getenv("ORBITAL_SEQUENCE_PERIOD_S", "30") or "30")
+# Fleet sim: how many lead robots publish relay waypoints (others shuttle between them).
+LEAD_COUNT: int = max(2, min(5, int(os.getenv("ORBITAL_LEAD_COUNT", "3") or "3")))
 SEQUENCE_THEMES: list[dict] = [
     {
         "id": "inbound",

@@ -199,18 +199,23 @@ function renderSequence() {
   const goals = (s.assignments || []).filter((a) => a.goal);
   const chips = goals.slice(0, 9).map((a) => {
     const ph = a.phase || "idle";
+    const role = a.role === "lead" ? "LEAD" : a.role === "shuttle" ? "SHUTTLE" : "";
+    const roleColor = a.role === "lead" ? "#ffc24d" : "#4ade9a";
     return `<span class="inline-flex items-center gap-1 rounded-md bg-surface-input border border-line px-1.5 py-0.5">
+        ${role ? `<span class="mono text-[9px]" style="color:${roleColor}">${role}</span>` : ""}
         <span class="mono text-ink-mut">${esc(a.robot_id)}</span>
         <span class="text-ink-dim">${esc(a.goal)}</span>
         <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#5b667a"}">${PHASE_LABEL[ph] || ph}</span>
       </span>`;
   }).join("");
+  const relays = (s.relay_points || []).map((p) => esc(p.id)).join(" · ");
   const ends = Math.max(0, Math.round(s.ends_in_s ?? 0));
   bar.innerHTML = `
     <div class="flex items-center gap-2 flex-wrap">
       <span class="tag" style="background:#1b1533;color:#b7a6ff;border-color:#7c5cff">SEQUENCE ${esc(String(s.id ?? ""))}</span>
       <span class="font-semibold text-[13px]">${esc(s.label)}</span>
       <span class="text-[11.5px] text-ink-dim">${esc(s.objective || "")}</span>
+      ${relays ? `<span class="text-[10.5px] mono" style="color:#ffc24d">relays: ${relays}</span>` : ""}
       <span class="flex-1"></span>
       <span class="text-[10.5px] text-ink-dim mono">new sequence in <span style="color:#b7a6ff">${ends}s</span></span>
     </div>
@@ -600,6 +605,12 @@ function renderMap() {
     p.push(`</g>`);
   }
 
+  // Lead-published relay waypoints (shared shuttle network).
+  for (const rp of (state.sequence?.relay_points || [])) {
+    p.push(`<circle cx="${rp.x}" cy="${Y(rp.y)}" r="0.38" fill="none" stroke="#ffc24d" stroke-width="0.05" stroke-dasharray="0.12 0.1" opacity="0.85"/>`);
+    p.push(`<text x="${rp.x}" y="${Y(rp.y) - 0.48}" fill="#ffc24d" font-size="0.32" text-anchor="middle">${esc(rp.id)}</text>`);
+  }
+
   const byId = Object.fromEntries(state.robots.map((r) => [r.id, r]));
   for (const r of state.robots) {
     const ex = r.pose_external, ins = r.pose_internal;
@@ -632,13 +643,18 @@ function renderMap() {
     }
     if (selected) p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.46" fill="none" stroke="#00a5da" stroke-width="0.07"/>`);
     const fill = ROBOT_FILL[r.state] || ROBOT_FILL.offline;
+    const isLead = r.fleet_role === "lead";
     const halo = r.state === "active" ? `<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.4" fill="${fill}" opacity="0.16" class="robot-pulse"/>` : "";
     p.push(`<g data-robot="${esc(r.id)}" style="cursor:pointer">`);
     p.push(halo);
+    if (isLead) {
+      p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.34" fill="none" stroke="#ffc24d" stroke-width="0.06"/>`);
+    }
     p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.24" fill="${fill}" stroke="#0b0f18" stroke-width="0.06"/>`);
     const hx = ex.x + Math.cos(ex.theta) * 0.4, hy = ex.y + Math.sin(ex.theta) * 0.4;
     p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${hx}" y2="${Y(hy)}" stroke="#e6eaef" stroke-width="0.05"/>`);
-    p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="#aab4c1" font-size="0.36" font-weight="600">${esc(r.id)}</text>`);
+    const label = isLead ? `${r.id}★` : r.id;
+    p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="${isLead ? "#ffc24d" : "#aab4c1"}" font-size="0.36" font-weight="600">${esc(label)}</text>`);
     p.push(`</g>`);
   }
   svg.innerHTML = p.join("");

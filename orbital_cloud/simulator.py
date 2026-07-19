@@ -22,7 +22,7 @@ import random
 import time
 
 from . import pathing, persistence
-from .config import SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
+from .config import LEAD_COUNT, SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
 from .models import (
     AlertIn,
@@ -136,30 +136,63 @@ def _station_xy(label: str) -> tuple[float, float]:
     return _STATION_XY.get(label, (WAREHOUSE["width_m"] / 2, WAREHOUSE["height_m"] / 2))
 
 
-def _assign_task(robot: RobotRuntime) -> None:
-    """Give the robot its next mission in the current sequence theme: go to a pickup station
-    (or an inbound hand-off point), perform the task there, then carry to a drop-off station.
-    Puts it green/ACTIVE on the first leg (en route to the pickup)."""
+def _theme_station_pool() -> list[tuple[str, float, float]]:
+    """Stations available for lead waypoints under the current theme (pickup ∪ dropoff)."""
     theme = _current_theme()
-    verb = theme["verb"]
-    drop_label = random.choice(theme["dropoff"])
-    dx, dy = _station_xy(drop_label)
+    labels = list(dict.fromkeys([*theme.get("pickup", []), *theme.get("dropoff", [])]))
+    pool = [(lab, *_station_xy(lab)) for lab in labels if lab in _STATION_XY]
+    return pool or list(_STATIONS) or [("Center", WAREHOUSE["width_m"] / 2, WAREHOUSE["height_m"] / 2)]
 
-    if robot.pending_pickup is not None:
-        px, py = robot.pending_pickup
-        pick_label = "hand-off"
-        robot.pending_pickup = None
-    else:
-        pick_label = random.choice(theme["pickup"])
-        px, py = _station_xy(pick_label)
 
+def _ensure_fleet_roles() -> None:
+    """Designate 2–3 lead robots; everyone else shuttles between lead waypoints."""
+    robots = sorted(store.robots.values(), key=lambda r: r.id)
+    n_lead = min(LEAD_COUNT, max(2, len(robots) - 1)) if len(robots) > 1 else len(robots)
+    for i, robot in enumerate(robots):
+        robot.fleet_role = "lead" if i < n_lead else "shuttle"
+
+
+def _publish_relay_points() -> None:
+    """Rebuild shared relay list from each lead's current published waypoint."""
+    leads = [r for r in store.robots.values() if r.fleet_role == "lead"]
+    points: list[tuple[str, float, float]] = []
+    for lead in leads:
+        if lead.lead_waypoint is not None:
+            points.append(lead.lead_waypoint)
+    store.relay_points = points
+
+
+def _reroll_lead_waypoint(robot: RobotRuntime, *, avoid: str | None = None) -> None:
+    """Lead picks a new random station waypoint (changes the shuttle network)."""
+    pool = _theme_station_pool()
+    choices = [p for p in pool if p[0] != avoid] or pool
+    # Prefer a station not already claimed by another lead.
+    claimed = {
+        r.lead_waypoint[0]
+        for r in store.robots.values()
+        if r.fleet_role == "lead" and r.id != robot.id and r.lead_waypoint
+    }
+    free = [p for p in choices if p[0] not in claimed] or choices
+    robot.lead_waypoint = random.choice(free)
+    _publish_relay_points()
+
+
+def _assign_lead_task(robot: RobotRuntime) -> None:
+    """Lead travels to its published waypoint, then relocates to a new random one."""
+    if robot.lead_waypoint is None:
+        _reroll_lead_waypoint(robot)
+    assert robot.lead_waypoint is not None
+    pick_label, px, py = robot.lead_waypoint
+    pool = [p for p in _theme_station_pool() if p[0] != pick_label] or _theme_station_pool()
+    drop_label, dx, dy = random.choice(pool)
     robot.mission_pickup = (pick_label, px, py)
     robot.mission_dropoff = (drop_label, dx, dy)
-    robot.mission_goal = f"{verb}: {pick_label} → {drop_label}"
+    robot.mission_goal = f"Lead: hold {pick_label} → move relay to {drop_label}"
     robot.mission_phase = "en_route_pickup"
-    robot.current_task = f"En route to {pick_label}"
+    robot.current_task = f"Lead en route to {pick_label}"
     robot.task_target = (px, py)
     robot.handoff_partner = None
+    robot.pending_pickup = None
     robot.cooldown_until = None
     robot.work_until = None
     robot.route = []
@@ -167,11 +200,59 @@ def _assign_task(robot: RobotRuntime) -> None:
     robot.state = RobotState.ACTIVE
 
 
+def _assign_shuttle_task(robot: RobotRuntime) -> None:
+    """Shuttle oscillates between two lead-published relay waypoints."""
+    if len(store.relay_points) < 2:
+        for lead in store.robots.values():
+            if lead.fleet_role == "lead" and lead.lead_waypoint is None:
+                _reroll_lead_waypoint(lead)
+        _publish_relay_points()
+    pts = store.relay_points
+    if not pts:
+        # Degenerate: fall back to theme stations so the floor never stalls.
+        pts = _theme_station_pool()[:2]
+        store.relay_points = pts
+    if len(pts) == 1:
+        a = b = pts[0]
+    else:
+        idx = abs(hash(robot.id)) % len(pts)
+        a, b = pts[idx], pts[(idx + 1) % len(pts)]
+        if robot.shuttle_flip:
+            a, b = b, a
+    robot.mission_pickup = a
+    robot.mission_dropoff = b
+    robot.mission_goal = f"Shuttle: {a[0]} ↔ {b[0]}"
+    robot.mission_phase = "en_route_pickup"
+    robot.current_task = f"Shuttle → {a[0]}"
+    robot.task_target = (a[1], a[2])
+    robot.handoff_partner = None
+    robot.pending_pickup = None
+    robot.cooldown_until = None
+    robot.work_until = None
+    robot.route = []
+    robot.route_goal = None
+    robot.state = RobotState.ACTIVE
+
+
+def _assign_task(robot: RobotRuntime) -> None:
+    """Assign next mission: leads publish/move relay points; shuttles run between them."""
+    if robot.fleet_role is None:
+        _ensure_fleet_roles()
+    if robot.fleet_role == "lead":
+        _assign_lead_task(robot)
+    else:
+        robot.fleet_role = "shuttle"
+        _assign_shuttle_task(robot)
+
+
 def _begin_work(robot: RobotRuntime) -> None:
     """Arrived at the pickup — perform the task there for a visible dwell before carrying on."""
     label = robot.mission_pickup[0] if robot.mission_pickup else "station"
     robot.mission_phase = "working"
-    robot.current_task = f"Working at {label}"
+    if robot.fleet_role == "lead":
+        robot.current_task = f"Lead holding waypoint {label}"
+    else:
+        robot.current_task = f"Working at {label}"
     robot.work_until = time.time() + _WORK_DWELL_S
     robot.task_target = None
     robot.route = []
@@ -185,51 +266,42 @@ def _begin_carry(robot: RobotRuntime) -> None:
         return
     label, dx, dy = robot.mission_dropoff
     robot.mission_phase = "carrying"
-    robot.current_task = f"Carrying → {label}"
+    if robot.fleet_role == "lead":
+        # Lead publishes the *new* relay location as it relocates.
+        robot.lead_waypoint = (label, dx, dy)
+        _publish_relay_points()
+        robot.current_task = f"Lead relocating relay → {label}"
+    else:
+        robot.current_task = f"Shuttle → {label}"
     robot.work_until = None
     robot.task_target = (dx, dy)
     robot.route = []
     robot.route_goal = None
 
 
-def _handoff_target(robot: RobotRuntime) -> RobotRuntime | None:
-    """Pick a peer to receive the finished payload: prefer a robot already paused between
-    tasks (or idle-in-cycle), else a busy peer without a pending pickup. Nearest wins."""
-    cands = [
-        r for r in store.robots.values()
-        if r.id != robot.id
-        and r.state in (RobotState.COOLDOWN, RobotState.ACTIVE)
-        and r.error_code is None
-        and not r.nav_queue and r.manual_heading is None
-        and r.pending_pickup is None
-    ]
-    if not cands:
-        return None
-    cands.sort(key=lambda r: (
-        0 if r.state == RobotState.COOLDOWN else 1,
-        math.hypot(r.pose_external.x - robot.pose_external.x, r.pose_external.y - robot.pose_external.y),
-    ))
-    return cands[0]
-
-
 def _complete_task(robot: RobotRuntime) -> None:
-    """Finish the current delivery: hand the payload to a peer, then go red (COOLDOWN) and
-    pause before the next mission."""
-    partner = _handoff_target(robot)
-    if partner is not None:
-        partner.pending_pickup = (robot.pose_external.x, robot.pose_external.y)
-        robot.handoff_partner = partner.id
-        robot.current_task = f"Delivered → hand-off to {partner.id}"
+    """Finish the current leg. Leads roll a new random waypoint; shuttles flip direction."""
+    robot.handoff_partner = None
+    robot.pending_pickup = None
+    if robot.fleet_role == "lead":
+        # Randomly change this lead's published waypoint for the next cycle.
+        prev = robot.lead_waypoint[0] if robot.lead_waypoint else None
+        _reroll_lead_waypoint(robot, avoid=prev)
+        robot.current_task = (
+            f"Lead set new relay {robot.lead_waypoint[0]}" if robot.lead_waypoint else "Lead idle"
+        )
+        pause = settings.task_pause_s * 0.6
     else:
-        robot.handoff_partner = None
-        robot.current_task = "Delivered — awaiting next task"
+        robot.shuttle_flip = not robot.shuttle_flip
+        robot.current_task = "Shuttle turnaround"
+        pause = settings.task_pause_s * 0.35
     robot.mission_phase = "idle"
     robot.task_target = None
     robot.work_until = None
     robot.route = []
     robot.route_goal = None
     robot.state = RobotState.COOLDOWN
-    robot.cooldown_until = time.time() + settings.task_pause_s
+    robot.cooldown_until = time.time() + pause
 
 
 def _advance_point(robot: RobotRuntime, dt: float, target: tuple[float, float]) -> bool:
@@ -273,8 +345,7 @@ def _clear_route(robot: RobotRuntime) -> None:
 
 
 def _new_sequence() -> None:
-    """Rotate the whole fleet onto a fresh theme and reassign every controllable robot, so the
-    floor visibly changes objective — and nothing sits stale — every SEQUENCE_PERIOD_S."""
+    """Rotate theme, re-roll lead relay waypoints, and reassign the fleet."""
     cur = store.sequence.get("theme")
     choices = [t for t in SEQUENCE_THEMES if t["id"] != cur] or SEQUENCE_THEMES
     theme = random.choice(choices)
@@ -283,6 +354,11 @@ def _new_sequence() -> None:
         theme=theme["id"], label=theme["label"], objective=theme["objective"],
         started_at=time.time(), period_s=SEQUENCE_PERIOD_S,
     )
+    _ensure_fleet_roles()
+    for lead in store.robots.values():
+        if lead.fleet_role == "lead":
+            _reroll_lead_waypoint(lead)
+    _publish_relay_points()
     for robot in store.robots.values():
         # Never override a charging robot, an operator's waypoint/manual jog, or a human
         # E-Stop latch — but wake anything the sim itself parked (idle / cooldown / sim-halt).
@@ -295,28 +371,30 @@ def _new_sequence() -> None:
         robot.error_code = None
         robot.halted_at = None
         robot.pending_pickup = None
+        robot.shuttle_flip = False
         _assign_task(robot)   # → ACTIVE on the new theme's first leg
 
 
 def prime() -> None:
-    """Seed the fleet on the first mission sequence; leave one robot idle to show that state."""
+    """Seed lead/shuttle roles and the first mission sequence."""
+    _ensure_fleet_roles()
     _new_sequence()
     for idx, robot in enumerate(store.robots.values()):
         start = _STATIONS[idx % len(_STATIONS)] if _STATIONS else (robot.id, robot.pose_external.x, robot.pose_external.y)
         robot.pose_external = robot.pose_external.model_copy(update={"x": start[1], "y": start[2]})
         robot.pose_internal = robot.pose_external.model_copy()
-        if idx % 5 == 4:
-            # One robot starts idle so the IDLE state is represented on the floor.
+        if robot.fleet_role == "shuttle" and idx % 5 == 4:
+            # One shuttle starts idle so the IDLE state is represented on the floor.
             robot.state = RobotState.IDLE
             robot.mission_phase = "idle"
             robot.mission_goal = None
             robot.task_target = None
             robot.current_task = "Idle"
-        elif idx % 3 == 0:
-            # Stagger initial cooldowns so the fleet's start/stop rhythm is desynchronized.
+        elif robot.fleet_role == "shuttle" and idx % 3 == 0:
+            # Stagger shuttle cooldowns so the floor rhythm is desynchronized.
             robot.state = RobotState.COOLDOWN
             robot.task_target = None
-            robot.current_task = "Awaiting next task"
+            robot.current_task = "Awaiting next shuttle"
             robot.cooldown_until = time.time() + (idx % 5) * 2.0
     # Re-apply any operator waypoints that were set before a restart.
     store.restore_waypoints()

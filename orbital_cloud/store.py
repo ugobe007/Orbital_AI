@@ -77,6 +77,11 @@ class RobotRuntime:
         self.mission_dropoff: Optional[tuple[str, float, float]] = None
         self.work_until: Optional[float] = None
 
+        # Fleet choreography: leads publish relay waypoints; shuttles oscillate between them.
+        self.fleet_role: Optional[str] = None  # "lead" | "shuttle"
+        self.lead_waypoint: Optional[tuple[str, float, float]] = None
+        self.shuttle_flip: bool = False
+
         # Visual-nav: operator waypoints (map coords). When non-empty, the robot is driven
         # to them via Orbital's camera-based control, overriding the patrol/SLAM path.
         self.nav_queue: list[tuple[float, float]] = []
@@ -129,6 +134,7 @@ class RobotRuntime:
             current_task=self.current_task,
             mission=self.mission_goal,
             mission_phase=self.mission_phase,
+            fleet_role=self.fleet_role,
             error_code=self.error_code,
             handoff_partner=self.handoff_partner,
             visual_nav=bool(self.nav_queue),
@@ -155,6 +161,8 @@ class Store:
         self.sequence: dict = {"id": 0, "theme": "boot", "label": "Warming up",
                                "objective": "Bringing the fleet online…", "started_at": time.time(),
                                "period_s": 30.0}
+        # Shared relay waypoints published by lead robots (label, x, y).
+        self.relay_points: list[tuple[str, float, float]] = []
         self._seed()
 
     def set_sequence(self, *, id: int, theme: str, label: str, objective: str,
@@ -169,8 +177,16 @@ class Store:
             seq = dict(self.sequence)
             now = time.time()
             seq["ends_in_s"] = max(0.0, round(seq["started_at"] + seq["period_s"] - now, 1))
+            seq["relay_points"] = [
+                {"id": label, "x": x, "y": y} for label, x, y in self.relay_points
+            ]
             seq["assignments"] = [
-                {"robot_id": r.id, "goal": r.mission_goal, "phase": r.mission_phase}
+                {
+                    "robot_id": r.id,
+                    "goal": r.mission_goal,
+                    "phase": r.mission_phase,
+                    "role": r.fleet_role,
+                }
                 for r in self.robots.values() if r.mission_goal
             ]
             return seq
