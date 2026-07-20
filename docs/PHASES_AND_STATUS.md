@@ -17,7 +17,7 @@
 | Software abstraction (sim-first) | **Complete** — Sprints A–C done; CI green; live on Fly |
 | OEM API research & adapter wiring | **Complete (code)** — 7 vendors, 27 endpoints, all adapters wired |
 | Fleet sim (multi-lead / shuttle) | **Complete** — 2–3 leads publish relays; others oscillate |
-| Lab / hardware cutover | **Not started on-site** — checklists ready; needs cameras, robots, VLANs |
+| Lab / hardware cutover | **Day-1 runbook ready** — [LAB_CUTOVER_DAY1.md](./LAB_CUTOVER_DAY1.md); on-site not started |
 | Production security lockdown | **Flags set on Fly** — RBAC + OEM scopes + tokens deployed; anon viewers allowed for public demo |
 | OEM call audit (Security Phase 5) | **Soft done** — in-memory (+ optional Influx); `GET /api/dashboard/oem-audit` |
 | Pilot site | **Deferred** until hardware gate LAB rows are signed |
@@ -84,7 +84,7 @@ Security hardening is organized as **Phases 1–6** (network → transport → i
 
 ## Recommended next decisions (partner discussion)
 
-1. **Lab cutover date** — Cameras + Unitree (or Spot) + VLANs per [HARDWARE_GATE.md](./HARDWARE_GATE.md).
+1. **Lab cutover date** — Use [LAB_CUTOVER_DAY1.md](./LAB_CUTOVER_DAY1.md) (BOM + 5h timeline). Cameras + Unitree (or Spot) + VLANs.
 2. **Public demo posture** — Keep anon viewers (`ORBITAL_RBAC_ANON_VIEWER=1`) or lock all APIs (`=0`).
 3. **Partner API packs** — Agility Arc OpenAPI (NDA); Fourier FSM matrix.
 4. **External security audit** — After Phase 1–2 green in the lab.
@@ -100,6 +100,7 @@ Security hardening is organized as **Phases 1–6** (network → transport → i
 | [OEM_API_CONNECTIONS.md](./OEM_API_CONNECTIONS.md) | Which OEM APIs we collected |
 | [OEM_API_SECURITY.md](./OEM_API_SECURITY.md) | How we secure OEM control planes |
 | [HARDWARE_GATE.md](./HARDWARE_GATE.md) | On-site lab checklist before pilot |
+| [LAB_CUTOVER_DAY1.md](./LAB_CUTOVER_DAY1.md) | First lab day BOM + timeline |
 | [FLY_PRODUCTION.md](./FLY_PRODUCTION.md) | Fly RBAC secrets & lockdown |
 
 Config reference: repo root `.env.example`.
