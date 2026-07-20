@@ -76,14 +76,14 @@ Already scaffolded: `docs/HARDWARE_GATE.md`, `scripts/gen_mtls_certs.sh`.
 | Drift halt | `SafetyWatchdog` + `PoseBus` (independent of inject) |
 | E-Stop | `trigger_estop` via OEM client; never block on cloud |
 | Rate limit | 10 Hz inject budget (`LatencyBench`); drop surplus |
-| Audit | Persist `oem_api.calls` (or structured logs) to TelemetryStore / SIEM |
+| Audit | Persist `oem_api.calls` → Telemetry/SIEM | **Done (soft)** — `fleet_adapters/oem_apis/audit.py`; `GET /api/dashboard/oem-audit`; optional Influx `oem_api_call` |
 
 ### Phase 6 — Governance (P2/P3)
 
 1. NDA + Arc OpenAPI acquisition; update `AgilityArcClient` paths.
 2. Quarterly re-dump: `python3 scripts/dump_oem_apis.py` vs vendor release notes.
 3. External audit package per `HARDWARE_GATE.md` (network diagram, cert inventory, RBAC dump).
-4. Lab: enable SROS2 + call-audit of `oem_api.calls` into TelemetryStore.
+4. Lab: enable SROS2; call-audit of `oem_api.calls` already sinks to memory/Influx (`GET /api/dashboard/oem-audit`).
 
 ---
 
@@ -93,10 +93,10 @@ Already scaffolded: `docs/HARDWARE_GATE.md`, `scripts/gen_mtls_certs.sh`.
 |----------|------|------|
 | **P0** | VLAN + no off-subnet UDP/cmd_vel + edge mTLS | Lab network checklist signed |
 | **P1** | Secrets env loader + RBAC enforce + Arc NDA + Fourier FSM map | `check_prod_security.py --strict` green; docs updated |
-| **P2** | SROS2 + call audit of `oem_api.calls` | SIEM/TelemetryStore receives OEM call log |
+| **P2** | SROS2 + call audit of `oem_api.calls` | **Call audit done (soft)**; SROS2 still lab |
 | **P3** | External security audit | Auditor report filed |
 
-**Done (code):** 7/7 adapters wired to `oem_api`; env secret loader; prod security check script.
+**Done (code):** 7/7 adapters wired to `oem_api`; env secret loader; prod security check script; OEM call audit sink.
 
 ---
 

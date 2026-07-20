@@ -159,6 +159,17 @@ async def list_alerts(limit: int = 50, _role: Role = Depends(RequireViewer)) -> 
     return store.recent_alerts(limit=limit)
 
 
+@router.get("/oem-audit")
+async def oem_call_audit(
+    limit: int = 100,
+    robot_id: str | None = None,
+    _role: Role = Depends(RequireAdmin),
+) -> dict:
+    """Security Phase 5 — recent OEM public-API call audit trail."""
+    events = store.oem_audit_recent(limit=min(max(limit, 1), 500), robot_id=robot_id)
+    return {"count": len(events), "events": events}
+
+
 @router.post("/alerts/{alert_id}/ack")
 async def ack_alert(alert_id: str, _role: Role = Depends(RequireOperator)) -> dict:
     if not store.acknowledge_alert(alert_id):

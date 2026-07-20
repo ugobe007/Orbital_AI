@@ -19,6 +19,11 @@ from typing import Optional
 from .config import SEED_FLEET, VENDOR_BRIEFS, WAREHOUSE, settings
 from . import persistence
 from .telemetry_store import TelemetryStore, build_telemetry_store
+from fleet_adapters.oem_apis.audit import (
+    OemCallAuditSink,
+    build_oem_call_audit,
+    register_sink,
+)
 from .models import (
     Alert,
     AlertIn,
@@ -148,12 +153,18 @@ class RobotRuntime:
 
 
 class Store:
-    def __init__(self, telemetry_backend: TelemetryStore | None = None) -> None:
+    def __init__(
+        self,
+        telemetry_backend: TelemetryStore | None = None,
+        oem_audit: OemCallAuditSink | None = None,
+    ) -> None:
         self._lock = threading.RLock()
         self.robots: dict[str, RobotRuntime] = {}
         self._telemetry: TelemetryStore = telemetry_backend or build_telemetry_store()
         # Back-compat: tests/code may still read ``store.telemetry`` as a dict of deques.
         self.telemetry = self._telemetry.as_dict()
+        self.oem_audit: OemCallAuditSink = oem_audit or build_oem_call_audit()
+        register_sink(self.oem_audit)
         self.sensors: dict[str, SensorSnapshot] = {}
         self.alerts: list[Alert] = []
         self.tasks: dict[str, Task] = {}
@@ -164,6 +175,10 @@ class Store:
         # Shared relay waypoints published by lead robots (label, x, y).
         self.relay_points: list[tuple[str, float, float]] = []
         self._seed()
+
+    def oem_audit_recent(self, *, limit: int = 100, robot_id: str | None = None) -> list[dict]:
+        """Security Phase 5 — recent OEM API call audit trail."""
+        return [e.as_dict() for e in self.oem_audit.recent(limit=limit, robot_id=robot_id)]
 
     def set_sequence(self, *, id: int, theme: str, label: str, objective: str,
                      started_at: float, period_s: float) -> None:

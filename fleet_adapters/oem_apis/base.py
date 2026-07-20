@@ -69,4 +69,19 @@ class OemApiClient(abc.ABC):
     def _record(self, op: str, payload: dict[str, Any], *, ok: bool = True, detail: str = "") -> OemCall:
         call = OemCall(op=op, payload=payload, ok=ok, detail=detail)
         self.calls.append(call)
+        try:
+            from .audit import emit_oem_call
+
+            emit_oem_call(
+                vendor=getattr(self, "vendor", "unknown"),
+                robot_id=self.robot_id,
+                op=op,
+                payload=payload,
+                ts=call.ts,
+                ok=ok,
+                detail=detail,
+                dry_run=self.dry_run,
+            )
+        except Exception:  # noqa: BLE001 — audit must never break inject
+            pass
         return call
