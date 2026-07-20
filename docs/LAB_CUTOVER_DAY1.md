@@ -1,5 +1,6 @@
 # Lab Cutover — Day 1 Runbook
 
+**Deadline:** **2026-08-01** (complete Day-1 success definition by this date)  
 **Goal:** First on-site day for Orbital AI hardware gate (Sprint D lab rows).  
 **Soft gates:** already green in CI (`python3 scripts/lab_cutover.py --bench`).  
 **Partner brief:** [PHASES_AND_STATUS.md](./PHASES_AND_STATUS.md)
