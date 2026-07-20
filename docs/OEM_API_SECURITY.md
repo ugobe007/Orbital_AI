@@ -7,9 +7,9 @@
 
 | Bucket | Count | Notes |
 |--------|-------|-------|
-| Vendors with public control surfaces cataloged | 7 | Unitree, Spot, Agility, AgiBot, Deep, Fourier, MagicLab |
-| Endpoints in `list_oem_endpoints()` | 27 | Dry-run clients record call shapes |
-| Adapters wired to `oem_api` | **7** | All vendors via dedicated adapters |
+| Vendors with public control surfaces cataloged | 8 | + Pudu Open Platform (HMAC-SHA1) |
+| Endpoints in `list_oem_endpoints()` | 31+ | Dry-run clients record call shapes |
+| Adapters wired to `oem_api` | **8** | All vendors via dedicated adapters |
 | **High** documentation gaps | 2 | Arc OpenAPI, Fourier FSM command matrix |
 
 ### Missing (actionable)
@@ -96,7 +96,7 @@ Already scaffolded: `docs/HARDWARE_GATE.md`, `scripts/gen_mtls_certs.sh`.
 | **P2** | SROS2 + call audit of `oem_api.calls` | **Call audit done (soft)**; SROS2 still lab |
 | **P3** | External security audit | Auditor report filed |
 
-**Done (code):** 7/7 adapters wired to `oem_api`; env secret loader; prod security check script; OEM call audit sink.
+**Done (code):** 8/8 adapters wired to `oem_api` (incl. Pudu); env secret loader; prod security check script; OEM call audit sink.
 
 ---
 

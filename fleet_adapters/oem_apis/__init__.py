@@ -13,6 +13,7 @@ from .boston_dynamics import BostonDynamicsSpotClient
 from .deep_robotics import DeepRoboticsLite3Client
 from .fourier import FourierAuroraClient
 from .magiclab import MagicLabRos2Client
+from .pudu import PuduOpenPlatformClient
 from .registry import get_oem_client, known_oem_api_vendors, list_oem_endpoints
 from .unitree import UnitreeRos2Client
 
@@ -27,6 +28,7 @@ __all__ = [
     "DeepRoboticsLite3Client",
     "FourierAuroraClient",
     "MagicLabRos2Client",
+    "PuduOpenPlatformClient",
     "get_oem_client",
     "known_oem_api_vendors",
     "list_oem_endpoints",

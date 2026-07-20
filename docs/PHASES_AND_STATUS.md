@@ -15,7 +15,7 @@
 | Area | Status |
 |------|--------|
 | Software abstraction (sim-first) | **Complete** — Sprints A–C done; CI green; live on Fly |
-| OEM API research & adapter wiring | **Complete (code)** — 7 vendors, 27 endpoints, all adapters wired |
+| OEM API research & adapter wiring | **Complete (code)** — 8 vendors (incl. Pudu HMAC), adapters wired |
 | Fleet sim (multi-lead / shuttle) | **Complete** — 2–3 leads publish relays; others oscillate |
 | Lab / hardware cutover | **Deadline 2026-08-01** — [LAB_CUTOVER_DAY1.md](./LAB_CUTOVER_DAY1.md); on-site not started |
 | Production security lockdown | **Flags set on Fly** — RBAC + OEM scopes + tokens deployed; anon viewers allowed for public demo |

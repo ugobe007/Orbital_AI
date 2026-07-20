@@ -8,6 +8,7 @@ from .boston_dynamics import BostonDynamicsSpotClient
 from .deep_robotics import DeepRoboticsLite3Client
 from .fourier import FourierAuroraClient
 from .magiclab import MagicLabRos2Client
+from .pudu import PuduOpenPlatformClient
 from .unitree import UnitreeRos2Client
 
 _CLIENTS: dict[str, type[OemApiClient]] = {
@@ -18,6 +19,7 @@ _CLIENTS: dict[str, type[OemApiClient]] = {
     "Deep Robotics": DeepRoboticsLite3Client,
     "Fourier Robotics": FourierAuroraClient,
     "MagicLab": MagicLabRos2Client,
+    "Pudu Robotics": PuduOpenPlatformClient,
 }
 
 

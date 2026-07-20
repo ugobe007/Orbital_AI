@@ -1,4 +1,4 @@
-"""Adapters wired to OEM public API clients (all 7 vendors)."""
+"""Adapters wired to OEM public API clients (all vendors)."""
 import pytest
 
 from fleet_adapters import (
@@ -6,6 +6,7 @@ from fleet_adapters import (
     DeepRoboticsAdapter,
     FourierAdapter,
     MagicLabAdapter,
+    PuduAdapter,
     get_adapter,
 )
 from fleet_adapters.agility import SimulatedAgilityAdapter
@@ -117,3 +118,20 @@ def test_connect_loads_spot_json_from_env(monkeypatch):
     # Client records connect with credentials when provided
     connect_calls = [c for c in a.oem_api.calls if c.op == "connect" or "Lease" in c.op]
     assert connect_calls
+
+
+def test_pudu_adapter_wired_and_loads_env(monkeypatch):
+    from fleet_adapters.oem_apis.pudu import PuduOpenPlatformClient
+
+    monkeypatch.setenv(
+        "ORBITAL_SECRET_PUDU_JSON",
+        '{"app_key":"pudu-key","app_secret":"pudu-secret"}',
+    )
+    a = get_adapter("Pudu Robotics", "pudu-01")
+    assert isinstance(a, PuduAdapter)
+    assert isinstance(a.oem_api, PuduOpenPlatformClient)
+    assert a.connect() is True
+    assert a.oem_api.app_key == "pudu-key"
+    assert a.inject_waypoint("pudu-01", (1.0, 2.0)) is True
+    a.estop()
+    assert any(c.op == "trigger_estop" for c in a.oem_api.calls)

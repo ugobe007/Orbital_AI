@@ -15,6 +15,7 @@ from .oem_wired import (
     FourierAdapter,
     MagicLabAdapter,
 )
+from .pudu import PuduAdapter
 from .ros2_adapter import SimulatedROS2Adapter
 from .unitree import UnitreeAdapter
 
@@ -29,6 +30,7 @@ _SPECIAL: dict[str, type[FleetAdapter]] = {
     "Deep Robotics": DeepRoboticsAdapter,
     "Fourier Robotics": FourierAdapter,
     "MagicLab": MagicLabAdapter,
+    "Pudu Robotics": PuduAdapter,
 }
 
 
@@ -58,5 +60,6 @@ __all__ = [
     "SimulatedROS2Adapter", "SimulatedBostonDynamicsAdapter", "SimulatedAgilityAdapter",
     "UnitreeAdapter",
     "AgiBotAdapter", "DeepRoboticsAdapter", "FourierAdapter", "MagicLabAdapter",
+    "PuduAdapter",
     "adapter_class_for", "get_adapter", "capability_ceiling_for", "known_vendors",
 ]

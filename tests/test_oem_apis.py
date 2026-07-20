@@ -13,18 +13,18 @@ from fleet_adapters.oem_apis.boston_dynamics import BostonDynamicsSpotClient
 from fleet_adapters.fake_servers import FakeArcServer
 
 
-def test_all_seven_vendors_registered():
+def test_all_oem_vendors_registered():
     vendors = known_oem_api_vendors()
     for v in (
         "Unitree", "Boston Dynamics", "Agility Robotics", "AgiBot",
-        "Deep Robotics", "Fourier Robotics", "MagicLab",
+        "Deep Robotics", "Fourier Robotics", "MagicLab", "Pudu Robotics",
     ):
         assert v in vendors
 
 
 def test_list_oem_endpoints_has_docs_urls():
     catalog = list_oem_endpoints()
-    assert len(catalog) == 7
+    assert len(catalog) == 8
     for vendor, eps in catalog.items():
         assert eps, vendor
         assert all(e["docs_url"].startswith("http") for e in eps)

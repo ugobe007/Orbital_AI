@@ -25,6 +25,7 @@ _VENDOR_ALIASES: dict[str, tuple[str, ...]] = {
     "Deep Robotics": ("DEEP", "DEEP_ROBOTICS", "LITE3"),
     "Fourier Robotics": ("FOURIER", "AURORA"),
     "MagicLab": ("MAGICLAB", "MAGICDOG"),
+    "Pudu Robotics": ("PUDU", "PUDUTECH"),
 }
 
 
@@ -50,6 +51,13 @@ def load_oem_credentials(vendor: str) -> dict[str, str]:
         api_key = (os.getenv(f"ORBITAL_SECRET_{alias}_API_KEY") or "").strip()
         if api_key and "api_key" not in out:
             out["api_key"] = api_key
+        # Pudu uses ApiAppKey; mirror only for Pudu aliases
+        if api_key and alias in ("PUDU", "PUDUTECH") and "app_key" not in out:
+            out["app_key"] = api_key
+
+        app_secret = (os.getenv(f"ORBITAL_SECRET_{alias}_APP_SECRET") or "").strip()
+        if app_secret and "app_secret" not in out:
+            out["app_secret"] = app_secret
 
         user = (os.getenv(f"ORBITAL_SECRET_{alias}_USERNAME") or "").strip()
         password = (os.getenv(f"ORBITAL_SECRET_{alias}_PASSWORD") or "").strip()

@@ -31,12 +31,16 @@ digit = get_adapter("Agility Robotics", "digit-1", api_key="arc-key")
 digit.connect({"api_key": "arc-key"})
 digit.inject_waypoint("digit-1", (0.5, 0.1))
 
-# All seven vendors expose ``adapter.oem_api`` (AgiBot / Deep / Fourier / MagicLab too):
+pudu = get_adapter("Pudu Robotics", "pudu-01")
+pudu.connect({"app_key": "…", "app_secret": "…"})
+pudu.inject_waypoint("pudu-01", (1.0, 0.5))
+
+# All vendors expose ``adapter.oem_api`` (AgiBot / Deep / Fourier / MagicLab / Pudu too):
 agibot = get_adapter("AgiBot", "a2-1", endpoint="192.168.100.110")
 agibot.connect()
 agibot.inject_waypoint("a2-1", (0.8, 0.2))
 
-# Credentials from env (Fly secrets): ORBITAL_SECRET_ARC_API_KEY, ORBITAL_SECRET_SPOT_JSON, …
+# Credentials from env (Fly secrets): ORBITAL_SECRET_ARC_API_KEY, ORBITAL_SECRET_PUDU_JSON, …
 # See fleet_adapters/secrets.py and docs/OEM_API_SECURITY.md
 
 # Standalone client (same shapes):
@@ -69,6 +73,7 @@ python3 -c "import json; from fleet_adapters.oem_apis import list_oem_endpoints;
 | **Deep Robotics** | ROS 2 ↔ UDP | `/cmd_vel` + UDP `:43893` | [Lite3_ROS](https://github.com/DeepRoboticsLab/Lite3_ROS) | transfer + MotionSDK |
 | **Fourier Robotics** | DDS (Aurora) | `AuroraClient` locomotion (FSM-gated) | [support.fftai.com](https://support.fftai.com/en/docs/GR-X-Humanoid-Robot/GR1/SDK/Overview/) | `fourier_aurora_client` |
 | **MagicLab** | ROS 2 + LCM | `/{ns}/goal_pose` + LCM status | [support.magiclab.top](https://support.magiclab.top/en/) | MagicDog-Ros2_SDK |
+| **Pudu Robotics** | REST (HMAC-SHA1) | `POST …/v1/api/robot/task` (confirm path) | [pudurobotics.com](https://www.pudurobotics.com/) | httpx + ApiAppKey/Secret |
 
 ---
 
@@ -123,6 +128,16 @@ python3 -c "import json; from fleet_adapters.oem_apis import list_oem_endpoints;
 - MagicDog-Motion_SDK: LCM between PC and control board.
 - Suppress internal SLAM before ARIA TF publisher (per Orbital build guide).
 
+### Pudu Robotics (Open Platform)
+
+- Cloud REST with **HMAC-SHA1** (`ApiAppKey` / `ApiAppSecret`).
+- Signing string: `x-date`, method, Accept, Content-Type, Content-MD5, canonical path+sorted query
+  (strip `/release|/test|/prepub` before signing) — see `fleet_adapters/oem_apis/pudu.py`.
+- Sample health: `GET …/pudu-entry/data-open-platform-service/v1/api/healthCheck`.
+- Test host: `https://open-platform-test.pudutech.com` (replace with your account domain).
+- Task / status / estop paths are **placeholders** until confirmed against your Pudu OpenAPI pack.
+- Secrets: `ORBITAL_SECRET_PUDU_JSON={"app_key":"…","app_secret":"…"}` or `_API_KEY` + `_APP_SECRET`.
+
 ---
 
 ## Orbital mapping (all vendors)
@@ -143,8 +158,8 @@ Capability ceilings in `fleet_adapters` remain authoritative for what Orbital ma
 |---|------|-------|
 | 1 | Install vendor SDK on edge host (`requirements-hw.txt` + vendor packages) | Robotics |
 | 2 | Set `dry_run=False` / `use_hardware=True` + Fly secrets for credentials | Robotics |
-| 3 | ~~Wire all 7 adapters to OEM clients~~ **done** (`fleet_adapters/oem_wired.py`) | — |
-| 4 | Confirm Agility Arc OpenAPI with partner; update paths | Integrations |
+| 3 | ~~Wire all adapters to OEM clients~~ **done** (incl. Pudu) | — |
+| 4 | Confirm Agility Arc OpenAPI + Pudu task/status paths with partners | Integrations |
 | 5 | Lab integration test per vendor (fake server or robot) | QA |
 | 6 | Keep `list_oem_endpoints()` in sync when vendors change APIs | Docs |
 | 7 | Prod flags: `ORBITAL_RBAC_ENFORCE=1`, `ORBITAL_STRICT_OEM_SCOPES=1` | Ops |
