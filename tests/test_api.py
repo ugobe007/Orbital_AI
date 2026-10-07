@@ -10,6 +10,16 @@ def _a_robot_id() -> str:
     return client.get("/api/dashboard/fleet").json()["robots"][0]["id"]
 
 
+def test_marketing_home_includes_robot_harness():
+    page = client.get("/")
+    assert page.status_code == 200
+    assert 'id="harness"' in page.text
+    assert "/assets/robot-harness.jpg" in page.text
+    image = client.get("/assets/robot-harness.jpg")
+    assert image.status_code == 200
+    assert image.headers["content-type"].startswith("image/")
+
+
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200

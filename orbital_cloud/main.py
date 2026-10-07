@@ -147,6 +147,12 @@ async def ws(websocket: WebSocket) -> None:
         await hub.disconnect(websocket)
 
 
+# Marketing images live with the site. Mount before the dashboard catch-all so
+# /assets/… is not swallowed by StaticFiles at "/".
+_SITE_ASSETS = _SITE_DIR / "assets"
+if _SITE_ASSETS.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_SITE_ASSETS)), name="site-assets")
+
 # Serve dashboard assets (styles.css, app.js, orbital-logo.png) from root, registered
 # last so it doesn't shadow the API or the explicit "/" and "/app" routes above. The
 # marketing site reuses /orbital-logo.png from here.

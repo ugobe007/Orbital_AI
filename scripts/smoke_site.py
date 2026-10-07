@@ -18,12 +18,14 @@ SITE = ROOT / "site" / "index.html"
 DASHBOARD = ROOT / "dashboard" / "index.html"
 TW_CSS = ROOT / "dashboard" / "tw.css"
 
-REQUIRED_SECTION_IDS = ("stack", "platform", "how", "data", "oem")
+REQUIRED_SECTION_IDS = ("stack", "harness", "platform", "how", "data", "oem")
 REQUIRED_SNIPPETS = (
     "Launch the live demo",
     "Load live preview",
     "demo-load-btn",
     '/tw.css',
+    "Robot Harness",
+    "/assets/robot-harness.jpg",
 )
 
 
@@ -33,6 +35,10 @@ def fail(msg: str) -> None:
 
 
 def main() -> None:
+    harness = ROOT / "site" / "assets" / "robot-harness.jpg"
+    if not harness.is_file() or harness.stat().st_size < 1000:
+        fail("missing site/assets/robot-harness.jpg")
+
     if not SITE.is_file():
         fail(f"missing {SITE.relative_to(ROOT)}")
     if not DASHBOARD.is_file():

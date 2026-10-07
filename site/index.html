@@ -192,6 +192,7 @@
       </a>
       <nav class="hidden md:flex items-center gap-6 text-[13.5px] text-ink-mut ml-1">
         <a href="#stack" class="link-underline hover:text-ink transition">Orbital + ARIA</a>
+        <a href="#harness" class="link-underline hover:text-ink transition">Robot Harness</a>
         <a href="#platform" class="link-underline hover:text-ink transition">Platform</a>
         <a href="#how" class="link-underline hover:text-ink transition">How it works</a>
         <a href="#oem" class="link-underline hover:text-ink transition">For OEMs</a>
@@ -390,6 +391,108 @@
             <marker id="arrow-dim" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#697585"/></marker>
           </defs>
         </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Robot Harness -->
+  <section id="harness" class="section-rule border-b border-line" style="background:#0d1118">
+    <div class="section-shell">
+      <div class="section-intro reveal">
+        <div class="mono text-[11px] eyebrow uppercase text-ink-dim">Robot Harness · Digital Net v0</div>
+        <h2 class="mt-2 text-[28px] md:text-[36px] font-semibold tracking-tight">One repeatable job. A Golden Run for every job after it.</h2>
+        <p class="mt-3 text-[15.5px] text-ink-mut leading-relaxed">Digital Net v0 is the robot harness — first specified as R4R Harness v0. A lightweight frame of telescoping poles and crossbars puts numbered camera positions around the workspace. v0 runs eight synchronized cameras on a scaffold with 16 addressable positions, ready to expand to 8–16 RGB, IR, and depth nodes. External observations sync with robot telemetry on ARIA.</p>
+      </div>
+      <figure class="card overflow-hidden reveal glow-soft">
+        <img src="/assets/robot-harness.jpg" alt="Digital Net robot harness: telescoping frame with 8 to 16 numbered sensor positions, RGB, depth, and IR cameras, edge compute, and a Golden Run comparison for pose, object interaction, and performance." style="width:100%;height:auto;display:block" />
+        <figcaption class="px-5 py-3 flex flex-wrap items-center justify-between gap-2 border-t border-line" style="background:#0b0e13">
+          <span class="mono text-[11px] text-ink-dim">Digital Net v0 · 8 cameras · 16 addressable positions · ARIA sync</span>
+          <a href="/assets/robot-harness.jpg" target="_blank" rel="noopener" class="text-[12.5px] text-emerald link-underline">Open full diagram</a>
+        </figcaption>
+      </figure>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        <div class="card p-5 reveal">
+          <div class="mono text-[10.5px] eyebrow uppercase text-emerald">Frame</div>
+          <h3 class="mt-2 text-[16px] font-semibold">Deployment frame</h3>
+          <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Four corner poles with crossbars. Numbered positions, quick mounts, and cable channels so the sensing volume goes up around a deployed robot.</p>
+        </div>
+        <div class="card p-5 reveal">
+          <div class="mono text-[10.5px] eyebrow uppercase text-emerald">Sensors</div>
+          <h3 class="mt-2 text-[16px] font-semibold">8–16 synchronized nodes</h3>
+          <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">v0 starts with eight synchronized cameras. The frame addresses 16 positions, so the same scaffold expands to RGB, IR, and depth around the workspace.</p>
+        </div>
+        <div class="card p-5 reveal">
+          <div class="mono text-[10.5px] eyebrow uppercase text-amber">Calibration</div>
+          <h3 class="mt-2 text-[16px] font-semibold">Markers, then self-calibration</h3>
+          <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Fiducial markers define the sensing volume. A self-calibration process is part of the v0 design, so the volume can be re-established on the floor.</p>
+        </div>
+        <div class="card p-5 reveal">
+          <div class="mono text-[10.5px] eyebrow uppercase text-amber">Baseline</div>
+          <h3 class="mt-2 text-[16px] font-semibold">Golden Run</h3>
+          <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Record one successful Golden Run of a repeatable robot job. Every later run is compared with that reference for accuracy, recovery, and drift.</p>
+        </div>
+        <div class="card p-5 reveal">
+          <div class="mono text-[10.5px] eyebrow uppercase text-emerald">Measure</div>
+          <h3 class="mt-2 text-[16px] font-semibold">Deployment Deviation Engine</h3>
+          <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Detect abnormalities, deviations, recoveries, and changes in task accuracy against the Golden Run.</p>
+        </div>
+        <div class="card p-5 reveal">
+          <div class="mono text-[10.5px] eyebrow uppercase text-emerald">Sync</div>
+          <h3 class="mt-2 text-[16px] font-semibold">Robot Job State Model</h3>
+          <p class="mt-2 text-[13.5px] text-ink-mut leading-relaxed">Synchronize camera observations with robot telemetry, inference, and task outcomes on ARIA. The result is a labeled deployment dataset for foundation-model training.</p>
+        </div>
+      </div>
+
+      <div class="mt-8 reveal">
+        <div class="mono text-[10.5px] eyebrow uppercase text-ink-dim mb-2 text-center">From scaffold to labeled record</div>
+        <p class="text-center text-[13px] text-ink-mut mb-5 max-w-xl mx-auto">v0 watches one robot do one repeatable job, locks a reference run, and measures how the runs after it differ.</p>
+        <ol class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3" style="list-style:none;margin:0;padding:0">
+          <li class="card p-4">
+            <span class="step-num">01</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Assemble the scaffold and attach the sensors.</p>
+          </li>
+          <li class="card p-4">
+            <span class="step-num">02</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Power, connect, and calibrate the volume with markers.</p>
+          </li>
+          <li class="card p-4">
+            <span class="step-num">03</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Record a successful Golden Run.</p>
+          </li>
+          <li class="card p-4">
+            <span class="step-num">04</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Sync camera observations with telemetry, inference, and task outcomes.</p>
+          </li>
+          <li class="card p-4">
+            <span class="step-num">05</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Compare later runs with the baseline.</p>
+          </li>
+          <li class="card p-4">
+            <span class="step-num">06</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Detect deviations, recoveries, and performance drift.</p>
+          </li>
+          <li class="card p-4">
+            <span class="step-num">07</span>
+            <p class="mt-3 text-[13.5px] text-ink-mut leading-relaxed">Write labeled deployment-data records for training.</p>
+          </li>
+        </ol>
+      </div>
+
+      <div class="card p-5 md:p-6 mt-4 reveal">
+        <div class="mono text-[11px] eyebrow uppercase text-ink-dim mb-4">Digital Net v0 scope</div>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Scaffold</div><div class="mt-1 text-[13.5px] text-ink">Four corner poles with crossbars</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Cameras</div><div class="mt-1 text-[13.5px] text-ink">Eight synchronized cameras</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Positions</div><div class="mt-1 text-[13.5px] text-ink">16 addressable; expands to 8–16 RGB, IR, and depth</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Mounting</div><div class="mt-1 text-[13.5px] text-ink">Numbered positions, quick mounts, cable channels</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Connectivity</div><div class="mt-1 text-[13.5px] text-ink">PoE / GMSL cabling; network switch where needed</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Processing</div><div class="mt-1 text-[13.5px] text-ink">Edge computer</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Calibration</div><div class="mt-1 text-[13.5px] text-ink">Fiducial markers; self-calibration in the v0 design</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Robot interface</div><div class="mt-1 text-[13.5px] text-ink">Robot telemetry connection into ARIA</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Storage</div><div class="mt-1 text-[13.5px] text-ink">Local NVMe</div></div>
+          <div class="rounded-md px-3 py-2.5" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Test scope</div><div class="mt-1 text-[13.5px] text-ink">One repeatable robot job</div></div>
+          <div class="rounded-md px-3 py-2.5 sm:col-span-2" style="background:#0b0e13;border:1px solid var(--line)"><div class="mono text-[11px] text-ink-dim">Reference</div><div class="mt-1 text-[13.5px] text-ink">Golden Run baseline and deviation testing</div></div>
+        </div>
       </div>
     </div>
   </section>
@@ -624,6 +727,7 @@
         <div>
           <div class="mono text-[10.5px] eyebrow uppercase text-ink-dim mb-3">Product</div>
           <div class="flex flex-col gap-2 text-[13.5px] text-ink-mut">
+            <a href="#harness" class="hover:text-ink transition">Robot Harness</a>
             <a href="#platform" class="hover:text-ink transition">Platform</a>
             <a href="#how" class="hover:text-ink transition">How it works</a>
             <a href="/app/" class="hover:text-ink transition">Live demo</a>
