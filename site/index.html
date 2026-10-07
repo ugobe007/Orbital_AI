@@ -48,6 +48,21 @@
     .link-underline:hover::after { width:100%; }
     .browser-dot { width:9px; height:9px; border-radius:999px; display:inline-block; }
     .grad-text { background:linear-gradient(92deg,#e8ecf1 20%,#4ade9a 55%,#ffc24d 95%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .hero-photo { position:relative; min-height:100dvh; display:flex; align-items:flex-end; overflow:hidden; }
+    #live { scroll-margin-top:4.5rem; }
+    .hero-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center; }
+    .photo-overlay { position:absolute; inset:0; background:linear-gradient(#0b0e134d,#0b0e13b3 60%,#0b0e13f7); }
+    .hero-display { margin:0; font-size:clamp(3.5rem,10vw,8rem); font-weight:700; letter-spacing:-0.04em; line-height:.95; color:#fff; }
+    .hero-copy { position:relative; z-index:10; width:100%; max-width:72rem; margin:0 auto; padding:0 1.5rem 6rem; }
+    .hero-kicker { margin-bottom:3rem; }
+    .hero-lead { margin:2rem 0 2.5rem; max-width:42rem; font-size:1.25rem; line-height:1.6; color:rgba(255,255,255,.9); }
+    .hero-actions { display:flex; flex-direction:column; align-items:flex-start; gap:1rem; margin-bottom:3rem; }
+    @media (min-width:640px) { .hero-actions { flex-direction:row; } }
+    .hero-foot { padding-top:2rem; border-top:1px solid rgba(255,255,255,.2); font-size:.875rem; letter-spacing:.02em; color:rgba(255,255,255,.7); }
+    .hero-pulse { animation:hero-pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+    @keyframes hero-pulse { 50% { opacity:.4; } }
+    .btn-hero-ghost { background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; }
+    .btn-hero-ghost:hover { background:rgba(255,255,255,.1); }
     .btn-primary {
       background:var(--emerald);
       color:#04130c;
@@ -180,7 +195,7 @@
   <div class="top-accent"></div>
 
   <!-- Nav -->
-  <header class="sticky top-0 z-40 border-b border-line" style="background:rgba(11,14,19,.85); backdrop-filter:blur(10px)">
+  <header id="site-header" class="fixed top-0 left-0 right-0 z-40" style="background:transparent; border-bottom:1px solid transparent">
     <div class="max-w-[1180px] mx-auto px-5 h-14 flex items-center gap-6">
       <a href="/" class="flex items-center gap-2.5">
         <div class="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center glow-em" style="background:#0c1119; border:1px solid rgba(62,207,142,0.4)">
@@ -206,45 +221,31 @@
     </div>
   </header>
 
-  <!-- Hero — copy only (Manus layout: demo is full-width below) -->
-  <section class="relative overflow-hidden border-b border-line">
-    <div class="absolute inset-0 grid-bg pointer-events-none"></div>
-    <div class="relative max-w-[1280px] mx-auto px-5 pt-14 pb-12 md:pt-20 md:pb-16 text-center">
-      <div class="max-w-3xl mx-auto">
-        <div class="inline-flex items-center gap-2 chip rounded-full px-3 py-1 mb-5">
-          <span class="w-1.5 h-1.5 rounded-full" style="background:var(--emerald); box-shadow:0 0 8px var(--emerald)"></span>
-          <span class="mono text-[11px] eyebrow text-ink-mut uppercase">Live · operational layer for physical AI</span>
-        </div>
-        <h1 class="text-[38px] leading-[1.04] md:text-[62px] md:leading-[0.98] font-semibold tracking-tight mx-auto">
-          <span class="grad-text">Orbital AI</span> runs your fleet from the cloud.
-          <br class="hidden md:block" />
-          <span class="text-ink">ARIA</span> keeps it on course at the <span class="text-amber">edge</span>.
-        </h1>
-        <p class="mt-5 text-[16px] md:text-[18px] text-ink-mut leading-relaxed max-w-2xl mx-auto">
-          Foundation models teach robots how to act. Orbital AI operates them once they're on the floor —
-          a <span class="text-ink">cloud control plane</span> for telemetry, scope-enforced control, and orchestration,
-          paired with <span class="text-ink">ARIA</span>, the on-robot edge agent doing camera-based visual navigation and safety in real time.
-        </p>
-        <div class="mt-7 flex flex-wrap items-center justify-center gap-3">
-          <a href="/app/" class="px-5 py-2.5 rounded-lg text-[14.5px] font-semibold btn-primary transition flex items-center gap-2">
-            Launch the live demo
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </a>
-          <button type="button" data-contact="signup" class="px-4 py-2.5 rounded-lg text-[14.5px] font-medium btn-secondary transition">Sign up</button>
-          <button type="button" data-contact="early-access" class="px-4 py-2.5 rounded-lg text-[14.5px] font-medium btn-text transition">Request early access</button>
-        </div>
-        <div class="mt-6 flex flex-wrap items-center justify-center gap-2.5">
-          <span class="transport-pill-label">Works with any OEM</span>
-          <span class="transport-pill">ROS2</span>
-          <span class="transport-pill">gRPC</span>
-          <span class="transport-pill">REST</span>
-        </div>
+  <!-- Hero — full-bleed warehouse photo -->
+  <section class="hero-photo">
+    <img class="hero-bg" src="/assets/hero-warehouse.jpg" alt="Autonomous mobile robot navigating a warehouse aisle with systematic precision" />
+    <div class="photo-overlay"></div>
+    <div class="hero-copy">
+      <div class="hero-kicker inline-flex items-center gap-2 px-4 py-2 rounded-full" style="background:rgba(0,0,0,.4);backdrop-filter:blur(6px);border:1px solid rgba(62,207,142,.4)">
+        <span class="w-1.5 h-1.5 rounded-full hero-pulse" style="background:var(--emerald)"></span>
+        <span class="font-medium uppercase" style="font-size:.75rem;letter-spacing:.04em;color:#fff">Live · Operational Layer for Physical AI</span>
       </div>
+      <h1>
+        <span class="hero-display" style="display:block">Reality.</span>
+        <span class="hero-display" style="display:block">Intelligence.</span>
+        <span class="hero-display" style="display:block">Scale.</span>
+      </h1>
+      <p class="hero-lead">Great robots don't win markets. Great companies do.</p>
+      <div class="hero-actions">
+        <button type="button" data-contact="pilot" class="px-6 py-3 rounded-lg text-[15px] font-semibold btn-primary transition">Start the pilot</button>
+        <a href="#live" class="px-6 py-3 rounded-lg text-[15px] font-semibold btn-hero-ghost transition">See it live</a>
+      </div>
+      <p class="hero-foot">Works with ROS2 · gRPC · REST — any OEM</p>
     </div>
   </section>
 
   <!-- Live warehouse map — full-width showcase (not cramped in a side panel) -->
-  <section class="demo-showcase">
+  <section id="live" class="demo-showcase">
     <div class="demo-showcase-inner">
       <div class="flex flex-wrap items-center justify-center gap-3 mb-3 text-center">
         <div>
@@ -799,6 +800,16 @@
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
 
+    const siteHeader = document.getElementById("site-header");
+    function syncHeader() {
+      const solid = window.scrollY > 20;
+      siteHeader.style.background = solid ? "rgba(11,14,19,.85)" : "transparent";
+      siteHeader.style.backdropFilter = solid ? "blur(10px)" : "none";
+      siteHeader.style.borderBottomColor = solid ? "var(--line)" : "transparent";
+    }
+    window.addEventListener("scroll", syncHeader, { passive: true });
+    syncHeader();
+
     const frame = document.getElementById("demo-frame");
     const frameLoading = document.getElementById("demo-frame-loading");
     const demoPrompt = document.getElementById("demo-prompt");
@@ -847,6 +858,7 @@
     const TOPIC_COPY = {
       "signup": "Sign up",
       "early-access": "Request early access",
+      "pilot": "Start the pilot",
       "partnership": "Talk partnerships",
       "general": "Get in touch",
     };
