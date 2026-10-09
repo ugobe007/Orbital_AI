@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Static smoke checks for the marketing page.
+"""Static smoke checks for the marketing page and fleet dashboard.
 
-Catches the class of regressions that already bit production:
-  - missing major sections
-  - .reveal hidden until scroll (opacity: 0)
-  - auto-loading the heavy /app embed iframe
-  - Tailwind CDN (runtime JIT) instead of built /tw.css
+The public homepage is the prebuilt marketing app (site/index.html + hashed
+assets). The fleet console is dashboard/index.html, served at /app/.
 """
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -17,15 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site" / "index.html"
 DASHBOARD = ROOT / "dashboard" / "index.html"
 TW_CSS = ROOT / "dashboard" / "tw.css"
+ASSETS = ROOT / "site" / "assets"
+PHOTOS = ROOT / "dashboard" / "orbital-ai-site"
 
-REQUIRED_SECTION_IDS = ("stack", "harness", "platform", "how", "data", "oem")
-REQUIRED_SNIPPETS = (
-    "Launch the live demo",
-    "Load live preview",
-    "demo-load-btn",
-    '/tw.css',
-    "Robot Harness",
-    "/assets/robot-harness.jpg",
+REQUIRED_ASSETS = (
+    "index-DWu3zOSb.js",
+    "index-0EaFuQXy.css",
+    "orbital-logo-D9n2owqh.png",
+)
+REQUIRED_PHOTOS = (
+    "hero-warehouse.jpg",
+    "humanoid-deployment.png",
+    "flywheel-figure-bmw.jpg",
+    "stack-spot-posco.jpg",
 )
 
 
@@ -35,10 +35,6 @@ def fail(msg: str) -> None:
 
 
 def main() -> None:
-    harness = ROOT / "site" / "assets" / "robot-harness.jpg"
-    if not harness.is_file() or harness.stat().st_size < 1000:
-        fail("missing site/assets/robot-harness.jpg")
-
     if not SITE.is_file():
         fail(f"missing {SITE.relative_to(ROOT)}")
     if not DASHBOARD.is_file():
@@ -49,47 +45,28 @@ def main() -> None:
     html = SITE.read_text(encoding="utf-8")
     dash = DASHBOARD.read_text(encoding="utf-8")
 
-    for tag in ("html", "head", "body", "section", "div"):
-        opens = len(re.findall(rf"<{tag}[\s>]", html, flags=re.I))
-        closes = len(re.findall(rf"</{tag}>", html, flags=re.I))
-        if opens != closes:
-            fail(f"<{tag}> imbalance: open={opens} close={closes}")
+    if '<div id="root"></div>' not in html:
+        fail("marketing page must mount the app at #root")
+    for name in REQUIRED_ASSETS:
+        if f"/assets/{name}" not in html and not name.endswith(".png"):
+            fail(f"marketing page does not reference /assets/{name}")
+        path = ASSETS / name
+        if not path.is_file() or path.stat().st_size < 1000:
+            fail(f"missing or empty site/assets/{name}")
 
-    section_count = len(re.findall(r"<section\b", html, flags=re.I))
-    if section_count < 8:
-        fail(f"expected ≥8 <section> tags, found {section_count}")
-
-    for sid in REQUIRED_SECTION_IDS:
-        if not re.search(rf'id=["\']{sid}["\']', html):
-            fail(f"missing section id=#{sid}")
-
-    for snippet in REQUIRED_SNIPPETS:
-        if snippet not in html:
-            fail(f"missing required snippet: {snippet!r}")
+    for name in REQUIRED_PHOTOS:
+        path = PHOTOS / name
+        if not path.is_file() or path.stat().st_size < 1000:
+            fail(f"missing or empty dashboard/orbital-ai-site/{name}")
 
     if "cdn.tailwindcss.com" in html or "cdn.tailwindcss.com" in dash:
         fail("Tailwind CDN is forbidden — use built /tw.css")
-
-    if '/tw.css' not in dash:
+    if "/tw.css" not in dash:
         fail("dashboard must link /tw.css")
-
-    # Hide-until-scroll was the "70% of site missing" bug.
-    if re.search(r"\.reveal\s*\{[^}]*opacity\s*:\s*0", html):
-        fail(".reveal must not default to opacity:0")
-
-    # Auto-loading the dashboard iframe reintroduced browser hangs.
-    if re.search(r'id=["\']demo-frame["\'][^>]*\ssrc=', html):
-        fail("demo-frame must not have a static src (use click-to-load)")
-
-    # display:flex on .demo-frame-loading overrides Tailwind .hidden → stuck spinner.
-    m = re.search(r"\.demo-frame-loading\s*\{([^}]+)\}", html)
-    if m and re.search(r"display\s*:\s*flex", m.group(1)):
-        fail(".demo-frame-loading must not set display:flex (use .is-active)")
 
     print(
         f"OK: site smoke passed "
-        f"({section_count} sections, tw.css={TW_CSS.stat().st_size}B, "
-        f"ids={','.join(REQUIRED_SECTION_IDS)})"
+        f"(assets={','.join(REQUIRED_ASSETS)}, tw.css={TW_CSS.stat().st_size}B)"
     )
 
 
