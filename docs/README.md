@@ -10,6 +10,7 @@ Authoritative engineering references for the **robot-control abstraction layer**
 | [ARIA_ORBITAL_AI_Presentation_Script.md](./ARIA_ORBITAL_AI_Presentation_Script.md) | Presentation narrative |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | Desktop repo vs build guide (simulation lens) |
 | [SPRINT_PRIORITIZATION.md](./SPRINT_PRIORITIZATION.md) | Abstraction-first engineering order |
+| [ROADMAP_PHYSICAL_AI_HARNESS.md](./ROADMAP_PHYSICAL_AI_HARNESS.md) | Sprints E–I — action queue, MCP harness, zones & people, rig calibration, go-to-market |
 | [HARDWARE_GATE.md](./HARDWARE_GATE.md) | Sprint D lab checklist (ArUco, Unitree, VLAN/SROS2/audit) |
 | [LAB_CUTOVER_DAY1.md](./LAB_CUTOVER_DAY1.md) | Day-1 lab runbook — BOM, timeline, success definition |
 | [OEM_API_CONNECTIONS.md](./OEM_API_CONNECTIONS.md) | Public OEM API research + dry-run clients (`fleet_adapters/oem_apis/`) |
