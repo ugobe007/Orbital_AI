@@ -49,7 +49,9 @@
         <span id="conn-dot" class="w-2 h-2 rounded-full bg-ink-dim"></span>
         <span id="conn-label" class="text-ink-mut">connecting…</span>
       </div>
-      <a href="/?signup=1" class="header-nav-link px-3 py-1.5 rounded-md text-[13px] font-medium transition shrink-0" style="border:1px solid var(--line); color:#aab4c1">Sign up</a>
+      <div id="auth-box" class="flex items-center gap-2 shrink-0">
+        <button id="btn-sign-in" class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid var(--line); color:#e6eaef">Sign in</button>
+      </div>
       <button id="btn-onboard" class="px-3 py-1.5 rounded-md text-[13px] font-semibold transition btn-press glow-blue flex items-center gap-1.5" style="background:#0e2230; border:1px solid rgba(0,165,218,0.5); color:#7fd6f2">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Onboard robot API
@@ -219,6 +221,7 @@
   <div id="modal-robot" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-dispatch" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-oem" class="modal hidden"><div class="modal-card"></div></div>
+  <div id="modal-sign-in" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-wizard" class="modal hidden"><div class="modal-card modal-card-lg"></div></div>
 
   <script src="/app.js?v=20260718g"></script>
