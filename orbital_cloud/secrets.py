@@ -28,4 +28,8 @@ def prod_security_flags() -> dict[str, bool]:
         "rbac_enforce": _on("ORBITAL_RBAC_ENFORCE"),
         "strict_oem_scopes": _on("ORBITAL_STRICT_OEM_SCOPES"),
         "rbac_tokens_configured": bool(tokens),
+        "rbac_proxy_secret_configured": bool((os.getenv("ORBITAL_RBAC_PROXY_SECRET") or "").strip()),
+        "agents_enabled": (os.getenv("ORBITAL_AGENTS_ENABLED", "1") or "1").strip().lower()
+        in ("1", "true", "yes", "on"),
+        "agent_direct_control": _on("ORBITAL_AGENT_DIRECT_CONTROL"),
     }

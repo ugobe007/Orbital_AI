@@ -252,6 +252,15 @@ def test_accept_stale_action_expires_it(halted_robot):
     assert global_store.actions.get(rec.id).status == RecommendationStatus.EXPIRED
 
 
+def test_accept_resume_rechecks_drift(halted_robot):
+    rec = _propose_resume(halted_robot)
+    global_store.robots[halted_robot].drift_delta_m = settings.drift_degraded_m + 0.2
+
+    r = client.post(f"/api/dashboard/actions/{rec.id}/accept")
+    assert r.status_code == 409 and "not safe to resume" in r.json()["detail"]
+    assert global_store.robots[halted_robot].state == RobotState.HALTED
+
+
 def test_advisory_accept_and_dismiss_broadcast():
     rid = list(global_store.robots)[0]
     review = global_store.actions.propose(

@@ -7,6 +7,7 @@ from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, WAREHOUSE, settings
 from ..events import hub
 from ..models import (
+    ActionProposalIn,
     Alert,
     APIScope,
     ControlTransport,
@@ -18,6 +19,7 @@ from ..models import (
     OEMStatus,
     OrchestratorStatus,
     Recommendation,
+    RecommendationKind,
     RecommendationStatus,
     RobotDetail,
     RobotSummary,
@@ -30,7 +32,19 @@ from ..models import (
 from ..oem_store import ceiling_scopes_for_vendor, oem_store
 from fleet_adapters import known_vendors
 from ..orchestrator import actions_message, orchestrator
-from ..rbac import RequireAdmin, RequireOperator, RequireViewer, Role
+from ..rbac import (
+    Caller,
+    CurrentCaller,
+    RequireAdmin,
+    RequireController,
+    RequireOperator,
+    RequireProposer,
+    RequireStopper,
+    RequireViewer,
+    Role,
+    agent_direct_control,
+    agent_rate_per_min,
+)
 from .. import recommendations, scope_guard
 from ..store import store
 
@@ -76,56 +90,72 @@ async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
 
 
 @router.post("/robot/{robot_id}/navigate")
-async def navigate(robot_id: str, body: NavigateIn, _role: Role = Depends(RequireOperator)) -> dict:
+async def navigate(robot_id: str, body: NavigateIn, dry_run: bool = False,
+                   caller: Caller = Depends(RequireController)) -> dict:
     """Set operator waypoints — Orbital drives the robot there via visual control, bypassing
     its onboard SLAM. Gated on control.velocity (the visual servo issues velocity commands)."""
     if not body.waypoints:
         raise HTTPException(status_code=400, detail="at least one waypoint required")
-    _enforce(robot_id, APIScope.VELOCITY)
+    _enforce_audited(caller, "navigate", robot_id, APIScope.VELOCITY)
+    route = " → ".join(f"({p.x:.1f}, {p.y:.1f})" for p in body.waypoints)
+    if dry_run:
+        return _dry_run(caller, "navigate", robot_id, f"drive {robot_id} via {route}")
     ok = store.set_waypoints(robot_id, [(p.x, p.y) for p in body.waypoints])
     if not ok:
         raise HTTPException(status_code=404, detail="robot not found")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="navigate",
+                         robot_id=robot_id, ok=True, detail=route)
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id, "waypoints": [p.model_dump() for p in body.waypoints]}
 
 
 @router.post("/robot/{robot_id}/navigate/clear")
-async def navigate_clear(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
+async def navigate_clear(robot_id: str, caller: Caller = Depends(RequireController)) -> dict:
     if not store.clear_waypoints(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="navigate_clear",
+                         robot_id=robot_id, ok=True)
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id}
 
 
 @router.post("/robot/{robot_id}/speed")
-async def set_speed(robot_id: str, body: SpeedIn, _role: Role = Depends(RequireOperator)) -> dict:
+async def set_speed(robot_id: str, body: SpeedIn, dry_run: bool = False,
+                    caller: Caller = Depends(RequireController)) -> dict:
     """Operator speed override (m/s). Scales patrol, visual-nav, and manual motion.
     Gated on control.velocity."""
-    _enforce(robot_id, APIScope.VELOCITY)
+    _enforce_audited(caller, "set_speed", robot_id, APIScope.VELOCITY)
+    if dry_run:
+        clamped = min(max(body.speed_mps, 0.05), settings.max_speed_mps)
+        return _dry_run(caller, "set_speed", robot_id, f"set {robot_id} speed to {clamped:.2f} m/s")
     applied = store.set_speed(robot_id, body.speed_mps)
     if applied is None:
         raise HTTPException(status_code=404, detail="robot not found")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="set_speed",
+                         robot_id=robot_id, ok=True, detail=f"{applied} m/s")
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id, "speed_mps": applied}
 
 
 @router.post("/robot/{robot_id}/drive")
-async def drive(robot_id: str, body: DriveIn, _role: Role = Depends(RequireOperator)) -> dict:
+async def drive(robot_id: str, body: DriveIn, caller: Caller = Depends(RequireController)) -> dict:
     """Manual jog along a heading (deg, 0 = east, CCW). Overrides patrol / clears waypoints.
     Gated on control.velocity."""
     import math
 
-    _enforce(robot_id, APIScope.VELOCITY)
+    _enforce_audited(caller, "drive", robot_id, APIScope.VELOCITY)
     heading_rad = math.radians(body.heading_deg)
     if not store.set_manual_drive(robot_id, heading_rad, body.speed_mps):
         raise HTTPException(status_code=409, detail="robot not found or halted")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="drive",
+                         robot_id=robot_id, ok=True, detail=f"heading {body.heading_deg:.0f}°")
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id, "heading_deg": body.heading_deg}
 
 
 @router.post("/robot/{robot_id}/drive/stop")
-async def drive_stop(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
-    _enforce(robot_id, APIScope.VELOCITY)
+async def drive_stop(robot_id: str, caller: Caller = Depends(RequireController)) -> dict:
+    _enforce_audited(caller, "drive_stop", robot_id, APIScope.VELOCITY)
     if not store.stop_manual_drive(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
     await _broadcast_fleet()
@@ -146,12 +176,33 @@ def _enforce(robot_id: str, scope: APIScope) -> None:
         raise HTTPException(status_code=403, detail=check.reason)
 
 
-@router.post("/tasks", response_model=Task, status_code=201)
-async def create_task(task: TaskIn, _role: Role = Depends(RequireOperator)) -> Task:
+def _enforce_audited(caller: Caller, action: str, robot_id: str, scope: APIScope) -> None:
+    try:
+        _enforce(robot_id, scope)
+    except HTTPException as exc:
+        store.record_control(actor=caller.actor, role=caller.role.value, action=action,
+                             robot_id=robot_id, ok=False, detail=str(exc.detail))
+        raise
+
+
+def _dry_run(caller: Caller, action: str, robot_id: str | None, would: str) -> dict:
+    store.record_control(actor=caller.actor, role=caller.role.value, action=action,
+                         robot_id=robot_id, ok=True, detail=would, dry_run=True)
+    return {"ok": True, "dry_run": True, "robot_id": robot_id, "would": would}
+
+
+@router.post("/tasks", response_model=None, status_code=201)
+async def create_task(task: TaskIn, dry_run: bool = False,
+                      caller: Caller = Depends(RequireController)) -> Task | dict:
     if task.robot_id not in store.robots:
         raise HTTPException(status_code=404, detail="robot not found")
-    _enforce(task.robot_id, APIScope.MISSION)
-    created = store.create_task(task)
+    _enforce_audited(caller, "dispatch_task", task.robot_id, APIScope.MISSION)
+    if dry_run:
+        return _dry_run(caller, "dispatch_task", task.robot_id,
+                        f"dispatch '{task.description}' to {task.robot_id}")
+    created = store.create_task(task, actor=caller.actor)
+    store.record_control(actor=caller.actor, role=caller.role.value, action="dispatch_task",
+                         robot_id=task.robot_id, ok=True, detail=task.description)
     await _broadcast_fleet()
     return created
 
@@ -233,21 +284,64 @@ async def list_actions(include_closed: bool = False, limit: int = 50,
     return [_with_block_reason(r) for r in ranked]
 
 
+@router.post("/actions", response_model=None, status_code=201)
+async def propose_action(body: ActionProposalIn,
+                         caller: Caller = Depends(RequireProposer)) -> Recommendation | dict:
+    """Propose a next action into the queue. This is the agents' default write path: nothing
+    runs until an operator accepts it."""
+    if body.robot_id not in store.robots:
+        raise HTTPException(status_code=404, detail="robot not found")
+    if body.kind == RecommendationKind.HANDOVER:
+        if not body.target_robot_id or not body.task:
+            raise HTTPException(status_code=422, detail="handover needs target_robot_id and task")
+        if body.target_robot_id not in store.robots:
+            raise HTTPException(status_code=404, detail="target robot not found")
+    if body.kind == RecommendationKind.DISPATCH_TASK and not body.task:
+        raise HTTPException(status_code=422, detail="dispatch_task needs task")
+
+    scope = recommendations.KIND_SCOPE[body.kind]
+    summary = f"{body.kind.value} for {body.robot_id}: {body.rationale}"
+    if body.dry_run:
+        out = _dry_run(caller, "propose_action", body.robot_id, f"propose {summary}")
+        if scope is not None:
+            check = scope_guard.check_robot(body.target_robot_id or body.robot_id, scope)
+            out["blocked_reason"] = None if check.allowed else check.reason
+        return out
+    rec = store.actions.propose(
+        body.kind, robot_id=body.robot_id, target_robot_id=body.target_robot_id, task=body.task,
+        score=body.score, rationale=body.rationale, scope=scope,
+        assignee_type=recommendations.assignee_for(body.kind),
+        source="agent" if caller.is_agent else "operator", actor=caller.actor,
+    )
+    if rec is None:
+        store.record_control(actor=caller.actor, role=caller.role.value, action="propose_action",
+                             robot_id=body.robot_id, ok=False, detail="recently dismissed")
+        raise HTTPException(status_code=409, detail="an operator dismissed this recently; try again later")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="propose_action",
+                         robot_id=body.robot_id, ok=True, detail=summary)
+    await hub.broadcast(actions_message(store))
+    return _with_block_reason(rec.model_copy())
+
+
 @router.post("/actions/{action_id}/accept", response_model=Recommendation)
-async def accept_action(action_id: str, _role: Role = Depends(RequireOperator)) -> Recommendation:
+async def accept_action(action_id: str, _role: Role = Depends(RequireOperator),
+                        caller: Caller = Depends(CurrentCaller)) -> Recommendation:
     """Accept a proposal. Executable kinds run now, through the same OEM scope check as the
     direct control endpoints; advisory kinds are marked accepted for the operator to handle."""
     rec = _open_action_or_error(action_id)
     if rec.scope is None:
         resolved = store.actions.resolve(action_id, RecommendationStatus.ACCEPTED)
     else:
-        _enforce(recommendations.executing_robot(rec) or "", rec.scope)
-        executed, detail = recommendations.execute(store, rec)
+        _enforce_audited(caller, f"accept:{rec.kind.value}", recommendations.executing_robot(rec) or "", rec.scope)
+        executed, detail = recommendations.execute(store, rec, actor=caller.actor)
         if not executed:
             store.actions.resolve(action_id, RecommendationStatus.EXPIRED)
             await hub.broadcast(actions_message(store))
             raise HTTPException(status_code=409, detail=f"no longer applicable: {detail}")
         resolved = store.actions.resolve(action_id, RecommendationStatus.DONE)
+        store.record_control(actor=caller.actor, role=caller.role.value, action=f"accept:{rec.kind.value}",
+                             robot_id=recommendations.executing_robot(rec), ok=True,
+                             detail=f"{detail} (proposed by {rec.actor or rec.source})")
         await _broadcast_fleet()
     await hub.broadcast(actions_message(store))
     return resolved.model_copy()
@@ -261,20 +355,45 @@ async def dismiss_action(action_id: str, _role: Role = Depends(RequireOperator))
     return resolved.model_copy()
 
 
+@router.get("/agent-policy")
+async def agent_policy(_role: Role = Depends(RequireViewer)) -> dict:
+    """What an agent may do on this deployment — read by the MCP server and shown to models."""
+    return {
+        "direct_control": agent_direct_control(),
+        "rate_per_min": agent_rate_per_min(),
+        "always_allowed": ["read", "propose_action", "estop"],
+        "operator_only": ["accept_action", "dismiss_action"],
+    }
+
+
+@router.get("/control-audit")
+async def control_audit(limit: int = 100, actor: str | None = None,
+                        _role: Role = Depends(RequireAdmin)) -> dict:
+    """Who issued which control or proposal call (operators and agents), newest first."""
+    rows = store.control_audit_recent(limit=min(max(limit, 1), 500), actor=actor)
+    return {"count": len(rows), "events": rows}
+
+
 @router.post("/robot/{robot_id}/estop")
-async def estop(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
-    _enforce(robot_id, APIScope.ESTOP)
+async def estop(robot_id: str, dry_run: bool = False, caller: Caller = Depends(RequireStopper)) -> dict:
+    _enforce_audited(caller, "estop", robot_id, APIScope.ESTOP)
+    if dry_run:
+        return _dry_run(caller, "estop", robot_id, f"halt {robot_id}")
     if not store.estop(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="estop", robot_id=robot_id, ok=True)
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id, "state": "halted"}
 
 
 @router.post("/robot/{robot_id}/resume")
-async def resume(robot_id: str, _role: Role = Depends(RequireOperator)) -> dict:
-    _enforce(robot_id, APIScope.ESTOP)
+async def resume(robot_id: str, dry_run: bool = False, caller: Caller = Depends(RequireController)) -> dict:
+    _enforce_audited(caller, "resume", robot_id, APIScope.ESTOP)
+    if dry_run:
+        return _dry_run(caller, "resume", robot_id, f"resume {robot_id}")
     if not store.resume(robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
+    store.record_control(actor=caller.actor, role=caller.role.value, action="resume", robot_id=robot_id, ok=True)
     await _broadcast_fleet()
     return {"ok": True, "robot_id": robot_id}
 

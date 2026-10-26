@@ -59,7 +59,17 @@ Set `ORBITAL_RBAC_ANON_VIEWER=0` only if you want every API to require a token.
 **How clients authenticate after lockdown**
 
 - Header: `Authorization: Bearer <token>` matching a role in `ORBITAL_RBAC_TOKENS`, **or**
-- Header: `X-Orbital-Role: admin|operator|viewer` (role header alone is enough when tokens are not used — prefer Bearer tokens in production)
+- From the trusted proxy only (StageGate): `X-Orbital-Role: admin|operator|viewer|agent` **plus**
+  `X-Orbital-Proxy-Secret: <ORBITAL_RBAC_PROXY_SECRET>`. Set the same secret on Orbital and on
+  StageGate's proxy; keep it server-side — never send it from a browser.
+
+Without the proxy secret, `X-Orbital-Role` can only *lower* a caller's role (e.g. an operator
+token acting as viewer). Claiming a higher role returns 403. With `ORBITAL_RBAC_ENFORCE=0` the
+header behaves as before (demo mode).
+
+| Variable | Value |
+|----------|--------|
+| `ORBITAL_RBAC_PROXY_SECRET` | Long random string shared with StageGate's `/api/orbital/*` proxy (`openssl rand -hex 32`) |
 
 **Smoke (from a laptop with the same env exported, or after deploy):**
 

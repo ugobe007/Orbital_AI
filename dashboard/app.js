@@ -780,6 +780,7 @@ function renderAlerts() {
 // ── next actions (orchestrator Policy 4) ──────────────────────────────────────
 const ACTION_LABEL = {
   resume: "Resume", handover: "Hand over task", precharge: "Pre-charge", reliability_review: "Review reliability",
+  dispatch_task: "Dispatch task",
 };
 const ASSIGNEE_LABEL = { robot: "robot", person: "person", operator: "operator" };
 async function loadActions() {
@@ -811,8 +812,9 @@ function renderActions() {
           <span class="mono text-[10.5px] px-1.5 py-0.5 rounded bg-surface-input text-brand shrink-0">${Math.round(a.score)}</span>
           <span class="text-[12px] font-semibold truncate">${esc(ACTION_LABEL[a.kind] || a.kind)}</span>
           <span class="text-[10.5px] text-ink-dim mono truncate">${esc(a.robot_id || "")}${a.target_robot_id ? " → " + esc(a.target_robot_id) : ""}</span>
-          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(ASSIGNEE_LABEL[a.assignee_type] || "")}${a.source === "agent" ? " · agent" : ""}</span>
+          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(ASSIGNEE_LABEL[a.assignee_type] || "")}${a.source === "agent" ? " · " + esc(a.actor || "agent") : ""}</span>
         </div>
+        ${a.kind === "dispatch_task" && a.task ? `<div class="text-[11.5px] mt-1">Task: <span class="text-brand">${esc(a.task)}</span></div>` : ""}
         <div class="text-[11.5px] text-ink-mut leading-snug mt-1">${esc(a.rationale)}</div>
         <div class="flex items-center gap-3 mt-1.5">
           <button data-verb="accept" class="text-[11px] ${blocked ? "text-ink-dim cursor-not-allowed" : "text-brand hover:underline"}" ${blocked ? "disabled" : ""}

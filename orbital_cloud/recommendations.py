@@ -15,6 +15,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Optional
 
+from .config import settings
 from .models import (
     APIScope,
     AssigneeType,
@@ -151,18 +152,34 @@ class RecommendationQueue:
             del self._items[rec.id]
 
 
+KIND_SCOPE: dict[RecommendationKind, Optional[APIScope]] = {
+    RecommendationKind.RESUME: APIScope.ESTOP,
+    RecommendationKind.HANDOVER: APIScope.MISSION,
+    RecommendationKind.PRECHARGE: APIScope.MISSION,
+    RecommendationKind.DISPATCH_TASK: APIScope.MISSION,
+    RecommendationKind.RELIABILITY_REVIEW: None,
+}
+
+
+def assignee_for(kind: RecommendationKind) -> AssigneeType:
+    return AssigneeType.OPERATOR if KIND_SCOPE[kind] is None else AssigneeType.ROBOT
+
+
 def executing_robot(rec: Recommendation) -> Optional[str]:
     """The robot whose OEM scope gates this recommendation."""
     return rec.target_robot_id or rec.robot_id
 
 
-def execute(st: "Store", rec: Recommendation) -> tuple[bool, str]:
+def execute(st: "Store", rec: Recommendation, actor: Optional[str] = None) -> tuple[bool, str]:
     """Carry out an accepted recommendation. The caller has already enforced ``rec.scope``.
     Returns (executed, detail); False means the world moved on and the item is stale."""
     if rec.kind == RecommendationKind.RESUME:
         robot = st.robots.get(rec.robot_id or "")
         if robot is None or robot.state != RobotState.HALTED:
             return False, "robot is no longer halted"
+        if robot.drift_delta_m > settings.drift_degraded_m:
+            return False, (f"drift is {robot.drift_delta_m:.2f}m now, above "
+                           f"{settings.drift_degraded_m:.2f}m; not safe to resume")
         st.resume(robot.id)
         return True, f"resumed {robot.id}"
 
@@ -173,11 +190,20 @@ def execute(st: "Store", rec: Recommendation) -> tuple[bool, str]:
             return False, "robot not found"
         if target.state != RobotState.IDLE:
             return False, f"{target.id} is no longer idle"
-        st.create_task(TaskIn(robot_id=target.id, description=rec.task))
+        st.create_task(TaskIn(robot_id=target.id, description=rec.task), actor=actor)
         with st._lock:
             if source.current_task == rec.task:
                 source.current_task = None
         return True, f"handed '{rec.task}' from {source.id} to {target.id}"
+
+    if rec.kind == RecommendationKind.DISPATCH_TASK:
+        robot = st.robots.get(rec.robot_id or "")
+        if robot is None or not rec.task:
+            return False, "robot not found"
+        if robot.state in (RobotState.HALTED, RobotState.OFFLINE):
+            return False, f"{robot.id} is {robot.state.value}"
+        st.create_task(TaskIn(robot_id=robot.id, description=rec.task), actor=actor)
+        return True, f"dispatched '{rec.task}' to {robot.id}"
 
     if rec.kind == RecommendationKind.PRECHARGE:
         if not st.dispatch_charge(rec.robot_id or ""):

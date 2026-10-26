@@ -225,6 +225,7 @@ class Task(TaskIn):
     id: str
     status: TaskStatus = TaskStatus.QUEUED
     created_at: float
+    actor: Optional[str] = None
 
 
 class VendorBenchmark(BaseModel):
@@ -305,6 +306,7 @@ class RecommendationKind(str, Enum):
     HANDOVER = "handover"                      # move a halted robot's task to an idle peer
     PRECHARGE = "precharge"                    # charge before the battery hits the auto-dispatch floor
     RELIABILITY_REVIEW = "reliability_review"  # repeated degradation events — needs a human look
+    DISPATCH_TASK = "dispatch_task"            # agent-proposed new task for a robot
 
 
 class RecommendationStatus(str, Enum):
@@ -338,6 +340,17 @@ class Recommendation(BaseModel):
     updated_at: float
     expires_at: Optional[float] = None
     blocked_reason: Optional[str] = None    # filled at read time when the scope isn't granted
+
+
+class ActionProposalIn(BaseModel):
+    """POST /api/dashboard/actions — an agent (or operator) proposes a next action."""
+    kind: RecommendationKind
+    robot_id: str
+    rationale: str = Field(min_length=1, max_length=500)
+    target_robot_id: Optional[str] = None   # required for handover
+    task: Optional[str] = Field(default=None, max_length=200)  # required for handover / dispatch_task
+    score: float = Field(default=50.0, ge=0.0, le=100.0)
+    dry_run: bool = False
 
 
 class OEMStatus(str, Enum):

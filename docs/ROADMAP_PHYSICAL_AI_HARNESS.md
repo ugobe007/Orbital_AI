@@ -64,6 +64,15 @@ proposals need an idle peer, which the simulator rarely has, so they show mostly
 
 ## Sprint F — Model harness (MCP server)
 
+**Status:** **Done (sim)** — `orbital_mcp/`, `Role.AGENT` + caller dependencies in
+`orbital_cloud/rbac.py`, `POST /api/dashboard/actions`, `GET /control-audit`,
+`tests/test_agents.py`.
+
+As built: direct control is enforced server-side (not just hidden in the MCP server), so an
+agent token can't bypass it by calling the REST API directly. Attribution lives in a new
+control audit (`GET /api/dashboard/control-audit`) rather than the OEM call audit, which
+records outbound OEM API calls. Refused agent calls are audited too.
+
 **Goal:** Any MCP-capable model (Claude, GPT, Cursor, a customer's own agent) can see the site and
 act on it, bounded by RBAC, OEM scopes and the action queue.
 
