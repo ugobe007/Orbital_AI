@@ -1,0 +1,133 @@
+{
+ "note": "Synthetic Digital Net cell: 8 global-shutter cameras on a ring 4.5 m up, aimed at the corridor between racks C and G. Undistorted pinhole intrinsics (1920x1200, f=1100 px).",
+ "cameras": [
+  {
+   "id": "dn-1",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    19.5,
+    7.5,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-2",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    17.743,
+    11.036,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-3",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    13.5,
+    12.5,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-4",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    9.257,
+    11.036,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-5",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    7.5,
+    7.5,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-6",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    9.257,
+    3.964,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-7",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    13.5,
+    2.5,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  },
+  {
+   "id": "dn-8",
+   "fx": 1100,
+   "width": 1920,
+   "height": 1200,
+   "position": [
+    17.743,
+    3.964,
+    4.5
+   ],
+   "look_at": [
+    13.5,
+    7.5,
+    0.6
+   ]
+  }
+ ]
+}

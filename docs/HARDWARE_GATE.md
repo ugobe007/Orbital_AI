@@ -22,6 +22,7 @@ Related code:
 | 5 | Optional: install `opencv-python-headless` (see `requirements-hw.txt`) for live detect | ☐ |
 | 6 | Calibrate camera extrinsics into facility meters | ☐ |
 | 7 | **Rig calibration pass (Sprint H):** floor markers captured from every camera with overlap; `scripts/calibrate_rig.py` exits 0 (every residual under `ORBITAL_CALIB_RESIDUAL_M`, default 5 cm) and the dashboard's Rig Calibration panel reads "clean" | ☐ |
+| 8 | **Camera-mapped floor (Sprint J1–J2):** write the rig file (`testdata/multiview/rig_8cam.json` format: intrinsics plus each camera's mounted position and aim, checked against step 7), park a pallet in an aisle, and run `scripts/map_from_cameras.py rig.json frames.json --upload "$ORBITAL_CLOUD_URL"`. It exits 0, the pallet shows as grey blocked cells on the dashboard map, and a robot sent down that aisle routes around it | ☐ |
 
 Offline fixture schema: `camera_id`, `markers[].{marker_id,tvec,yaw}`, `marker_map`, `calibration`.
 

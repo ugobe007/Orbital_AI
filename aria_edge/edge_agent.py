@@ -62,6 +62,7 @@ class CloudSync:
     telemetry_sent: list[dict] = field(default_factory=list)
     alerts_sent: list[dict] = field(default_factory=list)
     runs_sent: list[dict] = field(default_factory=list)
+    occupancy_sent: list[dict] = field(default_factory=list)
     # Record-only cache for pull APIs (also filled when enabled + HTTP succeeds).
     trajectories: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
     missions: list[dict] = field(default_factory=list)
@@ -103,6 +104,13 @@ class CloudSync:
         if not self.enabled:
             return
         self._post(f"/api/v1/runs/{facility_id or edge_settings.facility_id}", payload)
+
+    def post_occupancy(self, payload: dict, facility_id: str | None = None) -> None:
+        """A blocked-cell slice from ``multiview.OccupancyVolume.payload``."""
+        self.occupancy_sent.append(payload)
+        if not self.enabled:
+            return
+        self._post(f"/api/v1/occupancy/{facility_id or edge_settings.facility_id}", payload)
 
     def seed_trajectory(self, robot_id: str, waypoints: list[tuple[float, float]]) -> None:
         """Test / offline helper: preload a trajectory without hitting the cloud."""

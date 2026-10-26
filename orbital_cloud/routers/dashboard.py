@@ -56,6 +56,7 @@ from ..rbac import (
 )
 from .. import recommendations, scope_guard
 from ..objects import objects_json, objects_message
+from ..occupancy import camera_occupancy
 from ..rig_calibration import calibration_store
 from ..runs import run_store, runs_message
 from ..store import store
@@ -111,9 +112,11 @@ async def get_robot_sensors(robot_id: str, _role: Role = Depends(RequireViewer))
 @router.get("/map")
 async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
     """The warehouse floor plan operators drop waypoints on (Global Spatial Map), with the
-    keep-out and slow zones drawn on it, and the objects the camera rig is tracking."""
+    keep-out and slow zones drawn on it, the objects the camera rig is tracking, and the floor
+    cells the cameras see as blocked (``camera_cells``, ``[x0, y0, x1, y1]`` in metres)."""
     return {**WAREHOUSE, "zones": [z.model_dump(mode="json") for z in zone_store.list()],
             "objects": objects_json(),
+            "camera_cells": camera_occupancy.summary(settings.facility_id)["cells"],
             "people_safety": {"slow_radius_m": settings.human_slow_radius_m,
                               "stop_radius_m": settings.human_stop_radius_m,
                               "slow_speed_mps": settings.human_slow_speed_mps}}

@@ -7,9 +7,10 @@ rack rectangles — inflated by the robot's footprint for clearance — and runs
 a short list of waypoints from a start to a goal, then simplifies it with line-of-sight so
 the motion reads as smooth aisle-following rather than a jagged grid walk.
 
-Keep-out zones (``zones.zone_store``) are inflated by the same clearance and folded into the
-grid. Pure stdlib, no dependencies. The rack grid is built once from ``WAREHOUSE``; the
-zone-aware grid is cached per (zone version, vendor) and rebuilt only when zones change.
+Keep-out zones (``zones.zone_store``) and the floor cells the Digital Net sees as blocked
+(``occupancy.camera_occupancy``) are inflated by the same clearance and folded into the grid.
+Pure stdlib, no dependencies. The rack grid is built once from ``WAREHOUSE``; the combined grid
+is cached per (zone version, vendor, camera version) and rebuilt only when one of them changes.
 """
 from __future__ import annotations
 
@@ -17,7 +18,8 @@ import heapq
 import math
 from typing import Optional, Sequence
 
-from .config import WAREHOUSE
+from .config import WAREHOUSE, settings
+from .occupancy import camera_occupancy
 from .zones import point_in_polygon, zone_store
 
 CELL = 0.25            # grid resolution (m)
@@ -36,6 +38,7 @@ _RECTS: list[tuple[float, float, float, float]] = [
 
 Grid = list[list[bool]]
 Polys = Sequence[list[list[float]]]
+Cells = frozenset[tuple[int, int]]
 
 
 def _point_blocked(x: float, y: float) -> bool:
@@ -62,8 +65,9 @@ def _in_inflated(x: float, y: float, poly: list[list[float]]) -> bool:
     return any(_dist_to_segment(x, y, poly[i - 1], poly[i]) <= CLEARANCE for i in range(len(poly)))
 
 
-def _blocked_at(x: float, y: float, polys: Polys) -> bool:
-    return _point_blocked(x, y) or any(_in_inflated(x, y, p) for p in polys)
+def _blocked_at(x: float, y: float, polys: Polys, seen: Cells = frozenset()) -> bool:
+    return (_point_blocked(x, y) or (bool(seen) and _to_cell(x, y) in seen)
+            or any(_in_inflated(x, y, p) for p in polys))
 
 
 def _keepout_polys(vendor: Optional[str]) -> list[list[list[float]]]:
@@ -87,18 +91,48 @@ def _center(ci: int, cj: int) -> tuple[float, float]:
     return (ci + 0.5) * CELL, (cj + 0.5) * CELL
 
 
-_grid_cache: dict[tuple[int, Optional[str]], Grid] = {}
+_camera_cache: dict[str, tuple[int, Cells, Cells]] = {}
 
 
-def _grid_for(polys: Polys, vendor: Optional[str]) -> Grid:
-    if not polys:
+def _camera_cells() -> tuple[int, Cells, Cells]:
+    """Planner cells blocked by what the cameras see: ``(version, inflated, raw)``. ``raw``
+    covers only the obstacle itself; ``inflated`` adds the robot clearance around it."""
+    fid = settings.facility_id
+    rects = camera_occupancy.rects(fid)
+    version = camera_occupancy.version
+    cached = _camera_cache.get(fid)
+    if cached is not None and cached[0] == version:
+        return cached
+    raw: set[tuple[int, int]] = set()
+    inflated: set[tuple[int, int]] = set()
+    for x0, y0, x1, y1 in rects:
+        for target, pad in ((raw, 0.0), (inflated, CLEARANCE)):
+            i0, j0 = _to_cell(x0 - pad, y0 - pad)
+            i1, j1 = _to_cell(x1 + pad, y1 + pad)
+            for ci in range(i0, i1 + 1):
+                for cj in range(j0, j1 + 1):
+                    cx, cy = _center(ci, cj)
+                    if x0 - pad <= cx <= x1 + pad and y0 - pad <= cy <= y1 + pad:
+                        target.add((ci, cj))
+    _camera_cache[fid] = entry = (version, frozenset(inflated), frozenset(raw))
+    return entry
+
+
+_grid_cache: dict[tuple[int, Optional[str], int], Grid] = {}
+
+
+def _grid_for(polys: Polys, vendor: Optional[str], seen: Cells = frozenset(),
+              seen_version: int = 0) -> Grid:
+    if not polys and not seen:
         return _GRID
-    key = (zone_store.version, vendor)
+    key = (zone_store.version if polys else -1, vendor if polys else None, seen_version if seen else 0)
     grid = _grid_cache.get(key)
     if grid is None:
         if len(_grid_cache) > 32:
             _grid_cache.clear()
         grid = [row[:] for row in _GRID]
+        for ci, cj in seen:
+            grid[ci][cj] = True
         for poly in polys:
             xs = [p[0] for p in poly]
             ys = [p[1] for p in poly]
@@ -175,25 +209,28 @@ def _astar(start: tuple[int, int], goal: tuple[int, int],
     return None
 
 
-def _segment_clear(p0: tuple[float, float], p1: tuple[float, float], polys: Polys = ()) -> bool:
-    """True if the straight segment stays out of every inflated rack and keep-out (sampled)."""
+def _segment_clear(p0: tuple[float, float], p1: tuple[float, float], polys: Polys = (),
+                   seen: Cells = frozenset()) -> bool:
+    """True if the straight segment stays out of every inflated rack, keep-out and camera-seen
+    obstacle (sampled)."""
     dist = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
     steps = max(1, int(dist / (CELL * 0.5)))
     for s in range(steps + 1):
         t = s / steps
-        if _blocked_at(p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t, polys):
+        if _blocked_at(p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t, polys, seen):
             return False
     return True
 
 
-def _simplify(points: list[tuple[float, float]], polys: Polys = ()) -> list[tuple[float, float]]:
+def _simplify(points: list[tuple[float, float]], polys: Polys = (),
+              seen: Cells = frozenset()) -> list[tuple[float, float]]:
     """Line-of-sight string-pulling: drop intermediate points we can reach directly."""
     if len(points) <= 2:
         return points
     out = [points[0]]
     anchor = 0
     for i in range(2, len(points)):
-        if not _segment_clear(points[anchor], points[i], polys):
+        if not _segment_clear(points[anchor], points[i], polys, seen):
             out.append(points[i - 1])
             anchor = i - 1
     out.append(points[-1])
@@ -204,14 +241,17 @@ def plan(start: tuple[float, float], goal: tuple[float, float],
          vendor: Optional[str] = None) -> list[tuple[float, float]]:
     """Return a list of world waypoints from just after ``start`` to ``goal`` that avoids
     the racks and every keep-out zone that applies to ``vendor``. Falls back to a direct
-    segment when already clear or when no grid path exists. The final point is the exact
-    ``goal`` so the robot arrives precisely — unless the goal sits inside a keep-out zone,
+    segment when already clear or when no grid path exists. Obstacles the cameras see on the
+    floor are avoided for every vendor. The final point is the exact ``goal`` so the robot
+    arrives precisely — unless the goal sits inside a keep-out zone or a camera-seen obstacle,
     in which case the route stops at the nearest reachable point outside it."""
     polys = _keepout_polys(vendor)
-    if _segment_clear(start, goal, polys):
+    seen_version, seen, seen_raw = _camera_cells()
+    if _segment_clear(start, goal, polys, seen):
         return [goal]
-    grid = _grid_for(polys, vendor)
-    goal_in_keepout = any(point_in_polygon(goal[0], goal[1], p) for p in polys)
+    grid = _grid_for(polys, vendor, seen, seen_version)
+    goal_in_keepout = (any(point_in_polygon(goal[0], goal[1], p) for p in polys)
+                       or _to_cell(*goal) in seen_raw)
     s_cell = _nearest_free(*_to_cell(*start), grid)
     g_cell = _nearest_free(*_to_cell(*goal), grid)
     cells = _astar(s_cell, g_cell, grid)
@@ -220,5 +260,5 @@ def plan(start: tuple[float, float], goal: tuple[float, float],
     pts = [start, *[_center(ci, cj) for ci, cj in cells]]
     if not goal_in_keepout:
         pts.append(goal)
-    pts = _simplify(pts, polys)
+    pts = _simplify(pts, polys, seen)
     return pts[1:] if len(pts) > 1 else pts
