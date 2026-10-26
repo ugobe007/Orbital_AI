@@ -116,7 +116,18 @@ dependency-light (the `mcp` SDK goes in a new `requirements-mcp.txt`, not `requi
 
 **Status:** **G1, G2, G8 (zones part) done (sim)** — `orbital_cloud/zones.py`, zone-aware
 `pathing.plan(..., vendor)`, `tests/test_zones.py`, dashboard zone overlay and drawing tool.
-Zones also ride along in `GET /api/v1/map/{facility}` (the transport half of G4). G3–G7 open.
+Zones also ride along in `GET /api/v1/map/{facility}` (the transport half of G4).
+**G5–G7 done (sim + edge)** — `orbital_cloud/workers.py`, human-proximity rules in
+`simulator.py` and `aria_edge/safety_halt.py`, the `assist` action, `tests/test_people.py`.
+G3 and the geofence half of G4 are open.
+
+As built (G5–G7): workers are live-only and pseudonymous; nothing about them is written to
+SQLite, so `ORBITAL_WORKER_HISTORY` was not needed. Check-ins use the same unauthenticated edge
+path as telemetry and alerts — a forged check-in can only slow or stop robots. In the cloud
+sim a person-stop clears itself once the person steps away; on the edge it is an E-Stop that
+latches, because the fleet adapters have no generic resume call yet. G7 added an `assist`
+action rather than reusing tasks: the orchestrator sends the nearest on-shift worker to a robot
+that has been halted for a while (never for a person-stop), and agents can propose the same.
 
 As built, `drivable` zones were left out: the floor is drivable by default, so only keep-out
 and slow zones change behaviour. Keep-out zones are inflated by the planner's 0.45 m clearance.
