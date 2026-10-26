@@ -144,3 +144,30 @@ Reports which soft gates are green in this repo vs which remain lab-only.
 | mTLS CA/client/server | `scripts/mtls/certs/` (gitignored; regenerate with `./scripts/gen_mtls_certs.sh`) |
 | Lab edge factories | `aria_edge/lab_runtime.py` (`ARIA_CV_MODE`, `ARIA_UNITREE_HARDWARE`) |
 | Cutover smoke | `scripts/lab_cutover.py` |
+| Lab A/B recording | `EdgeAgent.start_run` / `finish_run`, `correction_enabled` |
+| Results sheet | `scripts/lab_report.py` |
+
+---
+
+## D4 — Real numbers (A/B on the lab robot)
+
+The gate is not passed by "it works"; it is passed by a number we can publish. Run the same task
+on the same robot and floor in two conditions, measured against the overhead cameras:
+
+| Condition | Edge setting | Run `source` |
+|-----------|--------------|--------------|
+| Baseline: the robot on its own SLAM | `agent.correction_enabled = False` (Orbital observes, records and still safety-halts, but never steers) | `lab-baseline` |
+| With Orbital camera correction | `agent.correction_enabled = True` | `lab-orbital` |
+
+| Step | Action | Done |
+|------|--------|------|
+| 1 | Rig calibration pass is clean (D1 step 7) so ground truth is trustworthy | ☐ |
+| 2 | Pick one repeatable task between two marked stations (e.g. `Aisle AB → Dock`) | ☐ |
+| 3 | Alternate conditions run by run (B, O, B, O…) so battery and floor changes hit both equally; at least **10 complete runs each** | ☐ |
+| 4 | Wrap each run in `agent.start_run(robot_id, task)` … `agent.finish_run(robot_id)`; with `CloudSync(enabled=True)` it uploads to `POST /api/v1/runs/{facility}` | ☐ |
+| 5 | Save the latency bench: `LatencyBench(...).run(adapter).as_dict()` → `bench.json` | ☐ |
+| 6 | `python3 scripts/lab_report.py --url "$ORBITAL_CLOUD_URL" --site "<site, robot>" --latency bench.json --calibration marker_map.json --out docs/results/<date>.md` exits 0 | ☐ |
+| 7 | Commit the results sheet; the first clean Orbital run of the task is now its golden run on the dashboard's Validation panel | ☐ |
+
+`lab_report.py` refuses to present simulator runs as lab results and flags any condition with
+fewer than `--min-runs` complete runs, so a sheet that exits 0 is safe to quote.

@@ -92,6 +92,19 @@ Pilot site remains **blocked** until remaining LAB rows are checked.
 
 ---
 
+## Day 1 numbers (A/B)
+
+If time allows after the success definition above, start [HARDWARE_GATE.md](./HARDWARE_GATE.md)
+§ D4: alternate SLAM-only (`correction_enabled = False`) and Orbital runs of one task, recording
+each with `start_run` / `finish_run`. Even five runs per condition on Day 1 shows whether the
+effect is there; the publishable sheet needs ten.
+
+```bash
+python3 scripts/lab_report.py --url "$ORBITAL_CLOUD_URL" --site "Day 1, Unitree" --min-runs 5
+```
+
+---
+
 ## After Day 1
 
 1. Update [PHASES_AND_STATUS.md](./PHASES_AND_STATUS.md) lab row statuses.  
