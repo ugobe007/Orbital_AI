@@ -149,6 +149,35 @@
     </aside>
   </section>
 
+  <!-- Validation: recorded task runs scored against each task's golden run (Sprint K) -->
+  <section id="sec-validation" class="max-w-[1500px] mx-auto px-5 pt-4">
+    <div class="card overflow-hidden">
+      <div class="card-head px-4 py-2 flex items-center gap-2 flex-wrap">
+        <span class="tag">VAL</span>
+        <h2 class="font-semibold text-[13px]">Validation · Golden Runs</h2>
+        <span id="run-verdicts" class="flex items-center gap-1.5 flex-wrap"></span>
+        <span class="text-[10.5px] text-ink-dim ml-auto">click a run to compare it with its golden run on the map · export with <span class="mono">scripts/export_dataset.py</span></span>
+      </div>
+      <div class="max-h-[320px] overflow-y-auto">
+        <table class="w-full text-[11.5px]">
+          <thead class="text-ink-dim text-[10px] uppercase tracking-wide sticky top-0 bg-surface-panel">
+            <tr>
+              <th class="text-left font-medium px-3 py-1.5">Time</th>
+              <th class="text-left font-medium px-3 py-1.5">Robot</th>
+              <th class="text-left font-medium px-3 py-1.5">Task</th>
+              <th class="text-right font-medium px-3 py-1.5">Cycle</th>
+              <th class="text-right font-medium px-3 py-1.5">Path dev</th>
+              <th class="text-right font-medium px-3 py-1.5">Halts</th>
+              <th class="text-left font-medium px-3 py-1.5">Verdict</th>
+              <th class="px-3 py-1.5"></th>
+            </tr>
+          </thead>
+          <tbody id="runs" class="divide-y divide-line/60"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <!-- How the live sim works -->
   <section class="max-w-[1500px] mx-auto px-5 pt-4">
     <div class="card overflow-hidden">

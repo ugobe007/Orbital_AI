@@ -96,6 +96,15 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
         return client.benchmark(vendor=vendor)
 
     @mcp.tool()
+    def list_runs(task_key: Optional[str] = None, robot_id: Optional[str] = None, limit: int = 20) -> Any:
+        """Recorded task runs (one robot doing one station-to-station leg such as
+        "Aisle AB → Dock"), newest first, each scored against the golden (reference) run for
+        that task and vendor. verdict is pass, slow, deviated (path strayed), unstable (more
+        safety halts), failed, aborted (pre-empted, not the robot's fault), golden, or
+        no_golden; reasons say why in plain words."""
+        return client.list_runs(task_key=task_key, robot_id=robot_id, limit=limit)
+
+    @mcp.tool()
     def agent_policy() -> Any:
         """What agents may do on this deployment: direct control on/off and the write rate limit."""
         return client.agent_policy()

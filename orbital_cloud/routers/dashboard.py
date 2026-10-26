@@ -1,7 +1,9 @@
 """Module 7 — Fleet Management Dashboard API (+ monitor/control actions)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
 
 from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, WAREHOUSE, settings
@@ -23,6 +25,8 @@ from ..models import (
     RecommendationStatus,
     RobotDetail,
     RobotSummary,
+    RunOutcome,
+    RunSummary,
     ScopeGrantIn,
     SpeedIn,
     Task,
@@ -53,6 +57,7 @@ from ..rbac import (
 from .. import recommendations, scope_guard
 from ..objects import objects_json, objects_message
 from ..rig_calibration import calibration_store
+from ..runs import run_store, runs_message
 from ..store import store
 from ..workers import worker_store
 from ..zones import zone_store
@@ -164,6 +169,49 @@ async def delete_zone(zone_id: str, _role: Role = Depends(RequireOperator),
                          robot_id=None, ok=True, detail=f"{zone.type.value} '{zone.name}' ({zone_id})")
     await hub.broadcast(_zones_message())
     return {"ok": True, "zone_id": zone_id}
+
+
+@router.get("/runs", response_model=list[RunSummary])
+async def list_runs(limit: int = Query(default=50, ge=1, le=500), task_key: Optional[str] = None,
+                    robot_id: Optional[str] = None, vendor: Optional[str] = None,
+                    _role: Role = Depends(RequireViewer)) -> list[RunSummary]:
+    """Recorded task runs, newest first, each scored against its golden run."""
+    runs = run_store.list(limit=limit, task_key=task_key, robot_id=robot_id, vendor=vendor)
+    return [run_store.summary(r) for r in runs]
+
+
+@router.get("/runs/golden", response_model=list[RunSummary])
+async def list_golden_runs(_role: Role = Depends(RequireViewer)) -> list[RunSummary]:
+    return [run_store.summary(r) for r in run_store.golden_runs()]
+
+
+@router.get("/runs/{run_id}")
+async def get_run(run_id: str, _role: Role = Depends(RequireViewer)) -> dict:
+    """One run with every sample, its score, and the golden run it was scored against."""
+    run = run_store.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    summary = run_store.summary(run)
+    golden = run_store.golden_for(run.vendor, run.task_key)
+    return {"run": run.model_dump(mode="json"), "summary": summary.model_dump(mode="json"),
+            "golden": golden.model_dump(mode="json") if golden and golden.id != run.id else None}
+
+
+@router.post("/runs/{run_id}/golden", response_model=RunSummary)
+async def set_golden_run(run_id: str, _role: Role = Depends(RequireOperator),
+                         caller: Caller = Depends(CurrentCaller)) -> RunSummary:
+    """Make this run the reference that later runs of the same task and vendor are scored
+    against. Operator-only: it defines what "good" means for a deployment."""
+    run = run_store.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    if run.outcome != RunOutcome.COMPLETE:
+        raise HTTPException(status_code=409, detail=f"run {run.outcome.value}; only a complete run can be golden")
+    run_store.set_golden(run_id)
+    store.record_control(actor=caller.actor, role=caller.role.value, action="golden_run_set",
+                         robot_id=run.robot_id, ok=True, detail=f"{run.task_key} ({run.vendor}) → {run.id}")
+    await hub.broadcast(runs_message())
+    return run_store.summary(run)
 
 
 def _replan_all() -> None:

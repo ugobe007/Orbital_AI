@@ -25,6 +25,8 @@ const state = {
   zones: [],            // keep-out / slow zones on the spatial map
   workers: [],          // people on the floor (live only)
   zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
+  runs: [],             // recent recorded task runs, scored against their golden runs
+  runOverlay: null,     // { run, golden } drawn on the map when a run row is selected
   objects: [],          // tracked objects (pallets, carts, forklifts) from the camera rig
   clockSkew: 0,         // server time minus browser time, so objects expire on the server's clock
   auth: null,           // /api/auth/me: who is signed in to this console
@@ -643,6 +645,18 @@ function renderMap() {
     for (const q of draft.points) p.push(`<circle cx="${q.x}" cy="${Y(q.y)}" r="0.12" fill="${color}"/>`);
   }
 
+  // Selected run vs its golden run: gold = the reference path, cyan = this run.
+  const ov = state.runOverlay;
+  if (ov) {
+    const line = (samples, color, dash, width) => samples && samples.length > 1
+      ? p.push(`<polyline points="${samples.map((s) => `${s.x},${Y(s.y)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ""} stroke-linejoin="round" opacity="0.95"/>`)
+      : null;
+    line(ov.golden?.samples, "#ffc24d", "0.3 0.15", 0.14);
+    line(ov.run.samples, "#3dbfe2", null, 0.07);
+    const end = ov.run.samples[ov.run.samples.length - 1];
+    p.push(`<text x="${end.x}" y="${Y(end.y) - 0.45}" fill="#3dbfe2" font-size="0.32" font-weight="600" text-anchor="middle">${esc(ov.run.task_key)}</text>`);
+  }
+
   // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
   // is moving, and its label. Objects past their expiry are dropped even between updates.
   const now = Date.now() / 1000 + state.clockSkew;
@@ -910,6 +924,68 @@ function renderLogic() {
 async function loadOrchestrator() {
   try { state.orch = await getJSON("/api/dashboard/orchestrator"); renderLogic(); }
   catch (_) {}
+}
+
+// ── validation: golden runs (Sprint K) ──────────────────────────────────────
+const VERDICT_COLOR = { pass: "#00be7d", golden: "#ffc24d", slow: "#ffa01f", deviated: "#e5484d",
+  unstable: "#ff3b6b", failed: "#e5484d", aborted: "#5b667a", no_golden: "#828c9b" };
+const VERDICT_LABEL = { pass: "pass", golden: "★ golden", slow: "slow", deviated: "deviated",
+  unstable: "unstable", failed: "failed", aborted: "pre-empted", no_golden: "no golden yet" };
+async function loadRuns() {
+  try { state.runs = await getJSON("/api/dashboard/runs?limit=30"); renderRuns(); }
+  catch (_) {}
+}
+async function showRun(id) {
+  if (state.runOverlay?.run.id === id) { state.runOverlay = null; renderRuns(); renderMap(); return; }
+  try {
+    const d = await getJSON(`/api/dashboard/runs/${encodeURIComponent(id)}`);
+    state.runOverlay = { run: d.run, golden: d.golden };
+    renderRuns(); renderMap();
+    $("#sec-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { toast(`Could not load run: ${e.message || e}`, "warn"); }
+}
+async function makeGolden(id) {
+  try {
+    await postJSON(`/api/dashboard/runs/${encodeURIComponent(id)}/golden`);
+    await loadRuns();
+  } catch (e) { toast(`Could not set golden run: ${e.message || e}`, "warn"); }
+}
+function renderRuns() {
+  const body = $("#runs");
+  if (!body) return;
+  const counts = {};
+  for (const r of state.runs) counts[r.score.verdict] = (counts[r.score.verdict] || 0) + 1;
+  const chips = $("#run-verdicts");
+  if (chips) chips.innerHTML = Object.entries(counts).map(([v, n]) =>
+    `<span class="text-[10px] px-1.5 py-0.5 rounded-full mono" style="color:${VERDICT_COLOR[v] || "#828c9b"};background:${VERDICT_COLOR[v] || "#828c9b"}1f">${n} ${esc(VERDICT_LABEL[v] || v)}</span>`).join("");
+  if (!state.runs.length) {
+    body.innerHTML = `<tr><td colspan="8" class="px-4 py-5 text-[12px] text-ink-dim">No runs recorded yet. Every station-to-station leg is recorded; the first clean run of a task becomes its golden run.</td></tr>`;
+    return;
+  }
+  const selected = state.runOverlay?.run.id;
+  body.innerHTML = "";
+  for (const r of state.runs) {
+    const s = r.score, color = VERDICT_COLOR[s.verdict] || "#828c9b";
+    const cycle = s.golden_cycle_time_s != null ? `${s.cycle_time_s.toFixed(1)} s <span class="text-ink-dim">/ ${s.golden_cycle_time_s.toFixed(1)}</span>` : `${s.cycle_time_s.toFixed(1)} s`;
+    const dev = s.max_dev_m != null ? `${(s.max_dev_m * 100).toFixed(0)} cm` : "—";
+    const canGolden = !r.golden && r.outcome === "complete";
+    const row = el(`
+      <tr class="cursor-pointer hover:bg-surface-raised/60 ${r.id === selected ? "bg-surface-raised" : ""}" title="${esc((s.reasons || []).join(" "))}">
+        <td class="px-3 py-1.5 mono text-ink-dim">${fmtTime(r.ended_at)}</td>
+        <td class="px-3 py-1.5">${esc(r.robot_id)} <span class="text-ink-dim">${esc(r.vendor)}</span></td>
+        <td class="px-3 py-1.5 text-ink-mut">${esc(r.task_key)}</td>
+        <td class="px-3 py-1.5 text-right mono">${cycle}</td>
+        <td class="px-3 py-1.5 text-right mono">${dev}</td>
+        <td class="px-3 py-1.5 text-right mono">${s.recoveries}</td>
+        <td class="px-3 py-1.5"><span class="text-[10.5px] font-medium" style="color:${color}">${esc(VERDICT_LABEL[s.verdict] || s.verdict)}</span>
+          ${s.reasons && s.reasons.length ? `<span class="text-[10.5px] text-ink-dim"> · ${esc(s.reasons[0])}</span>` : ""}</td>
+        <td class="px-3 py-1.5 text-right">${canGolden ? `<button class="mk-golden text-[10.5px] text-brand hover:underline">Make golden</button>` : ""}</td>
+      </tr>`);
+    row.onclick = () => showRun(r.id);
+    const btn = row.querySelector(".mk-golden");
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); makeGolden(r.id); };
+    body.appendChild(row);
+  }
 }
 
 // ── rig calibration (Sprint H) ────────────────────────────────────────────────
@@ -1426,6 +1502,7 @@ function connectWS() {
       const box = $("#alerts").firstChild; if (box) box.classList.add("flash");
     }
     else if (msg.type === "actions") { state.actions = msg.actions; renderActions(); }
+    else if (msg.type === "runs") { state.runs = msg.runs; renderRuns(); }
     else if (msg.type === "objects") {
       if (!state.facility || msg.facility_id === state.facility.id) {
         state.clockSkew = msg.now - Date.now() / 1000;
@@ -1854,6 +1931,7 @@ async function init() {
     await loadOEMs();
     await loadOrchestrator();
     await loadActions();
+    await loadRuns();
     await loadCalibration();
     setInterval(loadBenchmark, 5000);
     setInterval(loadOEMs, 8000);

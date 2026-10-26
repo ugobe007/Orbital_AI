@@ -36,6 +36,7 @@ from .models import (
     SpatialTelemetry,
     TelemetryIn,
 )
+from .runs import recorder, run_store, runs_message
 from .store import RobotRuntime, store
 from .workers import person_within_stop_radius, proximity_speed_cap, sim_crowd, worker_label, worker_store
 from .zones import zone_store
@@ -242,6 +243,7 @@ def _assign_shuttle_task(robot: RobotRuntime) -> None:
 
 def _assign_task(robot: RobotRuntime) -> None:
     """Assign next mission: leads publish/move relay points; shuttles run between them."""
+    recorder.abort(robot.id)
     if robot.fleet_role is None:
         _ensure_fleet_roles()
     if robot.fleet_role == "lead":
@@ -283,10 +285,13 @@ def _begin_carry(robot: RobotRuntime) -> None:
     robot.task_target = (dx, dy)
     robot.route = []
     robot.route_goal = None
+    if robot.mission_pickup is not None and robot.mission_pickup[0] != label:
+        recorder.start(robot, f"{robot.mission_pickup[0]} → {label}")
 
 
 def _complete_task(robot: RobotRuntime) -> None:
     """Finish the current leg. Leads roll a new random waypoint; shuttles flip direction."""
+    recorder.finish(robot)
     robot.handoff_partner = None
     robot.pending_pickup = None
     if robot.fleet_role == "lead":
@@ -402,6 +407,8 @@ def _new_sequence() -> None:
             continue
         if robot.error_code == "E_STOP":
             continue
+        if robot.mission_phase == "carrying" and robot.state == RobotState.ACTIVE:
+            continue          # finish the delivery; the new theme starts at its next assignment
         robot.error_code = None
         robot.halted_at = None
         robot.pending_pickup = None
@@ -508,6 +515,7 @@ def _update_drift(robot: RobotRuntime) -> None:
 async def _tick(dt: float) -> list[AlertIn]:
     alerts: list[AlertIn] = []
     for robot in store.robots.values():
+        recorder.sample(robot)
         if robot.state == RobotState.CHARGING:
             robot.battery_pct = min(100.0, robot.battery_pct + 0.6)
             if robot.battery_pct >= 100.0:
@@ -612,6 +620,7 @@ async def run() -> None:
     sim_crowd.spawn(settings.sim_workers)
     hz = max(0.5, settings.sim_tick_hz)
     dt = 1.0 / hz
+    runs_seen = run_store.version
     while True:
         sim_crowd.tick(dt)
         # Rotate the fleet mission sequence when its window elapses (keeps the floor alive).
@@ -628,6 +637,9 @@ async def run() -> None:
             "workers": [w.model_dump(mode="json") for w in worker_store.list()],
             "sequence": store.sequence_public(),
         })
+        if run_store.version != runs_seen:
+            runs_seen = run_store.version
+            await hub.broadcast(runs_message())
         if settings.sim_objects:
             object_store.ingest(settings.facility_id, sim_objects.batch(dt))
             await hub.broadcast(objects_message())

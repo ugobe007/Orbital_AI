@@ -3,7 +3,8 @@
 Only the state an *operator* changes and expects to survive a restart is persisted:
   * OEM partners + their granted scopes (governance), and
   * per-robot visual-navigation waypoints, and
-  * floor zones (keep-out / slow).
+  * floor zones (keep-out / slow), and
+  * golden runs (the reference run per task that later runs are scored against).
 
 Live fleet motion is simulator-driven and intentionally ephemeral — it re-seeds on start.
 
@@ -46,6 +47,7 @@ def init_db() -> None:
         conn.execute("CREATE TABLE IF NOT EXISTS oem_partners (id TEXT PRIMARY KEY, key_hash TEXT, data TEXT)")
         conn.execute("CREATE TABLE IF NOT EXISTS waypoints (robot_id TEXT PRIMARY KEY, data TEXT)")
         conn.execute("CREATE TABLE IF NOT EXISTS zones (id TEXT PRIMARY KEY, data TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS golden_runs (key TEXT PRIMARY KEY, data TEXT)")
         conn.execute(
             "CREATE TABLE IF NOT EXISTS inbox ("
             "id TEXT PRIMARY KEY, received_at TEXT, source TEXT, from_addr TEXT, "
@@ -120,6 +122,28 @@ def load_zones() -> list[str]:
         return []
     with _lock, _connect() as conn:
         return [row[0] for row in conn.execute("SELECT data FROM zones").fetchall()]
+
+
+# ── Golden runs (Sprint K) ──────────────────────────────────────────────────────
+def save_golden_run(key: str, data_json: str) -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("INSERT OR REPLACE INTO golden_runs (key, data) VALUES (?, ?)", (key, data_json))
+
+
+def delete_golden_run(key: str) -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("DELETE FROM golden_runs WHERE key = ?", (key,))
+
+
+def load_golden_runs() -> list[str]:
+    if not enabled():
+        return []
+    with _lock, _connect() as conn:
+        return [row[0] for row in conn.execute("SELECT data FROM golden_runs").fetchall()]
 
 
 # ── Inbox (contact-form submissions + inbound email to @orbital-ai.io) ─────────

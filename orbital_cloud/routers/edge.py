@@ -12,10 +12,11 @@ from fastapi import APIRouter, HTTPException, Path
 
 from ..config import WAREHOUSE
 from ..events import hub
-from ..models import AlertIn, CalibrationIn, ObjectsIn, TelemetryIn, Worker, WorkerPoseIn
+from ..models import AlertIn, CalibrationIn, ObjectsIn, RunIn, TelemetryIn, Worker, WorkerPoseIn
 from ..objects import ObjectStoreFull, object_store, objects_json, objects_message
 from ..occupancy import synthetic_occupancy_grid
 from ..rig_calibration import calibration_store
+from ..runs import run_store, runs_message
 from ..store import store
 from ..workers import worker_store
 from ..zones import zone_store
@@ -72,6 +73,16 @@ async def get_objects(facility_id: str) -> dict:
 async def post_telemetry(t: TelemetryIn) -> dict:
     store.ingest_telemetry(t)
     return {"ok": True}
+
+
+@router.post("/runs/{facility_id}", status_code=201)
+async def post_run(body: RunIn, facility_id: str = Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")) -> dict:
+    """A recorded task run from the edge (camera ground truth + robot pose over time). It is
+    scored against the golden run for the same task and vendor; the first clean run of a task
+    becomes its golden run until an operator picks another."""
+    run = run_store.add(body, facility_id, auto_golden=True)
+    await hub.broadcast(runs_message())
+    return run_store.summary(run).model_dump(mode="json")
 
 
 @router.post("/calibration/{facility_id}", status_code=201)
