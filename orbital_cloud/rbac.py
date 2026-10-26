@@ -106,6 +106,7 @@ def require_min_role(minimum: Role):
         authorization: str | None = Header(default=None),
     ) -> Role:
         role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization)
+        _check_agents_enabled(role)
         if _RANK[role] < _RANK[minimum]:
             raise HTTPException(
                 status_code=403,
@@ -131,6 +132,15 @@ class Caller:
     @property
     def is_agent(self) -> bool:
         return self.role == Role.AGENT
+
+
+def agents_enabled() -> bool:
+    return _env_flag("ORBITAL_AGENTS_ENABLED", "1")
+
+
+def _check_agents_enabled(role: Role) -> None:
+    if role == Role.AGENT and not agents_enabled():
+        raise HTTPException(status_code=403, detail="agent access is disabled on this deployment (ORBITAL_AGENTS_ENABLED=0)")
 
 
 def agent_direct_control() -> bool:
@@ -195,6 +205,9 @@ def _caller_dep(*, agent_allowed, rate_limited: bool):
         role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization)
         caller = _caller(role, x_orbital_actor)
         if role == Role.AGENT:
+            if not agents_enabled():
+                raise _reject_agent(request, caller, 403,
+                                    "agent access is disabled on this deployment (ORBITAL_AGENTS_ENABLED=0)")
             allowed, reason = agent_allowed()
             if not allowed:
                 raise _reject_agent(request, caller, 403, reason)
@@ -231,4 +244,6 @@ async def CurrentCaller(
     x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
     authorization: str | None = Header(default=None),
 ) -> Caller:
-    return _caller(resolve_role(x_orbital_role=x_orbital_role, authorization=authorization), x_orbital_actor)
+    role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization)
+    _check_agents_enabled(role)
+    return _caller(role, x_orbital_actor)

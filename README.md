@@ -139,7 +139,8 @@ checks and audit apply:
 | `estop_robot` | Always allowed (still needs the OEM's `control.estop`); never rate-limited |
 | `dispatch_task`, `navigate_robot`, `set_speed`, `resume_robot` | Only with `ORBITAL_AGENT_DIRECT_CONTROL=1` on the cloud |
 
-Agents can never accept or dismiss proposals. Writes are rate-limited per agent
+Agents can never accept or dismiss proposals. `ORBITAL_AGENTS_ENABLED=0` refuses every agent
+call, reads included, as a kill switch. Writes are rate-limited per agent
 (`ORBITAL_AGENT_RATE_PER_MIN`, default 30), every write tool takes `dry_run`, and every call —
 including refused ones — is recorded with the agent's name at `GET /api/dashboard/control-audit` (Admin).
 

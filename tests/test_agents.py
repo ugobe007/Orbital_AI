@@ -20,6 +20,7 @@ admin = TestClient(app)
 def _isolate(monkeypatch):
     monkeypatch.delenv("ORBITAL_AGENT_DIRECT_CONTROL", raising=False)
     monkeypatch.delenv("ORBITAL_AGENT_RATE_PER_MIN", raising=False)
+    monkeypatch.delenv("ORBITAL_AGENTS_ENABLED", raising=False)
     agent_limiter.reset()
     yield
     agent_limiter.reset()
@@ -128,6 +129,23 @@ def test_viewer_still_cannot_control(robot):
     assert viewer.post(f"/api/dashboard/robot/{robot}/estop").status_code == 403
     assert viewer.post("/api/dashboard/actions", json={
         "kind": "resume", "robot_id": robot, "rationale": "x"}).status_code == 403
+
+
+def test_kill_switch_refuses_all_agent_calls(robot, monkeypatch):
+    monkeypatch.setenv("ORBITAL_AGENTS_ENABLED", "0")
+    assert agent.get("/api/dashboard/fleet").status_code == 403
+    estop = agent.post(f"/api/dashboard/robot/{robot}/estop")
+    assert estop.status_code == 403 and "ORBITAL_AGENTS_ENABLED" in estop.json()["detail"]
+    assert store.robots[robot].state != RobotState.HALTED
+    assert operator.get("/api/dashboard/fleet").status_code == 200
+
+
+def test_prod_flags_report_agent_settings(monkeypatch):
+    from orbital_cloud.secrets import prod_security_flags
+
+    monkeypatch.setenv("ORBITAL_AGENT_DIRECT_CONTROL", "1")
+    flags = prod_security_flags()
+    assert flags["agents_enabled"] is True and flags["agent_direct_control"] is True
 
 
 def test_control_audit_is_admin_only():
