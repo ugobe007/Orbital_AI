@@ -101,6 +101,15 @@ class OrbitalClient:
     def agent_policy(self) -> Any:
         return self._call("GET", "/api/dashboard/agent-policy")
 
+    def list_runs(self, task_key: Optional[str] = None, robot_id: Optional[str] = None,
+                  limit: int = 20) -> Any:
+        params: dict = {"limit": max(1, min(limit, 200))}
+        if task_key:
+            params["task_key"] = task_key
+        if robot_id:
+            params["robot_id"] = robot_id
+        return self._call("GET", "/api/dashboard/runs", params=params)
+
     # ── Writes ───────────────────────────────────────────────────────────────
     def propose_action(self, kind: str, robot_id: str, rationale: str, *,
                        task: Optional[str] = None, target_robot_id: Optional[str] = None,

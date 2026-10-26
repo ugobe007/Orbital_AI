@@ -24,6 +24,7 @@ import time
 from . import pathing, persistence
 from .config import LEAD_COUNT, SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
+from .runs import recorder, run_store, runs_message
 from .models import (
     AlertIn,
     AlertSeverity,
@@ -237,6 +238,7 @@ def _assign_shuttle_task(robot: RobotRuntime) -> None:
 
 def _assign_task(robot: RobotRuntime) -> None:
     """Assign next mission: leads publish/move relay points; shuttles run between them."""
+    recorder.abort(robot.id)
     if robot.fleet_role is None:
         _ensure_fleet_roles()
     if robot.fleet_role == "lead":
@@ -278,10 +280,13 @@ def _begin_carry(robot: RobotRuntime) -> None:
     robot.task_target = (dx, dy)
     robot.route = []
     robot.route_goal = None
+    if robot.mission_pickup is not None:
+        recorder.start(robot, f"{robot.mission_pickup[0]} → {label}")
 
 
 def _complete_task(robot: RobotRuntime) -> None:
     """Finish the current leg. Leads roll a new random waypoint; shuttles flip direction."""
+    recorder.finish(robot)
     robot.handoff_partner = None
     robot.pending_pickup = None
     if robot.fleet_role == "lead":
@@ -481,6 +486,7 @@ def _update_drift(robot: RobotRuntime) -> None:
 async def _tick(dt: float) -> list[AlertIn]:
     alerts: list[AlertIn] = []
     for robot in store.robots.values():
+        recorder.sample(robot)
         if robot.state == RobotState.CHARGING:
             robot.battery_pct = min(100.0, robot.battery_pct + 0.6)
             if robot.battery_pct >= 100.0:
@@ -569,6 +575,7 @@ async def run() -> None:
     prime()
     hz = max(0.5, settings.sim_tick_hz)
     dt = 1.0 / hz
+    runs_seen = run_store.version
     while True:
         # Rotate the fleet mission sequence when its window elapses (keeps the floor alive).
         seq = store.sequence
@@ -583,4 +590,7 @@ async def run() -> None:
             "robots": [r.model_dump(mode="json") for r in store.fleet()],
             "sequence": store.sequence_public(),
         })
+        if run_store.version != runs_seen:
+            runs_seen = run_store.version
+            await hub.broadcast(runs_message())
         await asyncio.sleep(dt)

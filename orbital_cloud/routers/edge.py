@@ -6,11 +6,12 @@ store ingest path, so swapping it for real edges needs no API changes.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Path
 
 from ..events import hub
-from ..models import AlertIn, TelemetryIn
+from ..models import AlertIn, RunIn, TelemetryIn
 from ..occupancy import synthetic_occupancy_grid
+from ..runs import run_store, runs_message
 from ..store import store
 from ..zones import zone_store
 
@@ -45,6 +46,16 @@ async def get_map(facility_id: str) -> dict:
 async def post_telemetry(t: TelemetryIn) -> dict:
     store.ingest_telemetry(t)
     return {"ok": True}
+
+
+@router.post("/runs/{facility_id}", status_code=201)
+async def post_run(body: RunIn, facility_id: str = Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")) -> dict:
+    """A recorded task run from the edge (camera ground truth + robot pose over time). It is
+    scored against the golden run for the same task and vendor; the first clean run of a task
+    becomes its golden run until an operator picks another."""
+    run = run_store.add(body, facility_id, auto_golden=True)
+    await hub.broadcast(runs_message())
+    return run_store.summary(run).model_dump(mode="json")
 
 
 @router.post("/alerts", status_code=201)

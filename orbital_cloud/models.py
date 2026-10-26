@@ -85,6 +85,81 @@ class Zone(ZoneIn):
     actor: Optional[str] = None
 
 
+class RunSample(BaseModel):
+    """One time step of a recorded run. ``t`` is seconds since the run started; x/y/theta is the
+    camera ground truth, ix/iy/itheta the robot's own (SLAM) estimate."""
+    t: float = Field(ge=0)
+    x: float
+    y: float
+    theta: float = 0.0
+    ix: Optional[float] = None
+    iy: Optional[float] = None
+    itheta: Optional[float] = None
+    drift_m: float = Field(default=0.0, ge=0)
+    speed_mps: float = Field(default=0.0, ge=0)
+    state: str = Field(default="active", max_length=20)
+
+
+class RunOutcome(str, Enum):
+    COMPLETE = "complete"
+    ABORTED = "aborted"      # pre-empted (new mission sequence, operator override, shutdown)
+    FAILED = "failed"
+
+
+class RunIn(BaseModel):
+    """A recorded task run: one robot doing one named task (e.g. ``Aisle AB → Dock``), as
+    uploaded by an edge or produced by the recorder."""
+    robot_id: str = Field(min_length=1, max_length=64)
+    vendor: str = Field(default="", max_length=40)
+    task_key: str = Field(min_length=1, max_length=120)
+    started_at: float
+    ended_at: float
+    outcome: RunOutcome = RunOutcome.COMPLETE
+    samples: list[RunSample] = Field(min_length=2, max_length=5000)
+    source: str = Field(default="edge", max_length=40)
+
+    @field_validator("samples")
+    @classmethod
+    def _time_ordered(cls, samples: list[RunSample]) -> list[RunSample]:
+        if any(b.t < a.t for a, b in zip(samples, samples[1:])):
+            raise ValueError("samples must be in time order")
+        return samples
+
+
+class Run(RunIn):
+    id: str
+    facility_id: str
+
+
+class RunScore(BaseModel):
+    """How a run compares with the golden run for the same task and vendor."""
+    verdict: str                        # pass | slow | deviated | unstable | failed | no_golden
+    reasons: list[str] = Field(default_factory=list)
+    golden_id: Optional[str] = None
+    cycle_time_s: float
+    golden_cycle_time_s: Optional[float] = None
+    cycle_ratio: Optional[float] = None
+    mean_dev_m: Optional[float] = None
+    max_dev_m: Optional[float] = None
+    recoveries: int = 0
+    golden_recoveries: Optional[int] = None
+    max_drift_m: float = 0.0
+
+
+class RunSummary(BaseModel):
+    id: str
+    robot_id: str
+    vendor: str
+    task_key: str
+    started_at: float
+    ended_at: float
+    outcome: RunOutcome
+    source: str
+    samples: int
+    golden: bool
+    score: RunScore
+
+
 class SpeedIn(BaseModel):
     """Operator speed override (m/s) applied to all of a robot's motion."""
     speed_mps: float
