@@ -21,8 +21,26 @@ Related code:
 | 4 | Run `ArucoPoseEstimator` on recorded frames (CI covers fixture path) | ☐ |
 | 5 | Optional: install `opencv-python-headless` (see `requirements-hw.txt`) for live detect | ☐ |
 | 6 | Calibrate camera extrinsics into facility meters | ☐ |
+| 7 | **Rig calibration pass (Sprint H):** floor markers captured from every camera with overlap; `scripts/calibrate_rig.py` exits 0 (every residual under `ORBITAL_CALIB_RESIDUAL_M`, default 5 cm) and the dashboard's Rig Calibration panel reads "clean" | ☐ |
 
 Offline fixture schema: `camera_id`, `markers[].{marker_id,tvec,yaw}`, `marker_map`, `calibration`.
+
+### Rig calibration pass
+
+1. Tape floor markers so every camera sees at least two, and neighbouring cameras share at least
+   one. Tape-measure the origin marker and one marker a few metres away (the anchor).
+2. Capture each camera (or walk a handheld pass) and export one JSON per view, either in the
+   `testdata/aruco/` frame format or the captures format in `testdata/calibration/`.
+3. Solve and upload:
+
+```bash
+python3 scripts/calibrate_rig.py captures/ --origin 0 --origin-pose 2.0:2.0 \
+  --anchor 3:12.5:2.0 --out marker_map.json --upload "$ORBITAL_CLOUD_URL" --facility facility-sf-001
+```
+
+4. Fix what the report names: re-seat a bumped marker ("Marker 9 … disagrees by 15 cm"),
+   re-mount a moved camera or update its extrinsics, or add an overlapping capture for markers
+   that are not linked to the origin. Re-run until it prints "Rig is clean." (exit code 0).
 
 ```bash
 python3 -c "
