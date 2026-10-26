@@ -23,6 +23,11 @@ class Settings:
 
     simulator_enabled: bool = _flag("ORBITAL_SIMULATOR_ENABLED", "1")
     sim_tick_hz: float = float(os.getenv("ORBITAL_SIM_TICK_HZ", "5") or "5")
+    # Simulated tracked objects (a pallet, a forklift, a cart) so the object layer is visible
+    # in the demo; real edges publish to POST /api/v1/objects/{facility}.
+    sim_objects: bool = _flag("ORBITAL_SIM_OBJECTS", "1")
+    # A tracked object that is not re-reported within this many seconds drops off the map.
+    object_ttl_s: float = float(os.getenv("ORBITAL_OBJECT_TTL_S", "10") or "10")
 
     drift_degraded_m: float = float(os.getenv("ORBITAL_DRIFT_DEGRADED_M", "0.1") or "0.1")
     halt_threshold_m: float = float(os.getenv("ORBITAL_HALT_THRESHOLD_M", "0.5") or "0.5")

@@ -6,10 +6,11 @@ store ingest path, so swapping it for real edges needs no API changes.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Path
 
 from ..events import hub
-from ..models import AlertIn, TelemetryIn
+from ..models import AlertIn, ObjectsIn, TelemetryIn
+from ..objects import ObjectStoreFull, object_store, objects_json, objects_message
 from ..occupancy import synthetic_occupancy_grid
 from ..store import store
 from ..zones import zone_store
@@ -38,7 +39,26 @@ async def get_map(facility_id: str) -> dict:
     ride alongside the grid as polygons so the edge can enforce them without re-rasterizing."""
     grid = synthetic_occupancy_grid(facility_id)
     grid["zones"] = [z.model_dump(mode="json") for z in zone_store.list()]
+    grid["objects"] = objects_json(facility_id)
     return grid
+
+
+@router.post("/objects/{facility_id}", status_code=202)
+async def post_objects(body: ObjectsIn,
+                       facility_id: str = Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")) -> dict:
+    """Tracked objects from the camera rig or a partner perception stack (label, footprint,
+    yaw, velocity). Re-report an object to keep it alive; it expires after its ``ttl_s``."""
+    try:
+        accepted = object_store.ingest(facility_id, body)
+    except ObjectStoreFull as exc:
+        raise HTTPException(503, str(exc)) from exc
+    await hub.broadcast(objects_message(facility_id))
+    return {"ok": True, "accepted": accepted, "live": len(object_store.list(facility_id))}
+
+
+@router.get("/objects/{facility_id}")
+async def get_objects(facility_id: str) -> dict:
+    return {"facility_id": facility_id, "objects": objects_json(facility_id)}
 
 
 @router.post("/telemetry", status_code=202)

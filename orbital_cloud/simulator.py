@@ -24,6 +24,7 @@ import time
 from . import pathing, persistence
 from .config import LEAD_COUNT, SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
+from .objects import object_store, objects_message, sim_objects
 from .models import (
     AlertIn,
     AlertSeverity,
@@ -583,4 +584,7 @@ async def run() -> None:
             "robots": [r.model_dump(mode="json") for r in store.fleet()],
             "sequence": store.sequence_public(),
         })
+        if settings.sim_objects:
+            object_store.ingest(settings.facility_id, sim_objects.batch(dt))
+            await hub.broadcast(objects_message())
         await asyncio.sleep(dt)
