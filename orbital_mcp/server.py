@@ -34,7 +34,8 @@ Rules of the road:
 - Every robot's OEM grants specific API scopes. A 403 naming a scope means the OEM has not
   granted it; do not retry, tell the user.
 - Use dry_run=true to check what a write would do without doing it.
-- Map coordinates are metres on the facility floor (see get_map).
+- Map coordinates are metres on the facility floor (see get_map). Never send a robot into a
+  keep-out zone; navigate_robot refuses waypoints inside one (409).
 """
 
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
@@ -66,7 +67,8 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
 
     @mcp.tool()
     def get_map() -> Any:
-        """Facility floor plan: dimensions, racks/obstacles, named stations and charge pads."""
+        """Facility floor plan: dimensions, racks/obstacles, named stations, charge pads, and
+        operator-drawn zones (keep-out: robots never enter; slow: speed capped inside)."""
         return client.get_map()
 
     @mcp.tool()
