@@ -18,6 +18,7 @@ also makes the whole loop unit-testable.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -58,6 +59,7 @@ class CloudSync:
     enabled: bool = False  # opt in explicitly; tests + offline edges stay record-only
     telemetry_sent: list[dict] = field(default_factory=list)
     alerts_sent: list[dict] = field(default_factory=list)
+    runs_sent: list[dict] = field(default_factory=list)
     # Record-only cache for pull APIs (also filled when enabled + HTTP succeeds).
     trajectories: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
     missions: list[dict] = field(default_factory=list)
@@ -92,6 +94,12 @@ class CloudSync:
         if not self.enabled:
             return
         self._post("/api/v1/alerts", payload)
+
+    def post_run(self, payload: dict, facility_id: str | None = None) -> None:
+        self.runs_sent.append(payload)
+        if not self.enabled:
+            return
+        self._post(f"/api/v1/runs/{facility_id or edge_settings.facility_id}", payload)
 
     def seed_trajectory(self, robot_id: str, waypoints: list[tuple[float, float]]) -> None:
         """Test / offline helper: preload a trajectory without hitting the cloud."""
@@ -174,6 +182,43 @@ class EdgeAgent:
         self.velocity = velocity or waypoints or MicroWaypointGenerator()
         self.cloud = cloud or CloudSync()
         self.watchdog = watchdog or SafetyWatchdog(self.pose_bus, self.safety)
+        # Lab A/B: with correction off the edge still localizes, records and safety-halts, but
+        # never steers — the robot runs on its own SLAM (the baseline condition).
+        self.correction_enabled = True
+        self.clock = time.time
+        self._runs: dict[str, dict] = {}
+
+    # ── Lab runs (recorded task runs uploaded for Golden Run scoring / lab_report.py) ──
+    def start_run(self, robot_id: str, task_key: str, *, source: str | None = None) -> None:
+        """Begin recording ``robot_id`` doing ``task_key``. ``source`` defaults to
+        ``lab-orbital`` or ``lab-baseline`` from ``correction_enabled``."""
+        binding = self.bindings[robot_id]
+        self._runs[robot_id] = {
+            "robot_id": robot_id, "vendor": binding.vendor, "task_key": task_key,
+            "source": source or ("lab-orbital" if self.correction_enabled else "lab-baseline"),
+            "started_at": self.clock(), "samples": [],
+        }
+
+    def finish_run(self, robot_id: str, outcome: str = "complete") -> dict | None:
+        """Close the run and upload it. Returns the payload, or None if nothing was recorded."""
+        run = self._runs.pop(robot_id, None)
+        if run is None or len(run["samples"]) < 2:
+            return None
+        run["ended_at"] = run["started_at"] + run["samples"][-1]["t"]
+        run["outcome"] = outcome
+        self.cloud.post_run(run)
+        return run
+
+    def _record(self, rid: str, external: Pose2D, internal: Pose2D, delta_m: float, halted: bool) -> None:
+        run = self._runs.get(rid)
+        if run is None:
+            return
+        run["samples"].append({
+            "t": round(max(0.0, self.clock() - run["started_at"]), 3),
+            "x": round(external.x, 4), "y": round(external.y, 4), "theta": round(external.theta, 4),
+            "ix": round(internal.x, 4), "iy": round(internal.y, 4), "itheta": round(internal.theta, 4),
+            "drift_m": round(delta_m, 4), "state": "halted" if halted else "active",
+        })
 
     def set_trajectory(self, robot_id: str, waypoints: list[tuple[float, float]]) -> None:
         self.injector.set_trajectory(robot_id, waypoints)
@@ -227,11 +272,14 @@ class EdgeAgent:
 
             external, internal, delta_m = observed[rid]
             decision = halt_by_id.get(rid)
+            self._record(rid, external, internal, delta_m, halted=decision is not None)
             if decision is not None:
                 results.append(self._handle_halt(binding, rid, decision, delta_m))
                 continue
 
-            if delta_m > edge_settings.drift_degraded_m:
+            if delta_m > edge_settings.drift_degraded_m and not self.correction_enabled:
+                results.append({"robot_id": rid, "action": "observe_only", "delta_m": round(delta_m, 4)})
+            elif delta_m > edge_settings.drift_degraded_m:
                 results.append(self._correct(binding, rid, external, internal, delta_m))
             else:
                 results.append({"robot_id": rid, "action": "nominal", "delta_m": round(delta_m, 4)})
