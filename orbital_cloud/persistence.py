@@ -2,7 +2,8 @@
 
 Only the state an *operator* changes and expects to survive a restart is persisted:
   * OEM partners + their granted scopes (governance), and
-  * per-robot visual-navigation waypoints.
+  * per-robot visual-navigation waypoints, and
+  * floor zones (keep-out / slow).
 
 Live fleet motion is simulator-driven and intentionally ephemeral — it re-seeds on start.
 
@@ -44,6 +45,7 @@ def init_db() -> None:
     with _lock, _connect() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS oem_partners (id TEXT PRIMARY KEY, key_hash TEXT, data TEXT)")
         conn.execute("CREATE TABLE IF NOT EXISTS waypoints (robot_id TEXT PRIMARY KEY, data TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS zones (id TEXT PRIMARY KEY, data TEXT)")
         conn.execute(
             "CREATE TABLE IF NOT EXISTS inbox ("
             "id TEXT PRIMARY KEY, received_at TEXT, source TEXT, from_addr TEXT, "
@@ -96,6 +98,28 @@ def load_waypoints() -> dict[str, list[list[float]]]:
     with _lock, _connect() as conn:
         rows = conn.execute("SELECT robot_id, data FROM waypoints").fetchall()
     return {rid: json.loads(data) for rid, data in rows}
+
+
+# ── Zones ─────────────────────────────────────────────────────────────────────
+def save_zone(zone_id: str, data_json: str) -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("INSERT OR REPLACE INTO zones (id, data) VALUES (?, ?)", (zone_id, data_json))
+
+
+def delete_zone(zone_id: str) -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("DELETE FROM zones WHERE id = ?", (zone_id,))
+
+
+def load_zones() -> list[str]:
+    if not enabled():
+        return []
+    with _lock, _connect() as conn:
+        return [row[0] for row in conn.execute("SELECT data FROM zones").fetchall()]
 
 
 # ── Inbox (contact-form submissions + inbound email to @orbital-ai.io) ─────────

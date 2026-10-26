@@ -8,7 +8,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RobotState(str, Enum):
@@ -55,6 +55,34 @@ class NavigateIn(BaseModel):
     """Operator waypoint order: drive the robot through these points via visual control
     (Orbital's cameras localize + steer), bypassing the robot's onboard SLAM."""
     waypoints: list[Point]
+
+
+class ZoneType(str, Enum):
+    KEEPOUT = "keepout"   # robots never route into it
+    SLOW = "slow"         # robots inside are capped at speed_cap_mps
+
+
+class ZoneIn(BaseModel):
+    """A floor zone drawn on the Global Spatial Map. ``vendors`` limits which fleets it
+    applies to; empty means every robot."""
+    name: str = Field(min_length=1, max_length=60)
+    type: ZoneType
+    polygon: list[list[float]] = Field(min_length=3, max_length=64)
+    speed_cap_mps: Optional[float] = Field(default=None, gt=0, le=5)
+    vendors: list[str] = Field(default_factory=list)
+
+    @field_validator("polygon")
+    @classmethod
+    def _points_are_xy(cls, polygon: list[list[float]]) -> list[list[float]]:
+        if any(len(p) != 2 for p in polygon):
+            raise ValueError("each polygon point must be [x, y]")
+        return polygon
+
+
+class Zone(ZoneIn):
+    id: str
+    created_at: float
+    actor: Optional[str] = None
 
 
 class SpeedIn(BaseModel):

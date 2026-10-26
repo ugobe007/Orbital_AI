@@ -28,6 +28,8 @@ from ..models import (
     Task,
     TaskIn,
     VendorBenchmark,
+    Zone,
+    ZoneIn,
 )
 from ..oem_store import ceiling_scopes_for_vendor, oem_store
 from fleet_adapters import known_vendors
@@ -48,6 +50,7 @@ from ..rbac import (
 )
 from .. import recommendations, scope_guard
 from ..store import store
+from ..zones import zone_store
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -86,8 +89,54 @@ async def get_robot_sensors(robot_id: str, _role: Role = Depends(RequireViewer))
 
 @router.get("/map")
 async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
-    """The warehouse floor plan operators drop waypoints on (Global Spatial Map)."""
-    return WAREHOUSE
+    """The warehouse floor plan operators drop waypoints on (Global Spatial Map), with the
+    keep-out and slow zones drawn on it."""
+    return {**WAREHOUSE, "zones": [z.model_dump(mode="json") for z in zone_store.list()]}
+
+
+def _zones_message() -> dict:
+    return {"type": "zones", "zones": [z.model_dump(mode="json") for z in zone_store.list()]}
+
+
+@router.get("/zones", response_model=list[Zone])
+async def list_zones(_role: Role = Depends(RequireViewer)) -> list[Zone]:
+    return zone_store.list()
+
+
+@router.post("/zones", response_model=Zone, status_code=201)
+async def create_zone(body: ZoneIn, _role: Role = Depends(RequireOperator),
+                      caller: Caller = Depends(CurrentCaller)) -> Zone:
+    """Draw a keep-out or slow zone. Takes effect on the next route every robot plans.
+    Operator-only: zones are safety configuration, so agents may not change them."""
+    w, h = float(WAREHOUSE["width_m"]), float(WAREHOUSE["height_m"])
+    if any(not (0.0 <= x <= w and 0.0 <= y <= h) for x, y in body.polygon):
+        raise HTTPException(status_code=422, detail=f"zone points must lie inside the {w:g} x {h:g} m floor")
+    zone = zone_store.create(body, actor=caller.actor)
+    _replan_all()
+    store.record_control(actor=caller.actor, role=caller.role.value, action="zone_create",
+                         robot_id=None, ok=True, detail=f"{zone.type.value} '{zone.name}' ({zone.id})")
+    await hub.broadcast(_zones_message())
+    return zone
+
+
+@router.delete("/zones/{zone_id}")
+async def delete_zone(zone_id: str, _role: Role = Depends(RequireOperator),
+                      caller: Caller = Depends(CurrentCaller)) -> dict:
+    zone = zone_store.get(zone_id)
+    if zone is None or not zone_store.delete(zone_id):
+        raise HTTPException(status_code=404, detail="zone not found")
+    _replan_all()
+    store.record_control(actor=caller.actor, role=caller.role.value, action="zone_delete",
+                         robot_id=None, ok=True, detail=f"{zone.type.value} '{zone.name}' ({zone_id})")
+    await hub.broadcast(_zones_message())
+    return {"ok": True, "zone_id": zone_id}
+
+
+def _replan_all() -> None:
+    """Drop every in-flight route so the next tick re-plans against the new zones."""
+    for robot in store.robots.values():
+        robot.route = []
+        robot.route_goal = None
 
 
 @router.post("/robot/{robot_id}/navigate")
@@ -98,6 +147,14 @@ async def navigate(robot_id: str, body: NavigateIn, dry_run: bool = False,
     if not body.waypoints:
         raise HTTPException(status_code=400, detail="at least one waypoint required")
     _enforce_audited(caller, "navigate", robot_id, APIScope.VELOCITY)
+    vendor = store.robots[robot_id].vendor
+    for p in body.waypoints:
+        zone = zone_store.keepout_at(p.x, p.y, vendor)
+        if zone is not None:
+            detail = f"waypoint ({p.x:.1f}, {p.y:.1f}) is inside keep-out zone '{zone.name}'"
+            store.record_control(actor=caller.actor, role=caller.role.value, action="navigate",
+                                 robot_id=robot_id, ok=False, detail=detail)
+            raise HTTPException(status_code=409, detail=detail)
     route = " → ".join(f"({p.x:.1f}, {p.y:.1f})" for p in body.waypoints)
     if dry_run:
         return _dry_run(caller, "navigate", robot_id, f"drive {robot_id} via {route}")

@@ -12,6 +12,7 @@ from ..events import hub
 from ..models import AlertIn, TelemetryIn
 from ..occupancy import synthetic_occupancy_grid
 from ..store import store
+from ..zones import zone_store
 
 router = APIRouter(prefix="/api/v1", tags=["edge"])
 
@@ -33,8 +34,11 @@ async def get_trajectory(robot_id: str) -> dict:
 
 @router.get("/map/{facility_id}")
 async def get_map(facility_id: str) -> dict:
-    """Synthetic Global Spatial Map (nav_msgs/OccupancyGrid shape) for edge consumers."""
-    return synthetic_occupancy_grid(facility_id)
+    """Synthetic Global Spatial Map (nav_msgs/OccupancyGrid shape) for edge consumers. Zones
+    ride alongside the grid as polygons so the edge can enforce them without re-rasterizing."""
+    grid = synthetic_occupancy_grid(facility_id)
+    grid["zones"] = [z.model_dump(mode="json") for z in zone_store.list()]
+    return grid
 
 
 @router.post("/telemetry", status_code=202)
