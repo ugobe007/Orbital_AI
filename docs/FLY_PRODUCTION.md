@@ -58,6 +58,11 @@ Set `ORBITAL_RBAC_ANON_VIEWER=0` only if you want every API to require a token.
 
 **How clients authenticate after lockdown**
 
+- The console at https://orbital-ai.io/app: click **Sign in** and paste the `admin` or
+  `operator` key from `ORBITAL_RBAC_TOKENS`. The server sets a signed HttpOnly cookie for
+  12 hours; the key itself is never stored in the browser. Viewer and agent keys cannot sign
+  in. Changing `ORBITAL_RBAC_TOKENS` signs everyone out (set `ORBITAL_SESSION_SECRET` if you
+  want sessions to outlive a key rotation). Check with `GET /api/auth/me`.
 - Header: `Authorization: Bearer <token>` matching a role in `ORBITAL_RBAC_TOKENS`, **or**
 - From the trusted proxy only (StageGate): `X-Orbital-Role: admin|operator|viewer|agent` **plus**
   `X-Orbital-Proxy-Secret: <ORBITAL_RBAC_PROXY_SECRET>`. Set the same secret on Orbital and on
