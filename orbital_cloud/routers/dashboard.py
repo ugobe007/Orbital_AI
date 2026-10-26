@@ -32,6 +32,8 @@ from ..models import (
     Task,
     TaskIn,
     VendorBenchmark,
+    Worker,
+    WorkerStatus,
     Zone,
     ZoneIn,
 )
@@ -53,8 +55,11 @@ from ..rbac import (
     diagnose_caller,
 )
 from .. import recommendations, scope_guard
+from ..objects import objects_json, objects_message
+from ..rig_calibration import calibration_store
 from ..runs import run_store, runs_message
 from ..store import store
+from ..workers import worker_store
 from ..zones import zone_store
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -62,7 +67,11 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 async def _broadcast_fleet() -> None:
     await hub.broadcast({"type": "fleet", "robots": [r.model_dump(mode="json") for r in store.fleet()],
-                         "sequence": store.sequence_public()})
+                         "workers": _workers_json(), "sequence": store.sequence_public()})
+
+
+def _workers_json() -> list[dict]:
+    return [w.model_dump(mode="json") for w in worker_store.list()]
 
 
 @router.get("/fleet")
@@ -72,8 +81,15 @@ async def get_fleet(_role: Role = Depends(RequireViewer)) -> dict:
         "industries": INDUSTRIES,
         "vendors": store.vendors(),
         "robots": [r.model_dump(mode="json") for r in store.fleet()],
+        "workers": _workers_json(),
         "sequence": store.sequence_public(),
     }
+
+
+@router.get("/workers", response_model=list[Worker])
+async def list_workers(_role: Role = Depends(RequireViewer)) -> list[Worker]:
+    """People on the floor right now (live only; nothing is kept once they check out)."""
+    return worker_store.list()
 
 
 @router.get("/robot/{robot_id}", response_model=RobotDetail)
@@ -95,8 +111,26 @@ async def get_robot_sensors(robot_id: str, _role: Role = Depends(RequireViewer))
 @router.get("/map")
 async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
     """The warehouse floor plan operators drop waypoints on (Global Spatial Map), with the
-    keep-out and slow zones drawn on it."""
-    return {**WAREHOUSE, "zones": [z.model_dump(mode="json") for z in zone_store.list()]}
+    keep-out and slow zones drawn on it, and the objects the camera rig is tracking."""
+    return {**WAREHOUSE, "zones": [z.model_dump(mode="json") for z in zone_store.list()],
+            "objects": objects_json(),
+            "people_safety": {"slow_radius_m": settings.human_slow_radius_m,
+                              "stop_radius_m": settings.human_stop_radius_m,
+                              "slow_speed_mps": settings.human_slow_speed_mps}}
+
+
+@router.get("/objects")
+async def list_objects(_role: Role = Depends(RequireViewer)) -> dict:
+    """Live tracked objects (pallets, carts, forklifts…) for this facility."""
+    return objects_message()
+
+
+@router.get("/calibration")
+async def get_calibration(_role: Role = Depends(RequireViewer)) -> dict:
+    """Latest rig-calibration report for this facility; ``calibration`` is null until one is
+    uploaded."""
+    return {"facility_id": settings.facility_id,
+            "calibration": calibration_store.get(settings.facility_id)}
 
 
 def _zones_message() -> dict:
@@ -404,6 +438,7 @@ async def propose_action(body: ActionProposalIn,
             raise HTTPException(status_code=404, detail="target robot not found")
     if body.kind == RecommendationKind.DISPATCH_TASK and not body.task:
         raise HTTPException(status_code=422, detail="dispatch_task needs task")
+    assignee_id = _assist_assignee(body) if body.kind == RecommendationKind.ASSIST else None
 
     scope = recommendations.KIND_SCOPE[body.kind]
     summary = f"{body.kind.value} for {body.robot_id}: {body.rationale}"
@@ -416,7 +451,7 @@ async def propose_action(body: ActionProposalIn,
     rec = store.actions.propose(
         body.kind, robot_id=body.robot_id, target_robot_id=body.target_robot_id, task=body.task,
         score=body.score, rationale=body.rationale, scope=scope,
-        assignee_type=recommendations.assignee_for(body.kind),
+        assignee_type=recommendations.assignee_for(body.kind), assignee_id=assignee_id,
         source="agent" if caller.is_agent else "operator", actor=caller.actor,
     )
     if rec is None:
@@ -427,6 +462,22 @@ async def propose_action(body: ActionProposalIn,
                          robot_id=body.robot_id, ok=True, detail=summary)
     await hub.broadcast(actions_message(store))
     return _with_block_reason(rec.model_copy())
+
+
+def _assist_assignee(body: ActionProposalIn) -> str:
+    """The worker an assist goes to: the one named, or the nearest person on shift."""
+    if body.assignee_id:
+        worker = worker_store.get(body.assignee_id)
+        if worker is None:
+            raise HTTPException(status_code=404, detail="worker not found or no longer on the floor")
+        if worker.status != WorkerStatus.ON_SHIFT:
+            raise HTTPException(status_code=409, detail=f"{body.assignee_id} is on {worker.status.value}")
+        return worker.id
+    robot = store.robots[body.robot_id]
+    worker, _ = worker_store.nearest(robot.pose_external.x, robot.pose_external.y, on_shift_only=True)
+    if worker is None:
+        raise HTTPException(status_code=409, detail="no one is on shift to assist")
+    return worker.id
 
 
 @router.post("/actions/{action_id}/accept", response_model=Recommendation)

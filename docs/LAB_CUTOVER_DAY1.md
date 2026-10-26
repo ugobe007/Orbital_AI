@@ -47,7 +47,8 @@ Optional Day 1+: second camera, spare robot, UPS for edge.
 | 0:30–1:30 | **VLAN** — configure 10/20/30; deny internet on 10 & 20 | Ping tests fail from cam/robot to 8.8.8.8 |
 | 1:30–2:00 | Edge on VLAN 30; install `requirements-hw.txt` + vendor SDK | `python3 -c "import rclpy"` (Unitree path) |
 | 2:00–2:30 | Mount ArUco; map marker ID → `robot_id` | Written map in lab log |
-| 2:30–3:30 | Recorded → live ArUco: capture frames, run estimator | Pose appears in facility meters |
+| 2:30–3:00 | **Rig calibration pass:** floor markers + anchor, `scripts/calibrate_rig.py … --upload` (see HARDWARE_GATE D1 step 7) | "Rig is clean." and dashboard panel reads clean |
+| 3:00–3:30 | Recorded → live ArUco: capture frames, run estimator | Pose appears in facility meters |
 | 3:30–4:30 | `use_hardware=True` Unitree inject + **10 Hz latency bench** | p95 ≤ 100 ms |
 | 4:30–5:00 | mTLS edge→cloud smoke; document failures | Client cert presents; cloud accepts |
 | 5:00 | Sign HARDWARE_GATE D1/D2/D3 rows that passed | Photo + checklist update |
@@ -82,6 +83,7 @@ mTLS: see [HARDWARE_GATE.md](./HARDWARE_GATE.md) § D3 and `./scripts/gen_mtls_c
 ## Day 1 success definition
 
 - [ ] Robot VLAN cannot reach the public internet  
+- [ ] Rig calibration pass exits 0 (every marker and camera within `ORBITAL_CALIB_RESIDUAL_M`)  
 - [ ] At least one ArUco pose published into Orbital’s pose path  
 - [ ] Inject latency p95 ≤ 100 ms at 10 Hz **or** documented blocker with owner  
 - [ ] HARDWARE_GATE.md rows updated with date / initials  

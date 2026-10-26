@@ -67,9 +67,18 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
 
     @mcp.tool()
     def get_map() -> Any:
-        """Facility floor plan: dimensions, racks/obstacles, named stations, charge pads, and
-        operator-drawn zones (keep-out: robots never enter; slow: speed capped inside)."""
+        """Facility floor plan: dimensions, racks/obstacles, named stations, charge pads,
+        operator-drawn zones (keep-out: robots never enter; slow: speed capped inside), and
+        ``objects`` the cameras are tracking right now — each with a label (pallet, cart,
+        forklift…), centre x/y, yaw (radians), footprint size in metres, velocity vx/vy (m/s)
+        and confidence. Objects disappear when the cameras stop seeing them."""
         return client.get_map()
+
+    @mcp.tool()
+    def list_workers() -> Any:
+        """People on the floor right now: position, role, and whether they are on shift.
+        Robots slow down near people and stop when one is very close."""
+        return client.list_workers()
 
     @mcp.tool()
     def list_alerts(limit: int = 20, unacknowledged_only: bool = True) -> Any:
@@ -102,14 +111,16 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
 
     @mcp.tool()
     def propose_action(kind: str, robot_id: str, rationale: str, task: Optional[str] = None,
-                       target_robot_id: Optional[str] = None, score: float = 50.0,
-                       dry_run: bool = False) -> Any:
+                       target_robot_id: Optional[str] = None, assignee_id: Optional[str] = None,
+                       score: float = 50.0, dry_run: bool = False) -> Any:
         """Propose a next action for an operator to accept. kind is one of: resume,
         handover (needs target_robot_id and task), precharge, dispatch_task (needs task),
-        reliability_review. score is 0-100 priority. Returns the queued item, including
+        reliability_review, assist (sends a person to the robot; assignee_id is a worker id
+        from list_workers, or omit it for the nearest person on shift). score is 0-100 priority. Returns the queued item, including
         blocked_reason if the robot's OEM hasn't granted the scope it needs."""
         return client.propose_action(kind, robot_id, rationale, task=task,
-                                     target_robot_id=target_robot_id, score=score, dry_run=dry_run)
+                                     target_robot_id=target_robot_id, assignee_id=assignee_id,
+                                     score=score, dry_run=dry_run)
 
     @mcp.tool()
     def estop_robot(robot_id: str, dry_run: bool = False) -> Any:

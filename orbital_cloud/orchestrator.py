@@ -42,6 +42,7 @@ from .models import (
     RobotState,
 )
 from .store import RobotRuntime, Store, store
+from .workers import worker_label, worker_store
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ _REVIEW_COOLDOWN_S = 30.0
 # Policy 4 thresholds.
 _RESUME_AFTER_S = 60.0           # give the operator a minute before suggesting they undo their E-Stop
 _HANDOVER_AFTER_S = 30.0         # floor; also at least 2× auto-recover so self-healing halts don't trigger it
+_ASSIST_MAX_DISTANCE_M = 25.0    # don't send someone across the whole site
 _PRECHARGE_BAND_PCT = 15.0       # band above low_battery_pct where charging early is worth suggesting
 _RELIABILITY_MIN_EVENTS = 3
 _RELIABILITY_OUTLIER_RATIO = 2.0  # flag robots degrading this many times more often than the fleet median
@@ -222,6 +224,22 @@ class Orchestrator:
                                    f"and can take over '{r.current_task}'."),
                         now=now,
                     )
+
+                if (r.state == RobotState.HALTED and halted_for >= handover_after
+                        and r.error_code != "HUMAN_STOP"):
+                    worker, dist = worker_store.nearest(
+                        r.pose_external.x, r.pose_external.y, on_shift_only=True, now=now)
+                    if worker is not None and dist <= _ASSIST_MAX_DISTANCE_M:
+                        live.add((RecommendationKind.ASSIST, r.id))
+                        q.propose(
+                            RecommendationKind.ASSIST, robot_id=r.id,
+                            assignee_type=AssigneeType.PERSON, assignee_id=worker.id,
+                            score=min(85.0, 55.0 + halted_for / 10.0),
+                            rationale=(f"{name} has been halted for {halted_for:.0f}s. "
+                                       f"{worker_label(worker)} is {dist:.1f}m away and can check it "
+                                       f"in person."),
+                            now=now,
+                        )
 
                 if r.state == RobotState.ACTIVE and low <= r.battery_pct < precharge_ceiling:
                     live.add((RecommendationKind.PRECHARGE, r.id))

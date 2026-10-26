@@ -23,6 +23,11 @@ class Settings:
 
     simulator_enabled: bool = _flag("ORBITAL_SIMULATOR_ENABLED", "1")
     sim_tick_hz: float = float(os.getenv("ORBITAL_SIM_TICK_HZ", "5") or "5")
+    # Simulated tracked objects (a pallet, a forklift, a cart) so the object layer is visible
+    # in the demo; real edges publish to POST /api/v1/objects/{facility}.
+    sim_objects: bool = _flag("ORBITAL_SIM_OBJECTS", "1")
+    # A tracked object that is not re-reported within this many seconds drops off the map.
+    object_ttl_s: float = float(os.getenv("ORBITAL_OBJECT_TTL_S", "10") or "10")
 
     drift_degraded_m: float = float(os.getenv("ORBITAL_DRIFT_DEGRADED_M", "0.1") or "0.1")
     halt_threshold_m: float = float(os.getenv("ORBITAL_HALT_THRESHOLD_M", "0.5") or "0.5")
@@ -50,6 +55,15 @@ class Settings:
     # Seed a few demo OEM partners at startup so the governance table + scope-aware
     # controls render with data out of the box. Turn off for a clean production start.
     seed_oems: bool = _flag("ORBITAL_SEED_OEMS", "1")
+
+    # People on the floor (Sprint G5–G7). A robot within the slow radius of a worker is
+    # capped at human_slow_speed_mps; within the stop radius it halts until the person moves
+    # away. Check-ins older than worker_stale_s drop off the map and out of the safety check.
+    sim_workers: int = int(os.getenv("ORBITAL_SIM_WORKERS", "3") or "3")
+    human_slow_radius_m: float = float(os.getenv("ORBITAL_HUMAN_SLOW_RADIUS_M", "2.0") or "2.0")
+    human_stop_radius_m: float = float(os.getenv("ORBITAL_HUMAN_STOP_RADIUS_M", "0.8") or "0.8")
+    human_slow_speed_mps: float = float(os.getenv("ORBITAL_HUMAN_SLOW_SPEED_MPS", "0.3") or "0.3")
+    worker_stale_s: float = float(os.getenv("ORBITAL_WORKER_STALE_S", "30") or "30")
 
 
 settings = Settings()

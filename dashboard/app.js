@@ -23,10 +23,14 @@ const state = {
   catalog: null,        // /oem-catalog: vendors + scopes + transports + default policies
   wizard: null,         // onboarding wizard working state
   zones: [],            // keep-out / slow zones on the spatial map
+  workers: [],          // people on the floor (live only)
   zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
   runs: [],             // recent recorded task runs, scored against their golden runs
   runOverlay: null,     // { run, golden } drawn on the map when a run row is selected
+  objects: [],          // tracked objects (pallets, carts, forklifts) from the camera rig
+  clockSkew: 0,         // server time minus browser time, so objects expire on the server's clock
   auth: null,           // /api/auth/me: who is signed in to this console
+  calibration: null,    // latest rig-calibration report for this facility (Sprint H)
 };
 
 // Fleet states, ordered for the overview distribution bar + chips.
@@ -559,12 +563,14 @@ function renderCapabilities() {
 
 // ── warehouse map ──────────────────────────────────────────────────────────────
 const ZONE_COLOR = { keepout: "#e5484d", slow: "#ffa01f" };
+const OBJECT_COLOR = { pallet: "#c9a26b", forklift: "#f2c94c", cart: "#56ccf2", person: "#ff7ab6", default: "#b4bcc8" };
 const ROBOT_FILL = { active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#5b667a" };
 
 async function loadMap() {
   try {
     state.map = await getJSON("/api/dashboard/map");
     state.zones = state.map.zones || [];
+    state.objects = state.map.objects || [];
     renderMap(); renderZoneBar();
   } catch (e) { console.error(e); }
 }
@@ -649,6 +655,44 @@ function renderMap() {
     line(ov.run.samples, "#3dbfe2", null, 0.07);
     const end = ov.run.samples[ov.run.samples.length - 1];
     p.push(`<text x="${end.x}" y="${Y(end.y) - 0.45}" fill="#3dbfe2" font-size="0.32" font-weight="600" text-anchor="middle">${esc(ov.run.task_key)}</text>`);
+  }
+
+  // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
+  // is moving, and its label. Objects past their expiry are dropped even between updates.
+  const now = Date.now() / 1000 + state.clockSkew;
+  state.objects = state.objects.filter((o) => o.expires_at > now);
+  for (const o of state.objects) {
+    const color = OBJECT_COLOR[o.label] || OBJECT_COLOR.default;
+    const L = o.size.length, Wd = o.size.width, deg = -o.yaw * 180 / Math.PI;
+    const cx = o.x, cy = Y(o.y);
+    p.push(`<g><title>${esc(o.label)} ${esc(o.id)} · ${(o.confidence * 100).toFixed(0)}% · ${esc(o.source)}</title>`);
+    p.push(`<rect x="${cx - L / 2}" y="${cy - Wd / 2}" width="${L}" height="${Wd}" rx="0.06" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="0.045" transform="rotate(${deg} ${cx} ${cy})"/>`);
+    p.push(`<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(o.yaw) * L / 2}" y2="${Y(o.y + Math.sin(o.yaw) * L / 2)}" stroke="${color}" stroke-width="0.04" opacity="0.7"/>`);
+    if (Math.hypot(o.vx, o.vy) > 0.05) {
+      const ax = o.x + o.vx, ay = o.y + o.vy;
+      p.push(`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${Y(ay)}" stroke="${color}" stroke-width="0.05" stroke-dasharray="0.12 0.08"/>`);
+      p.push(`<circle cx="${ax}" cy="${Y(ay)}" r="0.07" fill="${color}"/>`);
+    }
+    p.push(`<text x="${cx}" y="${cy - Wd / 2 - 0.12}" fill="${color}" font-size="0.28" font-weight="600" text-anchor="middle">${esc(o.label)}</text></g>`);
+  }
+
+  // Calibrated floor markers, coloured by how well the rig agrees on each one.
+  for (const mk of (state.calibration?.markers || [])) {
+    if (!mk.pose || mk.status === "unanchored") continue;
+    const color = CALIB_COLOR[mk.status] || CALIB_COLOR.ok;
+    const x = mk.pose.x, y = Y(mk.pose.y);
+    p.push(`<g><title>Marker ${mk.marker_id} · ${esc(CALIB_LABEL[mk.status] || mk.status)}</title>`);
+    p.push(`<rect x="${x - 0.13}" y="${y - 0.13}" width="0.26" height="0.26" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="0.04" transform="rotate(45 ${x} ${y})"/>`);
+    p.push(`<text x="${x}" y="${y - 0.24}" fill="${color}" font-size="0.24" text-anchor="middle" opacity="0.9">${mk.marker_id}</text></g>`);
+  }
+
+  // People on the floor: a faint ring marks the radius inside which robots slow down.
+  const slowR = m.people_safety?.slow_radius_m ?? 2.0;
+  for (const w of state.workers) {
+    const x = w.pose.x, y = Y(w.pose.y), off = w.status !== "on_shift";
+    p.push(`<circle cx="${x}" cy="${y}" r="${slowR}" fill="#f472b6" opacity="${off ? 0.03 : 0.06}"/>`);
+    p.push(`<path d="M ${x} ${y - 0.3} L ${x + 0.26} ${y} L ${x} ${y + 0.3} L ${x - 0.26} ${y} Z" fill="${off ? "#6b4a5c" : "#f472b6"}" stroke="#0b0f18" stroke-width="0.05"/>`);
+    p.push(`<text x="${x}" y="${y + 0.62}" fill="#f9a8d4" font-size="0.3" text-anchor="middle" opacity="${off ? 0.6 : 0.95}">${esc(workerName(w))}</text>`);
   }
 
   // Lead-published relay waypoints (shared shuttle network).
@@ -944,6 +988,59 @@ function renderRuns() {
   }
 }
 
+// ── rig calibration (Sprint H) ────────────────────────────────────────────────
+const CALIB_COLOR = { ok: "#00be7d", likely_error: "#e5484d", single_view: "#ffa01f", unanchored: "#828c9b",
+  moved: "#e5484d", high_residual: "#ffa01f" };
+const CALIB_LABEL = { ok: "ok", likely_error: "likely bumped", single_view: "seen once", unanchored: "not linked",
+  moved: "camera moved", high_residual: "poor fit" };
+async function loadCalibration() {
+  try {
+    const data = await getJSON("/api/dashboard/calibration");
+    state.calibration = data.calibration;
+    renderCalibration(); renderMap();
+  } catch (_) {}
+}
+function renderCalibration() {
+  const box = $("#calibration"), badge = $("#calib-status");
+  if (!box) return;
+  const c = state.calibration;
+  if (!c) {
+    if (badge) { badge.textContent = "none"; badge.style.color = ""; }
+    box.innerHTML = `<div class="px-4 py-4 text-[12px] text-ink-dim leading-relaxed">No calibration uploaded yet. Capture the floor markers, then run
+      <span class="mono text-ink-mut">scripts/calibrate_rig.py captures.json --upload ${esc(location.origin)}</span>.</div>`;
+    return;
+  }
+  if (badge) {
+    badge.textContent = c.ok ? "clean" : "needs fixing";
+    badge.style.color = c.ok ? CALIB_COLOR.ok : CALIB_COLOR.likely_error;
+  }
+  const flagged = [
+    ...c.markers.filter((m) => m.status !== "ok").map((m) =>
+      ({ label: `Marker ${m.marker_id}`, status: m.status,
+         detail: m.status === "likely_error" ? `off by ${(m.max_m * 100).toFixed(1)} cm` : `${m.views} view${m.views === 1 ? "" : "s"}` })),
+    ...c.captures.filter((k) => k.status !== "ok").map((k) =>
+      ({ label: `Capture ${k.id}`, status: k.status,
+         detail: k.offset_m != null && k.status === "moved" ? `${(k.offset_m * 100).toFixed(0)} cm, ${k.offset_deg.toFixed(1)}°` : `${(k.rms_m * 100).toFixed(1)} cm RMS` })),
+  ];
+  const mapped = c.markers.filter((m) => m.pose && m.status !== "unanchored").length;
+  const rows = flagged.map((f) => `
+    <div class="flex items-center gap-2 px-3 py-1.5">
+      <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${CALIB_COLOR[f.status] || "#828c9b"}"></span>
+      <span class="text-[11.5px] text-ink truncate">${esc(f.label)}</span>
+      <span class="text-[10.5px] text-ink-mut">${esc(CALIB_LABEL[f.status] || f.status)}</span>
+      <span class="text-[10px] text-ink-dim mono ml-auto shrink-0">${esc(f.detail)}</span>
+    </div>`).join("");
+  const hints = (c.hints || []).map((h) => `<li>${esc(h)}</li>`).join("");
+  box.innerHTML = `
+    <div class="px-3 py-2 text-[11.5px] text-ink-mut">
+      ${mapped} markers · ${c.captures.length} captures · RMS <span class="mono">${(c.rms_m * 100).toFixed(1)} cm</span>
+      <span class="text-ink-dim">(limit ${(c.threshold_m * 100).toFixed(0)} cm) · ${fmtTime(c.received_at)}</span>
+    </div>
+    ${rows ? `<div class="divide-y divide-line/60 border-t border-line/60">${rows}</div>` : ""}
+    ${hints ? `<ul class="px-4 py-2.5 border-t border-line/60 list-disc pl-6 space-y-1 text-[11.5px] text-ink-mut leading-relaxed">${hints}</ul>`
+            : `<div class="px-3 pb-2.5 text-[11.5px]" style="color:${CALIB_COLOR.ok}">Every marker and camera agrees. Nothing to fix.</div>`}`;
+}
+
 // ── alerts ────────────────────────────────────────────────────────────────────
 const SEV_STYLE = { critical: "text-red-400", warning: "text-amber-400", info: "text-sky-300" };
 const SEV_DOT = { critical: "#ff3b6b", warning: "#ffa01f", info: "#3dbfe2" };
@@ -987,8 +1084,16 @@ function renderAlerts() {
 // ── next actions (orchestrator Policy 4) ──────────────────────────────────────
 const ACTION_LABEL = {
   resume: "Resume", handover: "Hand over task", precharge: "Pre-charge", reliability_review: "Review reliability",
-  dispatch_task: "Dispatch task",
+  dispatch_task: "Dispatch task", assist: "Send a person",
 };
+function workerName(w) { return w.display_name || w.id; }
+function assigneeText(a) {
+  if (a.assignee_type === "person" && a.assignee_id) {
+    const w = state.workers.find((x) => x.id === a.assignee_id);
+    return `→ ${w ? workerName(w) : a.assignee_id}`;
+  }
+  return ASSIGNEE_LABEL[a.assignee_type] || "";
+}
 const ASSIGNEE_LABEL = { robot: "robot", person: "person", operator: "operator" };
 async function loadActions() {
   try { state.actions = await getJSON("/api/dashboard/actions"); renderActions(); }
@@ -1019,7 +1124,7 @@ function renderActions() {
           <span class="mono text-[10.5px] px-1.5 py-0.5 rounded bg-surface-input text-brand shrink-0">${Math.round(a.score)}</span>
           <span class="text-[12px] font-semibold truncate">${esc(ACTION_LABEL[a.kind] || a.kind)}</span>
           <span class="text-[10.5px] text-ink-dim mono truncate">${esc(a.robot_id || "")}${a.target_robot_id ? " → " + esc(a.target_robot_id) : ""}</span>
-          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(ASSIGNEE_LABEL[a.assignee_type] || "")}${a.source === "agent" ? " · " + esc(a.actor || "agent") : ""}</span>
+          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(assigneeText(a))}${a.source === "agent" ? " · " + esc(a.actor || "agent") : ""}</span>
         </div>
         ${a.kind === "dispatch_task" && a.task ? `<div class="text-[11.5px] mt-1">Task: <span class="text-brand">${esc(a.task)}</span></div>` : ""}
         <div class="text-[11.5px] text-ink-mut leading-snug mt-1">${esc(a.rationale)}</div>
@@ -1175,7 +1280,7 @@ async function openOEM(oemId) {
   $("#modal-oem").classList.remove("hidden");
 }
 
-function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; if (f.sequence) state.sequence = f.sequence; renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
+function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; state.workers = f.workers || state.workers; if (f.sequence) state.sequence = f.sequence; renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
 
 // ── robot detail (business card) ───────────────────────────────────────────────
 async function openRobot(id) {
@@ -1389,7 +1494,8 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.sequence) state.sequence = msg.sequence; onFleetUpdate(); }
+    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.workers) state.workers = msg.workers; if (msg.sequence) state.sequence = msg.sequence; onFleetUpdate(); }
+    else if (msg.type === "workers") { state.workers = msg.workers; renderMap(); }
     else if (msg.type === "alert") {
       state.alerts.unshift(msg.alert); state.alerts = state.alerts.slice(0, 200);
       renderAlerts(); renderStats();
@@ -1397,6 +1503,17 @@ function connectWS() {
     }
     else if (msg.type === "actions") { state.actions = msg.actions; renderActions(); }
     else if (msg.type === "runs") { state.runs = msg.runs; renderRuns(); }
+    else if (msg.type === "objects") {
+      if (!state.facility || msg.facility_id === state.facility.id) {
+        state.clockSkew = msg.now - Date.now() / 1000;
+        state.objects = msg.objects; renderMap();
+      }
+    }
+    else if (msg.type === "calibration") {
+      if (!state.facility || msg.calibration.facility_id === state.facility.id) {
+        state.calibration = msg.calibration; renderCalibration(); renderMap();
+      }
+    }
     else if (msg.type === "zones") { state.zones = msg.zones; renderMap(); if (!state.zoneDraft) renderZoneBar(); }
   };
 }
@@ -1786,6 +1903,7 @@ async function init() {
   state.industries = fleet.industries;
   state.vendors = fleet.vendors;
   state.robots = fleet.robots;
+  state.workers = fleet.workers || [];
   state.sequence = fleet.sequence || null;
   state.selectedRobot = (fleet.robots.find((r) => r.state !== "halted") || fleet.robots[0] || {}).id || null;
   const facilityEl = $("#facility-name");
@@ -1814,6 +1932,7 @@ async function init() {
     await loadOrchestrator();
     await loadActions();
     await loadRuns();
+    await loadCalibration();
     setInterval(loadBenchmark, 5000);
     setInterval(loadOEMs, 8000);
     setInterval(loadOrchestrator, 5000);

@@ -25,6 +25,7 @@ class AlertType(str, Enum):
     HIJACK_SUSPECTED = "hijack_suspected"    # cameras see motion, robot reports still
     GHOST_COMMAND = "ghost_command"          # robot reports motion, cameras see still
     LOW_BATTERY = "low_battery"
+    HUMAN_PROXIMITY = "human_proximity"      # a person inside the robot's stop radius
 
 
 class AlertSeverity(str, Enum):
@@ -158,6 +159,111 @@ class RunSummary(BaseModel):
     samples: int
     golden: bool
     score: RunScore
+
+
+class ObjectSize(BaseModel):
+    """Bounding box in metres: length along the object's yaw, width across it, height up."""
+    length: float = Field(default=0.5, gt=0, le=50)
+    width: float = Field(default=0.5, gt=0, le=50)
+    height: float = Field(default=0.0, ge=0, le=20)
+
+
+class TrackedObjectIn(BaseModel):
+    """One object seen by the camera rig: what it is, where, which way it faces and how it is
+    moving. Published by the edge (or a partner's perception stack) every frame or so; an
+    object that stops being reported expires after ``ttl_s``."""
+    id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
+    label: str = Field(min_length=1, max_length=40)
+    x: float = Field(ge=-1000, le=1000)
+    y: float = Field(ge=-1000, le=1000)
+    z: float = 0.0
+    yaw: float = 0.0
+    vx: float = Field(default=0.0, ge=-20, le=20)
+    vy: float = Field(default=0.0, ge=-20, le=20)
+    size: ObjectSize = Field(default_factory=ObjectSize)
+    confidence: float = Field(default=1.0, ge=0, le=1)
+    ttl_s: Optional[float] = Field(default=None, gt=0, le=300)
+
+
+class ObjectsIn(BaseModel):
+    """A batch of objects from one source. With ``replace``, objects from this source that are
+    not in the batch are dropped at once instead of waiting to expire (a full-frame snapshot)."""
+    source: str = Field(default="edge", pattern=r"^[A-Za-z0-9_.:-]{1,40}$")
+    objects: list[TrackedObjectIn] = Field(default_factory=list, max_length=200)
+    replace: bool = False
+
+
+class TrackedObject(TrackedObjectIn):
+    source: str
+    facility_id: str
+    first_seen: float
+    updated_at: float
+    expires_at: float
+
+
+class MarkerObservationIn(BaseModel):
+    """One floor marker as seen by one capture, in that capture's own frame (metres, radians)."""
+    marker_id: int = Field(ge=0, le=100_000)
+    x: float = Field(ge=-1000, le=1000)
+    y: float = Field(ge=-1000, le=1000)
+    theta: float = 0.0
+
+
+class CalibrationCaptureIn(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    expected_pose: Optional[Pose] = None
+    observations: list[MarkerObservationIn] = Field(min_length=1, max_length=40)
+
+
+class MarkerAnchorIn(BaseModel):
+    """A tape-measured floor position for a marker."""
+    marker_id: int = Field(ge=0, le=100_000)
+    x: float
+    y: float
+
+
+class CalibrationIn(BaseModel):
+    """Rig calibration captures (Sprint H). Bounded so one upload can't tie up the solver."""
+    origin_marker: int = 0
+    origin_pose: Optional[Pose] = None
+    anchors: list[MarkerAnchorIn] = Field(default_factory=list, max_length=20)
+    threshold_m: Optional[float] = Field(default=None, gt=0, le=1.0)
+    captures: list[CalibrationCaptureIn] = Field(min_length=1, max_length=60)
+
+    @field_validator("captures")
+    @classmethod
+    def _bounded_marker_set(cls, captures: list[CalibrationCaptureIn]) -> list[CalibrationCaptureIn]:
+        if len({o.marker_id for c in captures for o in c.observations}) > 150:
+            raise ValueError("at most 150 distinct markers per calibration")
+        if len({c.id for c in captures}) != len(captures):
+            raise ValueError("capture ids must be unique")
+        return captures
+
+
+class WorkerStatus(str, Enum):
+    ON_SHIFT = "on_shift"
+    BREAK = "break"        # visible on the map, never assigned work
+
+
+class WorkerPoseIn(BaseModel):
+    """A person's position on the floor: a phone check-in, a badge reader, or the Digital
+    Net's multi-view people detection. ``display_name`` is optional — workers are
+    pseudonymous by default."""
+    x: float
+    y: float
+    display_name: Optional[str] = Field(default=None, max_length=60)
+    role: str = Field(default="associate", max_length=40)
+    status: WorkerStatus = WorkerStatus.ON_SHIFT
+
+
+class Worker(BaseModel):
+    id: str
+    display_name: Optional[str] = None
+    role: str = "associate"
+    status: WorkerStatus = WorkerStatus.ON_SHIFT
+    pose: Point
+    last_seen: float
+    source: str = "checkin"    # checkin | sim
 
 
 class SpeedIn(BaseModel):
@@ -410,6 +516,7 @@ class RecommendationKind(str, Enum):
     PRECHARGE = "precharge"                    # charge before the battery hits the auto-dispatch floor
     RELIABILITY_REVIEW = "reliability_review"  # repeated degradation events — needs a human look
     DISPATCH_TASK = "dispatch_task"            # agent-proposed new task for a robot
+    ASSIST = "assist"                          # send a person on the floor to a robot
 
 
 class RecommendationStatus(str, Enum):
@@ -435,6 +542,7 @@ class Recommendation(BaseModel):
     score: float
     rationale: str
     assignee_type: AssigneeType = AssigneeType.ROBOT
+    assignee_id: Optional[str] = None       # the worker, when assignee_type is person
     scope: Optional[APIScope] = None        # OEM scope needed on the executing robot
     status: RecommendationStatus = RecommendationStatus.PROPOSED
     source: str = "policy"                  # policy | agent
@@ -452,6 +560,7 @@ class ActionProposalIn(BaseModel):
     rationale: str = Field(min_length=1, max_length=500)
     target_robot_id: Optional[str] = None   # required for handover
     task: Optional[str] = Field(default=None, max_length=200)  # required for handover / dispatch_task
+    assignee_id: Optional[str] = None       # assist: the worker to send; nearest on shift if omitted
     score: float = Field(default=50.0, ge=0.0, le=100.0)
     dry_run: bool = False
 
