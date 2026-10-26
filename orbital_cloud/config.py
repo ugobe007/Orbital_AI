@@ -56,6 +56,15 @@ class Settings:
     # controls render with data out of the box. Turn off for a clean production start.
     seed_oems: bool = _flag("ORBITAL_SEED_OEMS", "1")
 
+    # People on the floor (Sprint G5–G7). A robot within the slow radius of a worker is
+    # capped at human_slow_speed_mps; within the stop radius it halts until the person moves
+    # away. Check-ins older than worker_stale_s drop off the map and out of the safety check.
+    sim_workers: int = int(os.getenv("ORBITAL_SIM_WORKERS", "3") or "3")
+    human_slow_radius_m: float = float(os.getenv("ORBITAL_HUMAN_SLOW_RADIUS_M", "2.0") or "2.0")
+    human_stop_radius_m: float = float(os.getenv("ORBITAL_HUMAN_STOP_RADIUS_M", "0.8") or "0.8")
+    human_slow_speed_mps: float = float(os.getenv("ORBITAL_HUMAN_SLOW_SPEED_MPS", "0.3") or "0.3")
+    worker_stale_s: float = float(os.getenv("ORBITAL_WORKER_STALE_S", "30") or "30")
+
 
 settings = Settings()
 

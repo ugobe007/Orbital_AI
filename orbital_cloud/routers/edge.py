@@ -6,14 +6,21 @@ store ingest path, so swapping it for real edges needs no API changes.
 """
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Path
 
+from ..config import WAREHOUSE
 from ..events import hub
-from ..models import AlertIn, ObjectsIn, TelemetryIn
+from ..models import AlertIn, CalibrationIn, ObjectsIn, TelemetryIn, Worker, WorkerPoseIn
 from ..objects import ObjectStoreFull, object_store, objects_json, objects_message
 from ..occupancy import synthetic_occupancy_grid
+from ..rig_calibration import calibration_store
 from ..store import store
+from ..workers import worker_store
 from ..zones import zone_store
+
+_WORKER_ID = Path(pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
 
 router = APIRouter(prefix="/api/v1", tags=["edge"])
 
@@ -67,8 +74,52 @@ async def post_telemetry(t: TelemetryIn) -> dict:
     return {"ok": True}
 
 
+@router.post("/calibration/{facility_id}", status_code=201)
+async def post_calibration(body: CalibrationIn,
+                           facility_id: str = Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")) -> dict:
+    """Solve a camera-rig marker map from raw captures and keep the report for the dashboard."""
+    entry = await asyncio.to_thread(calibration_store.solve_and_store, facility_id, body)
+    await hub.broadcast({"type": "calibration", "calibration": entry})
+    return entry
+
+
+@router.get("/calibration/{facility_id}")
+async def get_calibration(facility_id: str) -> dict:
+    entry = calibration_store.get(facility_id)
+    if entry is None:
+        raise HTTPException(404, f"no calibration uploaded for {facility_id}")
+    return entry
+
+
 @router.post("/alerts", status_code=201)
 async def post_alert(a: AlertIn) -> dict:
     saved = store.add_alert(a)
     await hub.broadcast({"type": "alert", "alert": saved.model_dump(mode="json")})
     return {"ok": True, "id": saved.id}
+
+
+@router.get("/workers", response_model=list[Worker])
+async def list_workers() -> list[Worker]:
+    """Live people on the floor, for edge nodes enforcing human-proximity stops."""
+    return worker_store.list()
+
+
+@router.post("/workers/{worker_id}/pose", response_model=Worker)
+async def post_worker_pose(body: WorkerPoseIn, worker_id: str = _WORKER_ID) -> Worker:
+    """A person's position: phone check-in, badge reader, or Digital Net people detection.
+    Re-post at least every ``ORBITAL_WORKER_STALE_S`` seconds or the worker drops off."""
+    w, h = float(WAREHOUSE["width_m"]), float(WAREHOUSE["height_m"])
+    if not (0.0 <= body.x <= w and 0.0 <= body.y <= h):
+        raise HTTPException(status_code=422, detail=f"position must lie inside the {w:g} x {h:g} m floor")
+    worker = worker_store.upsert(worker_id, body)
+    await hub.broadcast({"type": "workers", "workers": [x.model_dump(mode="json") for x in worker_store.list()]})
+    return worker
+
+
+@router.delete("/workers/{worker_id}")
+async def delete_worker(worker_id: str = _WORKER_ID) -> dict:
+    """Check out: the person leaves the floor and stops affecting robots immediately."""
+    if not worker_store.remove(worker_id):
+        raise HTTPException(status_code=404, detail="worker not found")
+    await hub.broadcast({"type": "workers", "workers": [x.model_dump(mode="json") for x in worker_store.list()]})
+    return {"ok": True, "worker_id": worker_id}

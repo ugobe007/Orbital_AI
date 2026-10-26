@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Static smoke checks for the marketing page and fleet dashboard.
 
-The public homepage is the prebuilt marketing app (site/index.html + hashed
-assets). The fleet console is dashboard/index.html, served at /app/.
+The public homepage is static HTML (site/index.html) styled by the compiled
+July Tailwind build (orbital-base.css) plus site.css, with behaviour in site.js.
+The fleet console is dashboard/index.html, served at /app/.
 """
 from __future__ import annotations
 
@@ -17,10 +18,13 @@ ASSETS = ROOT / "site" / "assets"
 PHOTOS = ROOT / "dashboard" / "orbital-ai-site"
 
 REQUIRED_ASSETS = (
-    "index-DWu3zOSb.js",
-    "index-0EaFuQXy.css",
+    "orbital-base.css",
+    "site.css",
+    "site.js",
     "orbital-logo-D9n2owqh.png",
+    "robot-harness.jpg",
 )
+REQUIRED_ANCHORS = ("platform", "digital-net", "how-it-works", "intelligence", "pilot")
 REQUIRED_PHOTOS = (
     "hero-warehouse.jpg",
     "humanoid-deployment.png",
@@ -45,10 +49,13 @@ def main() -> None:
     html = SITE.read_text(encoding="utf-8")
     dash = DASHBOARD.read_text(encoding="utf-8")
 
-    if '<div id="root"></div>' not in html:
-        fail("marketing page must mount the app at #root")
+    for anchor in REQUIRED_ANCHORS:
+        if f'id="{anchor}"' not in html or f'href="#{anchor}"' not in html:
+            fail(f"marketing page needs section #{anchor} and a nav link to it")
+    if 'id="contact-form"' not in html or "data-contact=" not in html:
+        fail("marketing page CTAs must open the contact form")
     for name in REQUIRED_ASSETS:
-        if f"/assets/{name}" not in html and not name.endswith(".png"):
+        if f"/assets/{name}" not in html:
             fail(f"marketing page does not reference /assets/{name}")
         path = ASSETS / name
         if not path.is_file() or path.stat().st_size < 1000:
