@@ -15,6 +15,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Optional
 
+from .config import settings
 from .models import (
     APIScope,
     AssigneeType,
@@ -176,6 +177,9 @@ def execute(st: "Store", rec: Recommendation, actor: Optional[str] = None) -> tu
         robot = st.robots.get(rec.robot_id or "")
         if robot is None or robot.state != RobotState.HALTED:
             return False, "robot is no longer halted"
+        if robot.drift_delta_m > settings.drift_degraded_m:
+            return False, (f"drift is {robot.drift_delta_m:.2f}m now, above "
+                           f"{settings.drift_degraded_m:.2f}m; not safe to resume")
         st.resume(robot.id)
         return True, f"resumed {robot.id}"
 
