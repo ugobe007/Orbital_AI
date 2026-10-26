@@ -71,6 +71,14 @@ header behaves as before (demo mode).
 |----------|--------|
 | `ORBITAL_RBAC_PROXY_SECRET` | Long random string shared with StageGate's `/api/orbital/*` proxy (`openssl rand -hex 32`) |
 
+**When control calls through the proxy get 403:** open `GET /api/dashboard/whoami` through the
+same proxy (StageGate: `/api/orbital/whoami`) while signed in. It reports the resolved `role`,
+whether the proxy sent a role and secret, and `proxy_secret_matches`. On a mismatch, compare
+`proxy_secret_sent_fingerprint` with `proxy_secret_expected_fingerprint`; each is the first 8
+hex characters of `printf %s "$SECRET" | shasum -a 256`, so you can tell which side holds the
+stale value without revealing it. No `role_header` means the proxy did not recognise you as an
+admin, or has no secret configured.
+
 **Smoke (from a laptop with the same env exported, or after deploy):**
 
 ```bash

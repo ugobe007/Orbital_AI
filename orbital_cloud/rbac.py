@@ -13,6 +13,7 @@ E-Stop and propose actions, and gets direct control only when
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import os
 import threading
@@ -117,6 +118,44 @@ def resolve_role(
         detail=(f"X-Orbital-Role '{claimed.value}' exceeds this caller's '{base.value}' access; "
                 "raising a role needs a matching bearer token or the trusted proxy secret"),
     )
+
+
+def _fingerprint(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()[:8] if value else ""
+
+
+def diagnose_caller(
+    *,
+    x_orbital_role: str | None,
+    x_orbital_actor: str | None,
+    x_orbital_proxy_secret: str | None,
+    authorization: str | None,
+) -> dict:
+    """Explain how this request's headers resolve, without revealing any secret. Fingerprints
+    are the first 8 hex chars of SHA-256, so an operator can compare the value each side holds
+    (``printf %s "$SECRET" | shasum -a 256``) and spot stray quotes or whitespace."""
+    sent = _strip_wrapping_quotes(x_orbital_proxy_secret or "")
+    expected = _strip_wrapping_quotes(os.getenv("ORBITAL_RBAC_PROXY_SECRET") or "")
+    try:
+        role: str | None = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
+                                        x_orbital_proxy_secret=x_orbital_proxy_secret).value
+        error = None
+    except HTTPException as exc:
+        role, error = None, str(exc.detail)
+    return {
+        "role": role,
+        "error": error,
+        "can_estop": role in (Role.AGENT.value, Role.OPERATOR.value, Role.ADMIN.value),
+        "rbac_enforced": rbac_enforced(),
+        "role_header": x_orbital_role,
+        "actor_header": x_orbital_actor,
+        "bearer_sent": bool(authorization),
+        "proxy_secret_configured": bool(expected),
+        "proxy_secret_sent": bool(sent),
+        "proxy_secret_matches": _proxy_trusted(x_orbital_proxy_secret),
+        "proxy_secret_sent_fingerprint": _fingerprint(sent),
+        "proxy_secret_expected_fingerprint": _fingerprint(expected),
+    }
 
 
 def _credential_role(authorization: str | None) -> Role:
