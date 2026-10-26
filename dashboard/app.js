@@ -572,9 +572,19 @@ async function loadMap() {
     state.map = await getJSON("/api/dashboard/map");
     state.zones = state.map.zones || [];
     state.objects = state.map.objects || [];
-    state.cameraCells = state.map.camera_cells || [];
+    setCameraCells(state.map.camera_cells, state.map.camera_sources);
     renderMap(); renderZoneBar();
   } catch (e) { console.error(e); }
+}
+// Slices lapse on the server without a broadcast, so re-read the map once the earliest one expires.
+function setCameraCells(cells, sources) {
+  state.cameraCells = cells || [];
+  clearTimeout(state.cameraLapseTimer);
+  const expiry = Math.min(...Object.values(sources || {}).map((s) => s.expires_at));
+  if (Number.isFinite(expiry)) {
+    const wait = (expiry - Date.now() / 1000 - state.clockSkew) * 1000;
+    state.cameraLapseTimer = setTimeout(loadMap, Math.max(0, wait) + 250);
+  }
 }
 function clickToWorld(evt, svg) {
   const m = state.map, rect = svg.getBoundingClientRect();
@@ -1517,7 +1527,7 @@ function connectWS() {
       }
     }
     else if (msg.type === "camera_occupancy") {
-      if (!state.facility || msg.facility_id === state.facility.id) { state.cameraCells = msg.cells; renderMap(); }
+      if (!state.facility || msg.facility_id === state.facility.id) { setCameraCells(msg.cells, msg.sources); renderMap(); }
     }
     else if (msg.type === "calibration") {
       if (!state.facility || msg.calibration.facility_id === state.facility.id) {
