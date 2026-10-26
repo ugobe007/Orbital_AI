@@ -174,7 +174,7 @@ def test_mcp_server_registers_tools_and_calls_through():
 
     mcp = build_server(lambda: OrbitalClient(agent))
     names = {t.name for t in asyncio.run(mcp.list_tools())}
-    assert {"fleet_summary", "list_robots", "propose_action", "estop_robot", "navigate_robot"} <= names
+    assert {"fleet_summary", "list_robots", "list_workers", "propose_action", "estop_robot", "navigate_robot"} <= names
 
     result = asyncio.run(mcp.call_tool("list_robots", {"vendor": "Unitree"}))
     assert "Unitree" in str(result)

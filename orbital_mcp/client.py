@@ -84,6 +84,9 @@ class OrbitalClient:
     def get_map(self) -> Any:
         return self._call("GET", "/api/dashboard/map")
 
+    def list_workers(self) -> Any:
+        return self._call("GET", "/api/dashboard/workers")
+
     def list_alerts(self, limit: int = 20, unacknowledged_only: bool = True) -> Any:
         alerts = self._call("GET", "/api/dashboard/alerts", params={"limit": max(1, min(limit, 200))})
         if isinstance(alerts, list) and unacknowledged_only:
@@ -113,9 +116,11 @@ class OrbitalClient:
     # ── Writes ───────────────────────────────────────────────────────────────
     def propose_action(self, kind: str, robot_id: str, rationale: str, *,
                        task: Optional[str] = None, target_robot_id: Optional[str] = None,
-                       score: float = 50.0, dry_run: bool = False) -> Any:
+                       assignee_id: Optional[str] = None, score: float = 50.0,
+                       dry_run: bool = False) -> Any:
         body = {"kind": kind, "robot_id": robot_id, "rationale": rationale, "score": score,
-                "task": task, "target_robot_id": target_robot_id, "dry_run": dry_run}
+                "task": task, "target_robot_id": target_robot_id, "assignee_id": assignee_id,
+                "dry_run": dry_run}
         return self._call("POST", "/api/dashboard/actions", json=body)
 
     def estop_robot(self, robot_id: str, dry_run: bool = False) -> Any:

@@ -8,6 +8,7 @@ and issues an E-Stop when any invariant breaks:
   * hijack_suspected — cameras see the robot moving while it reports itself still
     (someone/something else is driving it).
   * ghost_command — the robot reports motion the cameras don't see (bad odometry / spoof).
+  * human_proximity — a person is inside the robot's stop radius (``evaluate_people``).
 
 Mirrors the alert taxonomy in ``orbital_cloud.models.AlertType`` so edge halts and cloud
 alerts speak the same language.
@@ -22,10 +23,28 @@ _STILL_EPS_M = 0.02
 
 
 class SafetyHaltController:
-    def __init__(self, halt_threshold_m: float | None = None) -> None:
+    def __init__(self, halt_threshold_m: float | None = None,
+                 human_stop_radius_m: float | None = None) -> None:
         self.halt_threshold_m = (
             edge_settings.halt_threshold_m if halt_threshold_m is None else halt_threshold_m
         )
+        self.human_stop_radius_m = (
+            edge_settings.human_stop_radius_m if human_stop_radius_m is None else human_stop_radius_m
+        )
+
+    def evaluate_people(self, robot_id: str, external: Pose2D,
+                        people: list[tuple[float, float]], *, margin_m: float = 0.0) -> HaltDecision:
+        """Halt when any person is within the stop radius of the camera-observed pose.
+        ``margin_m`` widens the radius when deciding whether a stop may clear."""
+        radius = self.human_stop_radius_m + margin_m
+        nearest = min((Pose2D(x, y).distance_to(external) for x, y in people), default=None)
+        if nearest is not None and nearest <= radius:
+            return HaltDecision(
+                robot_id, True,
+                f"person {nearest:.2f}m away, inside the {self.human_stop_radius_m}m stop radius",
+                alert_type="human_proximity",
+            )
+        return HaltDecision(robot_id, False)
 
     def evaluate(
         self,

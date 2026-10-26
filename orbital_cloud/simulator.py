@@ -24,7 +24,7 @@ import time
 from . import pathing, persistence
 from .config import LEAD_COUNT, SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
-from .runs import recorder, run_store, runs_message
+from .objects import object_store, objects_message, sim_objects
 from .models import (
     AlertIn,
     AlertSeverity,
@@ -36,7 +36,9 @@ from .models import (
     SpatialTelemetry,
     TelemetryIn,
 )
+from .runs import recorder, run_store, runs_message
 from .store import RobotRuntime, store
+from .workers import person_within_stop_radius, proximity_speed_cap, sim_crowd, worker_label, worker_store
 from .zones import zone_store
 
 _SPEED_MPS = 0.6
@@ -45,8 +47,11 @@ _DRIFT_NOISE = 0.015         # baseline odometric noise (m)
 _SPIKE_PROB = 0.004          # chance/tick a robot starts drifting badly (kept rare so the fleet stays live)
 _DRIFT_HALT = "DRIFT_HALT"   # sim safety halt (auto-recovers immediately)
 _AUTO_ESTOP = "AUTO_ESTOP"   # orchestrator auto-halt (auto-recovers after a cooldown)
+HUMAN_STOP = "HUMAN_STOP"    # a person inside the stop radius (resumes once they step away)
 # "E_STOP" (human/operator) is NOT in this set — it latches until an operator resumes.
 _RECOVERABLE_HALTS = {_DRIFT_HALT, _AUTO_ESTOP}
+_HUMAN_ALERT_COOLDOWN_S = 60.0
+_last_human_alert: dict[str, float] = {}
 _JOINTS = ("hip_left", "hip_right", "knee_left", "knee_right")
 
 
@@ -311,9 +316,31 @@ def _complete_task(robot: RobotRuntime) -> None:
 
 
 def _zone_speed(robot: RobotRuntime) -> float:
-    """The robot's speed, capped by any slow zone it is currently inside."""
-    cap = zone_store.speed_cap(robot.pose_external.x, robot.pose_external.y, robot.vendor)
-    return robot.speed_mps if cap is None else min(robot.speed_mps, cap)
+    """The robot's speed, capped by any slow zone it is inside and by people nearby."""
+    x, y = robot.pose_external.x, robot.pose_external.y
+    caps = [c for c in (zone_store.speed_cap(x, y, robot.vendor), proximity_speed_cap(x, y)) if c is not None]
+    return min([robot.speed_mps, *caps])
+
+
+def _human_stop(robot: RobotRuntime) -> AlertIn | None:
+    """Halt a robot that is about to move while a person is inside its stop radius. Returns
+    an alert the first time in a while, so a busy aisle doesn't flood the alert feed."""
+    hit = person_within_stop_radius(robot.pose_external.x, robot.pose_external.y)
+    if hit is None:
+        return None
+    worker, dist = hit
+    robot.state = RobotState.HALTED
+    robot.error_code = HUMAN_STOP
+    robot.halted_at = time.time()
+    now = time.time()
+    if now - _last_human_alert.get(robot.id, 0.0) < _HUMAN_ALERT_COOLDOWN_S:
+        return None
+    _last_human_alert[robot.id] = now
+    return AlertIn(
+        robot_id=robot.id, type=AlertType.HUMAN_PROXIMITY, severity=AlertSeverity.WARNING,
+        message=(f"{robot.vendor} {robot.model} stopped: {worker_label(worker)} is {dist:.1f}m away, "
+                 f"inside the {settings.human_stop_radius_m:.1f}m stop radius. Resumes when they step away."),
+    )
 
 
 def _advance_point(robot: RobotRuntime, dt: float, target: tuple[float, float]) -> bool:
@@ -495,6 +522,13 @@ async def _tick(dt: float) -> list[AlertIn]:
                 robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
             continue
 
+        if robot.state == RobotState.HALTED and robot.error_code == HUMAN_STOP:
+            if person_within_stop_radius(robot.pose_external.x, robot.pose_external.y, release=True) is None:
+                robot.error_code = None
+                robot.halted_at = None
+                robot.state = RobotState.ACTIVE if robot.current_task else RobotState.IDLE
+            continue
+
         if robot.state == RobotState.HALTED:
             # Sim safety halts recover immediately; orchestrator auto-stops recover after a
             # cooldown (ARIA re-converges). A human E-Stop latches until an operator resumes.
@@ -526,6 +560,14 @@ async def _tick(dt: float) -> list[AlertIn]:
                     )
                 )
                 continue
+
+        if robot.state == RobotState.ACTIVE and robot.mission_phase != "working":
+            if robot.nav_queue or robot.manual_heading is not None or robot.task_target is not None:
+                stopped = _human_stop(robot)
+                if robot.state == RobotState.HALTED:
+                    if stopped is not None:
+                        alerts.append(stopped)
+                    continue
 
         if robot.state == RobotState.ACTIVE:
             if robot.nav_queue:
@@ -575,10 +617,12 @@ async def _tick(dt: float) -> list[AlertIn]:
 
 async def run() -> None:
     prime()
+    sim_crowd.spawn(settings.sim_workers)
     hz = max(0.5, settings.sim_tick_hz)
     dt = 1.0 / hz
     runs_seen = run_store.version
     while True:
+        sim_crowd.tick(dt)
         # Rotate the fleet mission sequence when its window elapses (keeps the floor alive).
         seq = store.sequence
         if time.time() - float(seq.get("started_at", 0)) >= float(seq.get("period_s", SEQUENCE_PERIOD_S)):
@@ -590,9 +634,13 @@ async def run() -> None:
         await hub.broadcast({
             "type": "fleet",
             "robots": [r.model_dump(mode="json") for r in store.fleet()],
+            "workers": [w.model_dump(mode="json") for w in worker_store.list()],
             "sequence": store.sequence_public(),
         })
         if run_store.version != runs_seen:
             runs_seen = run_store.version
             await hub.broadcast(runs_message())
+        if settings.sim_objects:
+            object_store.ingest(settings.facility_id, sim_objects.batch(dt))
+            await hub.broadcast(objects_message())
         await asyncio.sleep(dt)
