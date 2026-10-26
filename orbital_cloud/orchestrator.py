@@ -56,7 +56,7 @@ _RESUME_AFTER_S = 60.0           # give the operator a minute before suggesting 
 _HANDOVER_AFTER_S = 30.0         # floor; also at least 2× auto-recover so self-healing halts don't trigger it
 _PRECHARGE_BAND_PCT = 15.0       # band above low_battery_pct where charging early is worth suggesting
 _RELIABILITY_MIN_EVENTS = 3
-_RELIABILITY_MAX_MTBD_S = 300.0
+_RELIABILITY_OUTLIER_RATIO = 2.0  # flag robots degrading this many times more often than the fleet median
 # Simulator placeholder tasks that aren't real work to hand over.
 _NON_TRANSFERABLE_TASKS = {"Idle", "Autonomous patrol", "Awaiting next shuttle", "Shuttle turnaround"}
 
@@ -184,6 +184,12 @@ class Orchestrator:
         with self._store._lock:
             robots = list(self._store.robots.values())
             idle_peers = [r for r in robots if r.state == RobotState.IDLE and r.battery_pct >= precharge_ceiling]
+            # A robot with no events has gone at least its whole uptime without one.
+            mtbds = sorted(
+                r.uptime_seconds / max(r.degradation_events, 1)
+                for r in robots if r.state != RobotState.OFFLINE
+            )
+            fleet_mtbd = mtbds[len(mtbds) // 2] if mtbds else None
 
             for r in robots:
                 halted_for = (now - r.halted_at) if (r.state == RobotState.HALTED and r.halted_at) else 0.0
@@ -228,19 +234,20 @@ class Orchestrator:
                     )
 
                 events = r.degradation_events
-                mtbd = r.uptime_seconds / events if events else None
-                if (r.state != RobotState.OFFLINE and events >= _RELIABILITY_MIN_EVENTS
-                        and mtbd is not None and mtbd <= _RELIABILITY_MAX_MTBD_S):
-                    live.add((RecommendationKind.RELIABILITY_REVIEW, r.id))
-                    q.propose(
-                        RecommendationKind.RELIABILITY_REVIEW, robot_id=r.id,
-                        assignee_type=AssigneeType.OPERATOR,
-                        score=min(50.0, 30.0 + events * 2.0),
-                        rationale=(f"{name} has drifted past {settings.drift_degraded_m:.2f}m {events} times "
-                                   f"(about once every {mtbd:.0f}s). Check camera coverage and floor "
-                                   f"conditions along its route."),
-                        now=now,
-                    )
+                if r.state != RobotState.OFFLINE and events >= _RELIABILITY_MIN_EVENTS and fleet_mtbd:
+                    mtbd = r.uptime_seconds / events
+                    ratio = fleet_mtbd / mtbd if mtbd > 0 else float("inf")
+                    if ratio >= _RELIABILITY_OUTLIER_RATIO:
+                        live.add((RecommendationKind.RELIABILITY_REVIEW, r.id))
+                        q.propose(
+                            RecommendationKind.RELIABILITY_REVIEW, robot_id=r.id,
+                            assignee_type=AssigneeType.OPERATOR,
+                            score=min(50.0, 30.0 + ratio * 5.0),
+                            rationale=(f"{name} drifts past {settings.drift_degraded_m:.2f}m about once every "
+                                       f"{mtbd:.0f}s, versus once every {fleet_mtbd:.0f}s for the fleet median. "
+                                       f"Check camera coverage and floor conditions along its route."),
+                            now=now,
+                        )
 
         q.sync_policy(live, now)
 

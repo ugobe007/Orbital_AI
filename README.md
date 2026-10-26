@@ -34,6 +34,7 @@ Robot Network (VLAN) ── ARIA Edge Node (aria_edge/) ──outbound──► 
 | **Fleet Dashboard UI** | amber theme, industry tabs, robot business cards, live alerts, benchmark table |
 | **Simulated ARIA edge** | pose/drift generation, degradation spikes, safety-halt E-Stops |
 | **Orchestrator (autonomy)** | `/api/dashboard/orchestrator[/run]` — auto E-Stop, charge dispatch, review flags, optional LLM narrative |
+| **Next-action queue** | `GET /api/dashboard/actions`, `POST /actions/{id}/accept\|dismiss` — ranked resume / handover / pre-charge / reliability proposals; accept runs through OEM scope checks |
 | **ARIA Edge scaffold** | `aria_edge/` — CV → drift → safety-halt → TF-Hijack correction → cloud sync (`edge_agent`) |
 | **Fleet Adapters** | `fleet_adapters/` — per-OEM capability ceilings (ROS 2 cmd_vel vs BD gRPC vs Agility cloud) |
 | **OEM Onboarding** | `/api/oem/*` — 3rd-party robot companies register + unlock scoped access to their API |

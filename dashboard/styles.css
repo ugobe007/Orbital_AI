@@ -148,7 +148,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .rail-btn.active { color: var(--azure); background: rgba(0,165,218,0.15); border-color: rgba(0,165,218,0.4); }
 
 /* keep section tops clear of the sticky header when scrolled to */
-#sec-overview, #sec-map, #sec-alerts, #sec-fleet, #sec-capabilities, #sec-benchmark, #sec-partners {
+#sec-overview, #sec-map, #sec-actions, #sec-alerts, #sec-fleet, #sec-capabilities, #sec-benchmark, #sec-partners {
   scroll-margin-top: 70px;
 }
 

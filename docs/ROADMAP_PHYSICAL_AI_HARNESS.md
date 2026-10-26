@@ -40,8 +40,15 @@ H is independent and can run in parallel with E–G; it feeds the lab cutover.
 
 ## Sprint E — Next-best-action queue
 
+**Status:** **Done (sim)** — `orbital_cloud/recommendations.py`, orchestrator Policy 4,
+`tests/test_actions.py`, dashboard "Next Actions" card.
+
 **Goal:** The orchestrator stops being only a watchdog and becomes a copilot: a ranked list of
 "what should happen next", each with a value score, a rationale, and a suggested assignee.
+
+As built, the reliability review flags fleet outliers (≥2× the median degradation rate) rather
+than an absolute MTBD cutoff, which flagged nearly every robot in the simulator. Handover
+proposals need an idle peer, which the simulator rarely has, so they show mostly in tests.
 
 | ID | Work | Files | Exit criteria |
 |----|------|-------|---------------|

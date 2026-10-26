@@ -112,16 +112,19 @@ def test_precharge_band_proposes_while_policy_2_handles_low_battery():
     assert st.robots[ids[1]].state == RobotState.CHARGING
 
 
-def test_reliability_review_is_operator_advisory():
+def test_reliability_review_flags_only_fleet_outliers():
     st, orch, ids = _fresh()
-    robot = st.robots[ids[0]]
-    robot.degradation_events = 5
-    robot.created_at = time.time() - 200
+    for rid in ids:
+        st.robots[rid].created_at = time.time() - 200
+        st.robots[rid].degradation_events = 4    # every robot degrades about once every 50s
+    st.robots[ids[0]].degradation_events = 20    # this one about once every 10s
 
     orch.evaluate()
 
     [rec] = _open(st, RecommendationKind.RELIABILITY_REVIEW)
+    assert rec.robot_id == ids[0]
     assert rec.assignee_type.value == "operator" and rec.scope is None
+    assert "fleet median" in rec.rationale
 
 
 def test_proposals_dedupe_and_expire_when_condition_clears():
