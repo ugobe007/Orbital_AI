@@ -136,7 +136,7 @@ class SimCrowd:
                 if now < walker.dwell_until:
                     worker_store.upsert(walker.id, _pose_in(current, x, y), source="sim", now=now)
                     continue
-                goal = random.choice(_stations())
+                goal = _beside(random.choice(_stations()))
                 walker.route = pathing.plan((x, y), goal) or [goal]
             tx, ty = walker.route[0]
             d = math.hypot(tx - x, ty - y)
@@ -153,6 +153,18 @@ class SimCrowd:
 
 def _pose_in(w: Worker, x: float, y: float) -> WorkerPoseIn:
     return WorkerPoseIn(x=x, y=y, display_name=w.display_name, role=w.role, status=w.status)
+
+
+def _beside(station: tuple[float, float]) -> tuple[float, float]:
+    """A free spot about a metre from a station, so people work next to robots, not on top
+    of the point robots drive to."""
+    sx, sy = station
+    w, h = float(WAREHOUSE["width_m"]), float(WAREHOUSE["height_m"])
+    for dx, dy in random.sample([(1.1, 0), (-1.1, 0), (0, 1.1), (0, -1.1)], 4):
+        x, y = sx + dx, sy + dy
+        if 0.3 <= x <= w - 0.3 and 0.3 <= y <= h - 0.3 and not pathing._point_blocked(x, y):
+            return x, y
+    return station
 
 
 def _stations() -> list[tuple[float, float]]:
