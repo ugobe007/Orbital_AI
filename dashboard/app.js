@@ -23,6 +23,7 @@ const state = {
   catalog: null,        // /oem-catalog: vendors + scopes + transports + default policies
   wizard: null,         // onboarding wizard working state
   zones: [],            // keep-out / slow zones on the spatial map
+  workers: [],          // people on the floor (live only)
   zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
   auth: null,           // /api/auth/me: who is signed in to this console
   calibration: null,    // latest rig-calibration report for this facility (Sprint H)
@@ -648,6 +649,15 @@ function renderMap() {
     p.push(`<text x="${x}" y="${y - 0.24}" fill="${color}" font-size="0.24" text-anchor="middle" opacity="0.9">${mk.marker_id}</text></g>`);
   }
 
+  // People on the floor: a faint ring marks the radius inside which robots slow down.
+  const slowR = m.people_safety?.slow_radius_m ?? 2.0;
+  for (const w of state.workers) {
+    const x = w.pose.x, y = Y(w.pose.y), off = w.status !== "on_shift";
+    p.push(`<circle cx="${x}" cy="${y}" r="${slowR}" fill="#f472b6" opacity="${off ? 0.03 : 0.06}"/>`);
+    p.push(`<path d="M ${x} ${y - 0.3} L ${x + 0.26} ${y} L ${x} ${y + 0.3} L ${x - 0.26} ${y} Z" fill="${off ? "#6b4a5c" : "#f472b6"}" stroke="#0b0f18" stroke-width="0.05"/>`);
+    p.push(`<text x="${x}" y="${y + 0.62}" fill="#f9a8d4" font-size="0.3" text-anchor="middle" opacity="${off ? 0.6 : 0.95}">${esc(workerName(w))}</text>`);
+  }
+
   // Lead-published relay waypoints (shared shuttle network).
   for (const rp of (state.sequence?.relay_points || [])) {
     p.push(`<circle cx="${rp.x}" cy="${Y(rp.y)}" r="0.38" fill="none" stroke="#ffc24d" stroke-width="0.05" stroke-dasharray="0.12 0.1" opacity="0.85"/>`);
@@ -975,8 +985,16 @@ function renderAlerts() {
 // ── next actions (orchestrator Policy 4) ──────────────────────────────────────
 const ACTION_LABEL = {
   resume: "Resume", handover: "Hand over task", precharge: "Pre-charge", reliability_review: "Review reliability",
-  dispatch_task: "Dispatch task",
+  dispatch_task: "Dispatch task", assist: "Send a person",
 };
+function workerName(w) { return w.display_name || w.id; }
+function assigneeText(a) {
+  if (a.assignee_type === "person" && a.assignee_id) {
+    const w = state.workers.find((x) => x.id === a.assignee_id);
+    return `→ ${w ? workerName(w) : a.assignee_id}`;
+  }
+  return ASSIGNEE_LABEL[a.assignee_type] || "";
+}
 const ASSIGNEE_LABEL = { robot: "robot", person: "person", operator: "operator" };
 async function loadActions() {
   try { state.actions = await getJSON("/api/dashboard/actions"); renderActions(); }
@@ -1007,7 +1025,7 @@ function renderActions() {
           <span class="mono text-[10.5px] px-1.5 py-0.5 rounded bg-surface-input text-brand shrink-0">${Math.round(a.score)}</span>
           <span class="text-[12px] font-semibold truncate">${esc(ACTION_LABEL[a.kind] || a.kind)}</span>
           <span class="text-[10.5px] text-ink-dim mono truncate">${esc(a.robot_id || "")}${a.target_robot_id ? " → " + esc(a.target_robot_id) : ""}</span>
-          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(ASSIGNEE_LABEL[a.assignee_type] || "")}${a.source === "agent" ? " · " + esc(a.actor || "agent") : ""}</span>
+          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(assigneeText(a))}${a.source === "agent" ? " · " + esc(a.actor || "agent") : ""}</span>
         </div>
         ${a.kind === "dispatch_task" && a.task ? `<div class="text-[11.5px] mt-1">Task: <span class="text-brand">${esc(a.task)}</span></div>` : ""}
         <div class="text-[11.5px] text-ink-mut leading-snug mt-1">${esc(a.rationale)}</div>
@@ -1163,7 +1181,7 @@ async function openOEM(oemId) {
   $("#modal-oem").classList.remove("hidden");
 }
 
-function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; if (f.sequence) state.sequence = f.sequence; renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
+function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; state.workers = f.workers || state.workers; if (f.sequence) state.sequence = f.sequence; renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
 
 // ── robot detail (business card) ───────────────────────────────────────────────
 async function openRobot(id) {
@@ -1377,7 +1395,8 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.sequence) state.sequence = msg.sequence; onFleetUpdate(); }
+    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.workers) state.workers = msg.workers; if (msg.sequence) state.sequence = msg.sequence; onFleetUpdate(); }
+    else if (msg.type === "workers") { state.workers = msg.workers; renderMap(); }
     else if (msg.type === "alert") {
       state.alerts.unshift(msg.alert); state.alerts = state.alerts.slice(0, 200);
       renderAlerts(); renderStats();
@@ -1778,6 +1797,7 @@ async function init() {
   state.industries = fleet.industries;
   state.vendors = fleet.vendors;
   state.robots = fleet.robots;
+  state.workers = fleet.workers || [];
   state.sequence = fleet.sequence || null;
   state.selectedRobot = (fleet.robots.find((r) => r.state !== "halted") || fleet.robots[0] || {}).id || null;
   const facilityEl = $("#facility-name");

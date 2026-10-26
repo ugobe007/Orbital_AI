@@ -45,6 +45,8 @@ class RobotBinding:
     granted_scopes: set[str] = field(default_factory=set)
     last_external: Optional[Pose2D] = None
     last_internal: Optional[Pose2D] = None
+    # Set while a person holds the robot stopped, so the E-Stop and alert fire once.
+    human_stopped: bool = False
 
     def scope_ok(self, scope: str) -> bool:
         return (not self.managed) or (scope in self.granted_scopes)
@@ -62,6 +64,7 @@ class CloudSync:
     trajectories: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
     missions: list[dict] = field(default_factory=list)
     maps: dict[str, dict] = field(default_factory=dict)
+    people: list[tuple[float, float]] = field(default_factory=list)
     mtls: Any = None  # aria_edge.mtls.MtlsConfig | None
 
     def __post_init__(self) -> None:
@@ -115,6 +118,14 @@ class CloudSync:
             if data is not None:
                 self.missions = list(data.get("missions") or [])
         return list(self.missions)
+
+    def pull_people(self) -> list[tuple[float, float]]:
+        """GET /api/v1/workers. Returns the cached positions when offline."""
+        if self.enabled:
+            data = self._get("/api/v1/workers")
+            if isinstance(data, list):
+                self.people = [(float(w["pose"]["x"]), float(w["pose"]["y"])) for w in data if w.get("pose")]
+        return list(self.people)
 
     def pull_map(self, facility_id: str | None = None) -> dict:
         """GET /api/v1/map/{facility}. Returns cached occupancy grid when offline."""
@@ -183,6 +194,7 @@ class EdgeAgent:
         """One control cycle across all bound robots. Returns a per-robot result summary."""
         # Sprint A3: refresh missions + per-robot trajectories each tick (cache when offline).
         self.cloud.pull_missions()
+        people = self.cloud.pull_people()
         for rid in self.bindings:
             traj = self.cloud.pull_trajectory(rid)
             if traj and not self.injector.has_trajectory(rid):
@@ -231,6 +243,17 @@ class EdgeAgent:
                 results.append(self._handle_halt(binding, rid, decision, delta_m))
                 continue
 
+            person = self.safety.evaluate_people(rid, external, people,
+                                                 margin_m=0.4 if binding.human_stopped else 0.0)
+            if person.halt:
+                if binding.human_stopped:
+                    results.append({"robot_id": rid, "action": "held_for_person", "reason": person.reason})
+                else:
+                    binding.human_stopped = True
+                    results.append(self._handle_halt(binding, rid, person, delta_m))
+                continue
+            binding.human_stopped = False
+
             if delta_m > edge_settings.drift_degraded_m:
                 results.append(self._correct(binding, rid, external, internal, delta_m))
             else:
@@ -249,7 +272,8 @@ class EdgeAgent:
                 logger.warning("[edge] adapter estop failed for %s: %s", rid, exc)
         self.cloud.post_alert({
             "robot_id": rid, "type": decision.alert_type or "drift_exceeded",
-            "severity": "critical", "delta_meters": round(delta_m, 3),
+            "severity": "warning" if decision.alert_type == "human_proximity" else "critical",
+            "delta_meters": round(delta_m, 3),
             "message": decision.reason + (" [E-Stop not granted]" if estop_blocked else ""),
         })
         return {

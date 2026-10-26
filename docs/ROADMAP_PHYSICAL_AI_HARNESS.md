@@ -1,4 +1,4 @@
-# Roadmap — Physical AI Harness (Sprints E–I)
+# Roadmap — Physical AI Harness (Sprints E–K)
 
 **Date:** 2026-10-24
 **Input:** Competitive review of [Auki](https://www.auki.com/) (Cactus retail copilot, posemesh domains)
@@ -26,11 +26,29 @@ path. These sprints turn that into a product story Auki can't match:
 ## Sequence
 
 ```
-Sprint E  →  Sprint F  →  Sprint G  →  Sprint H  →  Sprint I
-Next-action   Model        Zones &      Rig           Go-to-market
-queue         harness      people       calibration   (demo, metrics, on-prem, history)
-              (MCP)
+Sprint E  →  Sprint F  →  Sprint G  →  Sprint H  →  Sprint J  →  Sprint K  →  Sprint I
+Next-action   Model        Zones &      Rig           Multi-view   Data engine   Go-to-market
+queue         harness      people       calibration   depth &      (Golden Run,  (demo, metrics,
+              (MCP)                                   objects      export)       on-prem, history)
 ```
+
+## Fix list from the Auki review (2026-10-26)
+
+The capability review found six gaps. Each maps to a sprint below; the order is the order we
+build them in, cheapest software first, hardware last.
+
+| # | Gap | Fix | Sprint |
+|---|-----|-----|--------|
+| 5 | People are not on the map | Workers, human-proximity slow/stop, tasks assigned to people | G5–G7 |
+| 3 | Setup is slow and manual | Calibration solver that names the marker or camera that is wrong | H |
+| 4 | We know obstacles, not objects | Semantic object layer: shape, orientation, motion per object, fed by the partner algorithms | J3–J4 |
+| 2 | The site map is typed in by hand | Multi-view triangulation and a live occupancy volume from the Digital Net | J1–J2 |
+| 6 | No packaged use case | "Deployment validation and training data": Golden Run comparison and dataset export | K |
+| 1 | No real deployment numbers | Hardware gate on one Unitree plus one Digital Net cell; publish drift and recovery | `HARDWARE_GATE.md` |
+
+The Digital Net (8–16 PTP-synced global-shutter RGB cameras, depth, IR, AprilTag/ChArUco) is
+Orbital's own sensor layer. J and K are what turn it from a capture rig into product features
+that phone- and CCTV-based platforms cannot match.
 
 E comes first because it gives agents (Sprint F) a safe write path: propose an action into the
 queue rather than drive robots directly. G is what makes direct agent control defensible.
@@ -98,7 +116,18 @@ dependency-light (the `mcp` SDK goes in a new `requirements-mcp.txt`, not `requi
 
 **Status:** **G1, G2, G8 (zones part) done (sim)** — `orbital_cloud/zones.py`, zone-aware
 `pathing.plan(..., vendor)`, `tests/test_zones.py`, dashboard zone overlay and drawing tool.
-Zones also ride along in `GET /api/v1/map/{facility}` (the transport half of G4). G3–G7 open.
+Zones also ride along in `GET /api/v1/map/{facility}` (the transport half of G4).
+**G5–G7 done (sim + edge)** — `orbital_cloud/workers.py`, human-proximity rules in
+`simulator.py` and `aria_edge/safety_halt.py`, the `assist` action, `tests/test_people.py`.
+G3 and the geofence half of G4 are open.
+
+As built (G5–G7): workers are live-only and pseudonymous; nothing about them is written to
+SQLite, so `ORBITAL_WORKER_HISTORY` was not needed. Check-ins use the same unauthenticated edge
+path as telemetry and alerts — a forged check-in can only slow or stop robots. In the cloud
+sim a person-stop clears itself once the person steps away; on the edge it is an E-Stop that
+latches, because the fleet adapters have no generic resume call yet. G7 added an `assist`
+action rather than reusing tasks: the orchestrator sends the nearest on-shift worker to a robot
+that has been halted for a while (never for a person-stop), and agents can propose the same.
 
 As built, `drivable` zones were left out: the floor is drivable by default, so only keep-out
 and slow zones change behaviour. Keep-out zones are inflated by the planner's 0.45 m clearance.
@@ -145,6 +174,34 @@ pose has drifted from its configured extrinsics ("moved"). Tests: `tests/test_ca
 
 ---
 
+## Sprint J — Multi-view depth and objects (Digital Net)
+
+**Goal:** Neighbouring Digital Net cameras act as stereo pairs. The cell builds its own 3-D
+picture of the robot, the people and the objects it handles, instead of relying on a typed-in
+floor plan and the robot's self-report.
+
+| ID | Work | Files | Exit criteria |
+|----|------|-------|---------------|
+| J1 | Multi-view triangulation: calibrated pinhole cameras (intrinsics + extrinsics from H), DLT triangulation of a point seen by ≥2 cameras, reprojection error per view; stdlib only | `aria_edge/multiview.py` | Synthetic 8-camera rig recovers points within 5 mm |
+| J2 | Occupancy volume: fuse triangulated points into a voxel grid with decay; publish a 2-D occupancy slice to the planner as dynamic blocked cells | `aria_edge/multiview.py`, `orbital_cloud/occupancy.py` | Planner routes around a triangulated obstacle |
+| J3 | `TrackedObject` model: `id, label, centroid, size, yaw, velocity, confidence, source`; ingest `POST /api/v1/objects/{facility}` (edge token) so the partner's shape/orientation/motion algorithms can publish | `models.py`, `routers/edge.py`, new `objects.py` | API + expiry tests |
+| J4 | Objects on the map and in the MCP `get_map` tool; stale objects expire | `dashboard/app.js`, `orbital_mcp/` | Manual check |
+| J5 | Robot full-body check: triangulated joints compared with the robot's joint-state telemetry → `MOTION_DEVIATION` alert | `aria_edge/`, `models.py` | Synthetic deviation is flagged |
+
+## Sprint K — Data engine (deployment validation and training data)
+
+**Goal:** The packaged use case for robot OEMs and integrators: record a good run of a job,
+compare every later run with it, and export each session as labelled training data.
+
+| ID | Work | Files | Exit criteria |
+|----|------|-------|---------------|
+| K1 | Session recorder: time-aligned robot poses, camera ground truth, commands and outcomes for a task, kept in SQLite | new `orbital_cloud/sessions_log.py`, `persistence.py` | Round-trip test |
+| K2 | Golden Run: mark a session as the reference for a task; later runs are scored on path deviation, cycle time, and recoveries | `orbital_cloud/golden_run.py`, dashboard API | Synthetic slow/deviant run is flagged |
+| K3 | Export in LeRobot / RLDS-style layout (episode index + per-step JSONL; video paths when Digital Net frames exist) | `scripts/export_dataset.py` | Export test on a recorded session |
+| K4 | Dashboard "Validation" tab: run vs golden run, deviations, export button | `dashboard/app.js` | Manual check |
+
+---
+
 ## Sprint I — Go-to-market
 
 | ID | Work | Files | Exit criteria |
@@ -162,7 +219,7 @@ pose has drifted from its configured extrinsics ("moved"). Tests: `tests/test_ca
 
 | # | Decision / blocker | Needed by | Recommendation |
 |---|---|---|---|
-| 1 | Marketing site source is not in this repo (`site/` holds only the built bundle) | I1–I3 | Locate the source repo, or rebuild the homepage in-repo |
+| 1 | Marketing site source | I1–I3 | Rebuilt in-repo as static HTML (PR #8) |
 | 2 | Default for agent direct control | F4 | Off; enable per deployment after zones (G) are live |
 | 3 | MCP transport for hosted use (stdio only vs also HTTP on Fly) | F1 | Both; HTTP behind Operator token |
 | 4 | Worker-location consent and retention policy | G5–G6 | Opt-in, pseudonymous, no history by default |

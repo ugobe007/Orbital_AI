@@ -25,6 +25,7 @@ class AlertType(str, Enum):
     HIJACK_SUSPECTED = "hijack_suspected"    # cameras see motion, robot reports still
     GHOST_COMMAND = "ghost_command"          # robot reports motion, cameras see still
     LOW_BATTERY = "low_battery"
+    HUMAN_PROXIMITY = "human_proximity"      # a person inside the robot's stop radius
 
 
 class AlertSeverity(str, Enum):
@@ -122,6 +123,32 @@ class CalibrationIn(BaseModel):
         if len({c.id for c in captures}) != len(captures):
             raise ValueError("capture ids must be unique")
         return captures
+
+
+class WorkerStatus(str, Enum):
+    ON_SHIFT = "on_shift"
+    BREAK = "break"        # visible on the map, never assigned work
+
+
+class WorkerPoseIn(BaseModel):
+    """A person's position on the floor: a phone check-in, a badge reader, or the Digital
+    Net's multi-view people detection. ``display_name`` is optional — workers are
+    pseudonymous by default."""
+    x: float
+    y: float
+    display_name: Optional[str] = Field(default=None, max_length=60)
+    role: str = Field(default="associate", max_length=40)
+    status: WorkerStatus = WorkerStatus.ON_SHIFT
+
+
+class Worker(BaseModel):
+    id: str
+    display_name: Optional[str] = None
+    role: str = "associate"
+    status: WorkerStatus = WorkerStatus.ON_SHIFT
+    pose: Point
+    last_seen: float
+    source: str = "checkin"    # checkin | sim
 
 
 class SpeedIn(BaseModel):
@@ -374,6 +401,7 @@ class RecommendationKind(str, Enum):
     PRECHARGE = "precharge"                    # charge before the battery hits the auto-dispatch floor
     RELIABILITY_REVIEW = "reliability_review"  # repeated degradation events — needs a human look
     DISPATCH_TASK = "dispatch_task"            # agent-proposed new task for a robot
+    ASSIST = "assist"                          # send a person on the floor to a robot
 
 
 class RecommendationStatus(str, Enum):
@@ -399,6 +427,7 @@ class Recommendation(BaseModel):
     score: float
     rationale: str
     assignee_type: AssigneeType = AssigneeType.ROBOT
+    assignee_id: Optional[str] = None       # the worker, when assignee_type is person
     scope: Optional[APIScope] = None        # OEM scope needed on the executing robot
     status: RecommendationStatus = RecommendationStatus.PROPOSED
     source: str = "policy"                  # policy | agent
@@ -416,6 +445,7 @@ class ActionProposalIn(BaseModel):
     rationale: str = Field(min_length=1, max_length=500)
     target_robot_id: Optional[str] = None   # required for handover
     task: Optional[str] = Field(default=None, max_length=200)  # required for handover / dispatch_task
+    assignee_id: Optional[str] = None       # assist: the worker to send; nearest on shift if omitted
     score: float = Field(default=50.0, ge=0.0, le=100.0)
     dry_run: bool = False
 

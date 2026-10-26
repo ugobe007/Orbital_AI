@@ -52,6 +52,7 @@ class RecommendationQueue:
         target_robot_id: Optional[str] = None,
         task: Optional[str] = None,
         assignee_type: AssigneeType = AssigneeType.ROBOT,
+        assignee_id: Optional[str] = None,
         scope: Optional[APIScope] = None,
         source: str = "policy",
         actor: Optional[str] = None,
@@ -71,13 +72,14 @@ class RecommendationQueue:
                 existing.rationale = rationale
                 existing.target_robot_id = target_robot_id
                 existing.task = task
+                existing.assignee_id = assignee_id
                 existing.updated_at = now
                 existing.expires_at = now + ttl_s
                 return existing
             rec = Recommendation(
                 id=f"act-{uuid.uuid4().hex[:10]}", kind=kind, robot_id=robot_id,
                 target_robot_id=target_robot_id, task=task, score=round(score, 1),
-                rationale=rationale, assignee_type=assignee_type, scope=scope,
+                rationale=rationale, assignee_type=assignee_type, assignee_id=assignee_id, scope=scope,
                 source=source, actor=actor, created_at=now, updated_at=now,
                 expires_at=now + ttl_s,
             )
@@ -158,10 +160,13 @@ KIND_SCOPE: dict[RecommendationKind, Optional[APIScope]] = {
     RecommendationKind.PRECHARGE: APIScope.MISSION,
     RecommendationKind.DISPATCH_TASK: APIScope.MISSION,
     RecommendationKind.RELIABILITY_REVIEW: None,
+    RecommendationKind.ASSIST: None,
 }
 
 
 def assignee_for(kind: RecommendationKind) -> AssigneeType:
+    if kind == RecommendationKind.ASSIST:
+        return AssigneeType.PERSON
     return AssigneeType.OPERATOR if KIND_SCOPE[kind] is None else AssigneeType.ROBOT
 
 
