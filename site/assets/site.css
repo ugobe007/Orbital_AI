@@ -1,0 +1,225 @@
+/* Hand-written styles for the marketing page. orbital-base.css (compiled Tailwind) only
+   contains utilities the July build used; anything new belongs here. */
+
+html { scroll-behavior: smooth; }
+section[id] { scroll-margin-top: 4rem; }
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+.hero-title {
+  font-size: var(--text-display);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+.section-title {
+  font-size: var(--text-h2);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+.card-title {
+  font-size: var(--text-h3);
+  font-weight: 600;
+  line-height: 1.2;
+}
+.caption {
+  font-size: var(--text-caption);
+  letter-spacing: 0.06em;
+}
+
+/* ── Scroll reveal: content is visible without JS; JS opts in via html.js ─ */
+html.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+html.js .reveal.is-visible { opacity: 1; transform: none; }
+
+/* ── Navigation ─────────────────────────────────────────────────────────── */
+.nav-cta {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  transition: background-color 0.15s ease;
+}
+.nav-cta:hover { background: hsl(var(--primary) / 0.9); }
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  cursor: pointer;
+}
+.mobile-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 1.5rem 1rem;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.97);
+}
+.mobile-menu[hidden] { display: none; }
+.mobile-menu a {
+  padding: 0.75rem 0;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+}
+.mobile-menu a:last-child { border-bottom: 0; }
+.mobile-menu a:hover { color: hsl(var(--foreground)); }
+
+@media (max-width: 767px) {
+  .nav-toggle { display: inline-flex; }
+  .nav-console { display: none; }
+  .nav-cta { padding: 0.5rem 0.875rem; }
+}
+@media (min-width: 768px) {
+  .mobile-menu { display: none !important; }
+}
+
+/* ── Hero: cross-fading photos ──────────────────────────────────────────── */
+.hero-content { padding-top: 7rem; }
+.hero-slides { position: absolute; inset: 0; overflow: hidden; }
+.hero-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 1.6s ease, transform 8s ease-out;
+}
+.hero-slide.is-active { opacity: 1; transform: scale(1); }
+
+/* ── Flywheel ───────────────────────────────────────────────────────────── */
+.flywheel {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+.flywheel-svg { width: 100%; max-width: 380px; margin: 0 auto; display: block; }
+.flywheel-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.5rem; }
+.flywheel-steps li { display: flex; gap: 1rem; align-items: flex-start; }
+.step-no {
+  flex-shrink: 0;
+  font-family: var(--app-font-mono, monospace);
+  font-size: 0.875rem;
+  color: hsl(var(--secondary));
+  padding-top: 0.1rem;
+}
+@media (min-width: 1024px) {
+  .flywheel { grid-template-columns: 1fr 1fr; }
+}
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 32rem; }
+
+/* ── Digital Net ────────────────────────────────────────────────────────── */
+.dn-intro { max-width: 48rem; margin-bottom: 3rem; }
+.dn-figure { margin: 0 0 3.5rem; }
+.dn-figure a { display: block; }
+.dn-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  background: #fff;
+}
+.dn-figure figcaption {
+  margin-top: 0.75rem;
+  font-size: var(--text-caption);
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+.dn-grid { display: grid; gap: 1.5rem; }
+@media (min-width: 640px) { .dn-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .dn-grid { grid-template-columns: repeat(3, 1fr); } }
+.dn-card {
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  transition: border-color 0.2s ease;
+}
+.dn-card:hover { border-color: hsl(var(--primary) / 0.6); }
+.dn-card .caption { margin-bottom: 0.5rem; }
+.dn-card .card-title { font-size: 1.125rem; margin-bottom: 0.5rem; }
+.dn-card p { color: hsl(var(--foreground) / 0.85); line-height: 1.6; font-size: 0.9375rem; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.5rem;
+}
+.footer-nav button { background: none; border: 0; padding: 0; cursor: pointer; }
+
+/* ── Contact dialog ─────────────────────────────────────────────────────── */
+.contact-dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 0;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+}
+.contact-dialog::backdrop { background: rgb(0 0 0 / 0.6); backdrop-filter: blur(4px); }
+.contact-dialog form { display: grid; gap: 1rem; padding: 1.5rem; }
+.contact-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.contact-close {
+  display: inline-flex;
+  padding: 0.375rem;
+  border-radius: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+.contact-close:hover { color: hsl(var(--foreground)); background: hsl(var(--muted)); }
+.contact-dialog label {
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.contact-dialog input,
+.contact-dialog select,
+.contact-dialog textarea {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font: inherit;
+  font-weight: 400;
+}
+.contact-dialog input:focus,
+.contact-dialog select:focus,
+.contact-dialog textarea:focus {
+  outline: 2px solid hsl(var(--primary) / 0.6);
+  outline-offset: 1px;
+}
+.contact-dialog .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.contact-status { min-height: 1.25rem; font-size: 0.875rem; }
+.contact-status.is-error { color: hsl(0 80% 68%); }
+.contact-status.is-ok { color: hsl(var(--primary)); }
+.contact-actions { display: flex; justify-content: flex-end; gap: 0.75rem; }
+.contact-actions button { cursor: pointer; }
+.contact-actions button:disabled { opacity: 0.6; cursor: progress; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  html.js .reveal { opacity: 1; transform: none; transition: none; }
+  .hero-slide { transition: none; transform: none; }
+}
