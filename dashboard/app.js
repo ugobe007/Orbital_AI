@@ -24,6 +24,7 @@ const state = {
   wizard: null,         // onboarding wizard working state
   zones: [],            // keep-out / slow zones on the spatial map
   zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
+  auth: null,           // /api/auth/me: who is signed in to this console
 };
 
 // Fleet states, ordered for the overview distribution bar + chips.
@@ -99,10 +100,15 @@ async function reqJSON(method, path, body) {
 }
 const postJSON = (path, body) => reqJSON("POST", path, body);
 
+// A 403 for an anonymous visitor is almost always "you are a viewer" — say how to fix it.
+function blockedMsg(e) {
+  if (!state.auth?.signed_in && /role|viewer/.test(String(e.detail))) return "Sign in as an operator to control robots";
+  return `Blocked: ${e.detail}`;
+}
 async function control(path, body, okMsg) {
   try { await postJSON(path, body); if (okMsg) toast(okMsg); }
   catch (e) {
-    if (e.status === 403) toast(`Blocked: ${e.detail}`, "warn");
+    if (e.status === 403) toast(blockedMsg(e), "warn");
     else toast(`Failed: ${e.detail}`, "warn");
   }
 }
@@ -709,7 +715,7 @@ async function setWaypoint(id, x, y, append) {
   }
   try { await postJSON(`/api/dashboard/robot/${id}/navigate`, { waypoints }); toast(`Waypoint set for ${id}`); }
   catch (e) {
-    if (e.status === 403) toast(`Blocked: ${e.detail} — grant control.velocity to this OEM`, "warn");
+    if (e.status === 403) toast(/control\.velocity/.test(String(e.detail)) ? `Blocked: ${e.detail} — grant control.velocity to this OEM` : blockedMsg(e), "warn");
     else if (e.status === 409) toast(`Refused: ${e.detail}`, "warn");
     else toast(`Failed: ${e.detail}`, "warn");
   }
@@ -741,7 +747,7 @@ async function finishZoneDraft() {
     state.zoneDraft = null;
     toast(`Zone "${zone.name}" added — robots re-plan around it`);
   } catch (e) {
-    toast(e.status === 403 ? `Blocked: ${e.detail} — zones need an operator` : `Failed: ${e.detail}`, "warn");
+    toast(e.status === 403 ? blockedMsg(e) : `Failed: ${e.detail}`, "warn");
   }
   renderZoneBar(); renderMap();
 }
@@ -751,7 +757,7 @@ async function deleteZone(id) {
     state.zones = state.zones.filter((z) => z.id !== id);
     toast("Zone removed");
   } catch (e) {
-    toast(e.status === 403 ? `Blocked: ${e.detail} — zones need an operator` : `Failed: ${e.detail}`, "warn");
+    toast(e.status === 403 ? blockedMsg(e) : `Failed: ${e.detail}`, "warn");
   }
   renderZoneBar(); renderMap();
 }
@@ -917,7 +923,7 @@ async function resolveAction(id, verb) {
     const rec = await postJSON(`/api/dashboard/actions/${id}/${verb}`);
     toast(verb === "accept" ? `${ACTION_LABEL[rec.kind] || rec.kind}: ${rec.status}` : "Dismissed");
   } catch (e) {
-    toast(e.status === 403 ? `Blocked: ${e.detail}` : `Failed: ${e.detail}`, "warn");
+    toast(e.status === 403 ? blockedMsg(e) : `Failed: ${e.detail}`, "warn");
   }
   await loadActions();
 }
@@ -1229,6 +1235,67 @@ function openDispatch(presetId) {
 }
 
 function closeModals() { document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden")); }
+
+// ── sign-in ─────────────────────────────────────────────────────────────────────
+async function loadAuth() {
+  try { state.auth = await getJSON("/api/auth/me"); } catch (_) { state.auth = null; }
+  renderAuth();
+}
+function renderAuth() {
+  const box = $("#auth-box");
+  if (!box) return;
+  const a = state.auth;
+  box.innerHTML = "";
+  if (a && a.signed_in) {
+    const who = (a.actor || "").replace(/^console:/, "");
+    box.appendChild(el(`<span class="text-[12px] px-2 py-1 rounded-md bg-brand/15 text-brand" title="Signed in until ${new Date(a.expires_at * 1000).toLocaleString()}">${esc(who)} · ${esc(a.role)}</span>`));
+    const out = el(`<button class="px-2.5 py-1.5 rounded-md text-[12px] text-ink-mut hover:text-ink" style="border:1px solid var(--line)">Sign out</button>`);
+    out.onclick = async () => { await postJSON("/api/auth/logout"); toast("Signed out — view only"); loadAuth(); };
+    box.appendChild(out);
+  } else {
+    const btn = el(`<button class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid var(--line); color:#e6eaef">Sign in</button>`);
+    btn.onclick = openSignIn;
+    box.append(el(`<span class="hidden md:inline text-[11px] text-ink-dim">view only</span>`), btn);
+  }
+}
+function openSignIn() {
+  const card = $("#modal-sign-in .modal-card");
+  const available = state.auth?.sign_in_available !== false;
+  card.innerHTML = `
+    <form class="p-5" autocomplete="on">
+      <div class="text-[16px] font-bold">Sign in to the console</div>
+      <p class="text-[12px] text-ink-dim mt-1">Use your operator or admin access key. Without one the console is view only.</p>
+      ${available ? "" : `<p class="text-[12px] mt-3 px-3 py-2 rounded-md bg-amber-500/10 text-amber-300">Sign-in is not configured on this deployment yet. An admin must set <span class="mono">ORBITAL_RBAC_TOKENS</span>.</p>`}
+      <label class="block text-[13px] mt-4 mb-1 text-ink-mut" for="si-name">Your name <span class="text-ink-dim">(shown in the audit log)</span></label>
+      <input id="si-name" name="username" autocomplete="username" maxlength="40" class="w-full bg-surface-input border border-line rounded-md px-3 py-2 text-[13px]" placeholder="e.g. Ugo" />
+      <label class="block text-[13px] mt-3 mb-1 text-ink-mut" for="si-key">Access key</label>
+      <input id="si-key" name="password" type="password" autocomplete="current-password" required class="w-full bg-surface-input border border-line rounded-md px-3 py-2 text-[13px]" />
+      <p id="si-error" class="text-[12px] text-red-400 mt-2 min-h-[1em]"></p>
+      <div class="mt-3 flex gap-2 justify-end">
+        <button type="button" id="si-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>
+        <button type="submit" class="px-3 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[13px] font-semibold">Sign in</button>
+      </div>
+    </form>`;
+  card.querySelector("#si-cancel").onclick = closeModals;
+  const nameInput = card.querySelector("#si-name");
+  nameInput.value = localStorage.getItem("orbital.operatorName") || "";
+  card.querySelector("form").onsubmit = async (ev) => {
+    ev.preventDefault();
+    const name = nameInput.value.trim();
+    const key = card.querySelector("#si-key").value;
+    try {
+      const r = await postJSON("/api/auth/login", { key, name: name || null });
+      if (name) localStorage.setItem("orbital.operatorName", name);
+      closeModals();
+      toast(`Signed in as ${r.role}`);
+      loadAuth();
+    } catch (e) {
+      card.querySelector("#si-error").textContent = String(e.detail);
+    }
+  };
+  $("#modal-sign-in").classList.remove("hidden");
+  (nameInput.value ? card.querySelector("#si-key") : nameInput).focus();
+}
 
 // ── live connection ────────────────────────────────────────────────────────────
 function setConn(ok) {
@@ -1630,6 +1697,8 @@ async function init() {
   if (!EMBED) {
     $("#btn-dispatch").onclick = () => openDispatch();
     $("#btn-onboard").onclick = () => openWizard();
+    $("#btn-sign-in").onclick = openSignIn;
+    loadAuth();
     const onboard2 = $("#btn-onboard-2"); if (onboard2) onboard2.onclick = () => openWizard();
     document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModals(); }));
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModals(); });

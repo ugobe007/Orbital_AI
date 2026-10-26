@@ -22,7 +22,7 @@ from .config import settings
 from .events import hub
 from .models import APIScope, ControlTransport
 from .oem_store import oem_store
-from .routers import dashboard, edge, oem
+from .routers import auth, dashboard, edge, oem
 from .store import store
 
 # Demo OEM partners with deliberately different grant levels so the governance table and
@@ -89,6 +89,7 @@ async def _canonical_and_cache(request, call_next):
     return response
 
 
+app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(edge.router)
 app.include_router(oem.router)
