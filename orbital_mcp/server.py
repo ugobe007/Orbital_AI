@@ -71,7 +71,9 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
         operator-drawn zones (keep-out: robots never enter; slow: speed capped inside), and
         ``objects`` the cameras are tracking right now — each with a label (pallet, cart,
         forklift…), centre x/y, yaw (radians), footprint size in metres, velocity vx/vy (m/s)
-        and confidence. Objects disappear when the cameras stop seeing them."""
+        and confidence. Objects disappear when the cameras stop seeing them. ``camera_cells``
+        lists floor squares ``[x0, y0, x1, y1]`` the cameras see as blocked right now; robots are
+        routed around them automatically."""
         return client.get_map()
 
     @mcp.tool()

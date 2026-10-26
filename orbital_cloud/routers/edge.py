@@ -12,9 +12,11 @@ from fastapi import APIRouter, HTTPException, Path
 
 from ..config import WAREHOUSE
 from ..events import hub
-from ..models import AlertIn, CalibrationIn, ObjectsIn, RunIn, TelemetryIn, Worker, WorkerPoseIn
+from ..models import (AlertIn, CalibrationIn, CameraOccupancyIn, ObjectsIn, RunIn, TelemetryIn, Worker,
+                      WorkerPoseIn)
 from ..objects import ObjectStoreFull, object_store, objects_json, objects_message
-from ..occupancy import synthetic_occupancy_grid
+from ..occupancy import (CameraOccupancyFull, camera_occupancy, camera_occupancy_message,
+                         synthetic_occupancy_grid)
 from ..rig_calibration import calibration_store
 from ..runs import run_store, runs_message
 from ..store import store
@@ -67,6 +69,24 @@ async def post_objects(body: ObjectsIn,
 @router.get("/objects/{facility_id}")
 async def get_objects(facility_id: str) -> dict:
     return {"facility_id": facility_id, "objects": objects_json(facility_id)}
+
+
+@router.post("/occupancy/{facility_id}", status_code=202)
+async def post_occupancy(body: CameraOccupancyIn,
+                         facility_id: str = Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")) -> dict:
+    """Floor cells the Digital Net sees as blocked (a slice of the edge's voxel volume). The
+    planner routes every robot around them; each post replaces this source's last slice."""
+    try:
+        blocked = camera_occupancy.ingest(facility_id, body)
+    except CameraOccupancyFull as exc:
+        raise HTTPException(503, str(exc)) from exc
+    await hub.broadcast(camera_occupancy_message(facility_id))
+    return {"ok": True, "blocked_cells": blocked, "version": camera_occupancy.version}
+
+
+@router.get("/occupancy/{facility_id}")
+async def get_occupancy(facility_id: str) -> dict:
+    return camera_occupancy.summary(facility_id)
 
 
 @router.post("/telemetry", status_code=202)

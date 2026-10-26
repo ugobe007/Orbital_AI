@@ -193,6 +193,16 @@ class ObjectsIn(BaseModel):
     replace: bool = False
 
 
+class CameraOccupancyIn(BaseModel):
+    """Floor cells the camera rig sees as blocked (Sprint J2): a top-down slice of the edge's
+    voxel volume. ``cells`` are ``[i, j]`` indices of ``cell_m`` squares from the map origin.
+    Each post replaces that source's previous slice; it lapses after ``ttl_s`` unless renewed."""
+    source: str = Field(default="digital-net", pattern=r"^[A-Za-z0-9_.:-]{1,40}$")
+    cell_m: float = Field(default=0.25, ge=0.05, le=1.0)
+    ttl_s: float = Field(default=3.0, gt=0, le=600)
+    cells: list[tuple[int, int]] = Field(default_factory=list, max_length=20_000)
+
+
 class TrackedObject(TrackedObjectIn):
     source: str
     facility_id: str

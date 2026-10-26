@@ -37,14 +37,14 @@ queue         harness      people       calibration   depth &      (Golden Run, 
 The capability review found six gaps. Each maps to a sprint below; the order is the order we
 build them in, cheapest software first, hardware last.
 
-| # | Gap | Fix | Sprint |
-|---|-----|-----|--------|
-| 5 | People are not on the map | Workers, human-proximity slow/stop, tasks assigned to people | G5–G7 |
-| 3 | Setup is slow and manual | Calibration solver that names the marker or camera that is wrong | H |
-| 4 | We know obstacles, not objects | Semantic object layer: shape, orientation, motion per object, fed by the partner algorithms | J3–J4 |
-| 2 | The site map is typed in by hand | Multi-view triangulation and a live occupancy volume from the Digital Net | J1–J2 |
-| 6 | No packaged use case | "Deployment validation and training data": Golden Run comparison and dataset export | K |
-| 1 | No real deployment numbers | Hardware gate on one Unitree plus one Digital Net cell; publish drift and recovery | `HARDWARE_GATE.md` |
+| # | Gap | Fix | Sprint | Status |
+|---|-----|-----|--------|--------|
+| 5 | People are not on the map | Workers, human-proximity slow/stop, tasks assigned to people | G5–G7 | Done (sim + edge) |
+| 3 | Setup is slow and manual | Calibration solver that names the marker or camera that is wrong | H | Done |
+| 4 | We know obstacles, not objects | Semantic object layer: shape, orientation, motion per object, fed by the partner algorithms | J3–J4 | Done (sim) |
+| 2 | The site map is typed in by hand | Multi-view triangulation and a live occupancy volume from the Digital Net | J1–J2 | Done (synthetic rig) |
+| 6 | No packaged use case | "Deployment validation and training data": Golden Run comparison and dataset export | K | Done (sim) |
+| 1 | No real deployment numbers | Hardware gate on one Unitree plus one Digital Net cell; publish drift and recovery | `HARDWARE_GATE.md` | Tooling done (D4); needs the lab |
 
 The Digital Net (8–16 PTP-synced global-shutter RGB cameras, depth, IR, AprilTag/ChArUco) is
 Orbital's own sensor layer. J and K are what turn it from a capture rig into product features
@@ -180,6 +180,25 @@ pose has drifted from its configured extrinsics ("moved"). Tests: `tests/test_ca
 picture of the robot, the people and the objects it handles, instead of relying on a typed-in
 floor plan and the robot's self-report.
 
+**Status:** J1–J4 done; J5 open.
+- **J1–J2** (`aria_edge/multiview.py`, `scripts/map_from_cameras.py`, `tests/test_multiview.py`):
+  - DLT triangulation refined by Gauss-Newton, with per-view pixel error so a knocked camera is
+    named.
+  - On the synthetic 8-camera rig with 0.3 px noise, the worst point error is under 5 mm.
+  - A decaying voxel volume needs two frames before a voxel counts, and ignores the floor and
+    anything overhead.
+  - The edge posts the slice to `POST /api/v1/occupancy/{facility}`. The planner inflates it by
+    the usual 0.45 m clearance for every vendor; the dashboard draws it grey; MCP `get_map` lists
+    it as `camera_cells`.
+  - Slices lapse after `ttl_s`, so a pallet that is moved stops blocking within seconds.
+- **As built:** extrinsics come from the rig file (mounted position and aim) rather than from
+  Sprint H. H solves a 2-D marker map, so it checks the rig but does not yet produce 3-D camera
+  poses.
+- **Still needed for real cameras:** the feature matcher that turns synchronized frames into
+  the per-camera tracks `map_from_cameras.py` reads. The typed-in racks remain the static base
+  map; camera cells add to it rather than replace it.
+- **J3–J4:** `orbital_cloud/objects.py`, `tests/test_objects.py`.
+
 | ID | Work | Files | Exit criteria |
 |----|------|-------|---------------|
 | J1 | Multi-view triangulation: calibrated pinhole cameras (intrinsics + extrinsics from H), DLT triangulation of a point seen by ≥2 cameras, reprojection error per view; stdlib only | `aria_edge/multiview.py` | Synthetic 8-camera rig recovers points within 5 mm |
@@ -192,6 +211,12 @@ floor plan and the robot's self-report.
 
 **Goal:** The packaged use case for robot OEMs and integrators: record a good run of a job,
 compare every later run with it, and export each session as labelled training data.
+
+**Status:** K1–K4 done (sim). As built:
+- The recorder and Golden Run scoring live in `orbital_cloud/runs.py` (not separate
+  `sessions_log.py` / `golden_run.py`).
+- Export is `scripts/export_dataset.py`.
+- Tests: `tests/test_runs.py`.
 
 | ID | Work | Files | Exit criteria |
 |----|------|-------|---------------|

@@ -29,6 +29,7 @@ const state = {
   runOverlay: null,     // { run, golden } drawn on the map when a run row is selected
   objects: [],          // tracked objects (pallets, carts, forklifts) from the camera rig
   clockSkew: 0,         // server time minus browser time, so objects expire on the server's clock
+  cameraCells: [],      // floor cells the Digital Net sees as blocked: [x0, y0, x1, y1] (m)
   auth: null,           // /api/auth/me: who is signed in to this console
   calibration: null,    // latest rig-calibration report for this facility (Sprint H)
 };
@@ -571,6 +572,7 @@ async function loadMap() {
     state.map = await getJSON("/api/dashboard/map");
     state.zones = state.map.zones || [];
     state.objects = state.map.objects || [];
+    state.cameraCells = state.map.camera_cells || [];
     renderMap(); renderZoneBar();
   } catch (e) { console.error(e); }
 }
@@ -655,6 +657,11 @@ function renderMap() {
     line(ov.run.samples, "#3dbfe2", null, 0.07);
     const end = ov.run.samples[ov.run.samples.length - 1];
     p.push(`<text x="${end.x}" y="${Y(end.y) - 0.45}" fill="#3dbfe2" font-size="0.32" font-weight="600" text-anchor="middle">${esc(ov.run.task_key)}</text>`);
+  }
+
+  // Floor cells the cameras see as blocked; the planner routes every robot around these.
+  for (const [x0, y0, x1, y1] of state.cameraCells) {
+    p.push(`<rect x="${x0}" y="${Y(y1)}" width="${x1 - x0}" height="${y1 - y0}" fill="#9aa4b2" fill-opacity="0.32" stroke="#c3cad5" stroke-opacity="0.5" stroke-width="0.02"/>`);
   }
 
   // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
@@ -1508,6 +1515,9 @@ function connectWS() {
         state.clockSkew = msg.now - Date.now() / 1000;
         state.objects = msg.objects; renderMap();
       }
+    }
+    else if (msg.type === "camera_occupancy") {
+      if (!state.facility || msg.facility_id === state.facility.id) { state.cameraCells = msg.cells; renderMap(); }
     }
     else if (msg.type === "calibration") {
       if (!state.facility || msg.calibration.facility_id === state.facility.id) {
