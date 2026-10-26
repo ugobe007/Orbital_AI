@@ -88,6 +88,9 @@ def test_direct_control_is_off_by_default(robot):
     assert r.status_code == 403 and "propose_action" in r.json()["detail"]
     nav = agent.post(f"/api/dashboard/robot/{robot}/navigate", json={"waypoints": [{"x": 5, "y": 5}]})
     assert nav.status_code == 403
+    denied = _audit("agent:test-bot")[0]
+    assert denied["action"].endswith(f"/robot/{robot}/navigate") and denied["robot_id"] == robot
+    assert not denied["ok"] and "ORBITAL_AGENT_DIRECT_CONTROL" in denied["detail"]
 
 
 def test_direct_control_when_enabled(robot, monkeypatch):
