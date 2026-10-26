@@ -179,6 +179,29 @@ def test_rbac_role_header_can_lower_a_token_role(monkeypatch):
         resolve_role(authorization="Bearer bot-secret", x_orbital_role="operator")
 
 
+def test_whoami_explains_proxy_refusal_without_leaking_secret(monkeypatch):
+    monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.setenv("ORBITAL_RBAC_PROXY_SECRET", "proxy-s3cret")
+
+    good = client.get("/api/dashboard/whoami", headers={
+        "X-Orbital-Role": "admin", "X-Orbital-Proxy-Secret": "proxy-s3cret",
+        "X-Orbital-Actor": "stagegate:ops@example.com"}).json()
+    assert good["role"] == "admin" and good["can_estop"] and good["proxy_secret_matches"]
+    assert good["proxy_secret_sent_fingerprint"] == good["proxy_secret_expected_fingerprint"]
+    assert good["actor_header"] == "stagegate:ops@example.com"
+
+    wrong = client.get("/api/dashboard/whoami", headers={
+        "X-Orbital-Role": "admin", "X-Orbital-Proxy-Secret": "proxy-s3cret-old"}).json()
+    assert wrong["proxy_secret_matches"] is False
+    assert wrong["role"] is None and "exceeds" in wrong["error"]
+
+    anon = client.get("/api/dashboard/whoami").json()
+    assert anon["role"] == "viewer" and not anon["can_estop"]
+    assert anon["role_header"] is None and not anon["proxy_secret_sent"]
+
+    assert "proxy-s3cret" not in str(good) + str(wrong) + str(anon)
+
+
 def test_rbac_role_header_unchanged_when_rbac_off(monkeypatch):
     monkeypatch.delenv("ORBITAL_RBAC_ENFORCE", raising=False)
     assert resolve_role(x_orbital_role="operator") == Role.OPERATOR

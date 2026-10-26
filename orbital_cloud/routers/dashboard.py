@@ -1,7 +1,7 @@
 """Module 7 — Fleet Management Dashboard API (+ monitor/control actions)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, WAREHOUSE, settings
@@ -44,6 +44,7 @@ from ..rbac import (
     Role,
     agent_direct_control,
     agent_rate_per_min,
+    diagnose_caller,
 )
 from .. import recommendations, scope_guard
 from ..store import store
@@ -353,6 +354,19 @@ async def dismiss_action(action_id: str, _role: Role = Depends(RequireOperator))
     resolved = store.actions.resolve(action_id, RecommendationStatus.DISMISSED)
     await hub.broadcast(actions_message(store))
     return resolved.model_copy()
+
+
+@router.get("/whoami")
+async def whoami(
+    x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
+    x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
+    x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """How Orbital resolves this caller's role — for debugging a proxy or token that is
+    refused. Never raises on bad credentials; reports the refusal instead."""
+    return diagnose_caller(x_orbital_role=x_orbital_role, x_orbital_actor=x_orbital_actor,
+                           x_orbital_proxy_secret=x_orbital_proxy_secret, authorization=authorization)
 
 
 @router.get("/agent-policy")
