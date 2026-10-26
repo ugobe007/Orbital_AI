@@ -284,13 +284,14 @@ class EdgeAgent:
 
             external, internal, delta_m = observed[rid]
             decision = halt_by_id.get(rid)
-            self._record(rid, external, internal, delta_m, halted=decision is not None)
+            person = None if decision is not None else self.safety.evaluate_people(
+                rid, external, people, margin_m=0.4 if binding.human_stopped else 0.0)
+            self._record(rid, external, internal, delta_m,
+                         halted=decision is not None or person.halt)
             if decision is not None:
                 results.append(self._handle_halt(binding, rid, decision, delta_m))
                 continue
 
-            person = self.safety.evaluate_people(rid, external, people,
-                                                 margin_m=0.4 if binding.human_stopped else 0.0)
             if person.halt:
                 if binding.human_stopped:
                     results.append({"robot_id": rid, "action": "held_for_person", "reason": person.reason})

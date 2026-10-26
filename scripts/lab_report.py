@@ -134,6 +134,10 @@ def _change(reduction: Optional[float]) -> str:
     return "—" if reduction is None else f"{-reduction * 100:+.0f}%"
 
 
+def _verb(reduction: Optional[float]) -> str:
+    return "increased" if reduction is not None and reduction < 0 else "cut"
+
+
 def _num(v: Optional[float], fmt: str = "{:.1f}") -> str:
     return "—" if v is None else fmt.format(v)
 
@@ -154,9 +158,11 @@ def render_markdown(rep: dict) -> str:
         "",
     ]
     if b["complete"] and o["complete"] and imp["error_mean"] is not None:
-        lines += [f"**Headline:** Orbital cut mean position error by {_pct(imp['error_mean'])} "
-                  f"({_cm(b['error_mean_m'])} → {_cm(o['error_mean_m'])}) and drop-off error by "
-                  f"{_pct(imp['end_error_mean'])} ({_cm(b['end_error_mean_m'])} → {_cm(o['end_error_mean_m'])}).", ""]
+        err, end = imp["error_mean"], imp["end_error_mean"]
+        lines += [f"**Headline:** Orbital {_verb(err)} mean position error by {_pct(abs(err))} "
+                  f"({_cm(b['error_mean_m'])} → {_cm(o['error_mean_m'])}) and {_verb(end)} drop-off error by "
+                  f"{_pct(None if end is None else abs(end))} "
+                  f"({_cm(b['end_error_mean_m'])} → {_cm(o['end_error_mean_m'])}).", ""]
     lines += [
         "| Metric | Baseline (SLAM only) | With Orbital | Change |",
         "|---|---|---|---|",
