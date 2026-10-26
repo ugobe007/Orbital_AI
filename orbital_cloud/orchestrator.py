@@ -7,6 +7,8 @@ executes *safety-first* supervisory actions:
   1. Auto E-Stop on a critical, unhandled anomaly (drift/hijack/ghost-command).
   2. Proactive charge dispatch for a low-battery robot before it strands mid-task.
   3. Advisory "operator review" recommendations for degraded-but-safe drift.
+  4. Ranked next-best-action proposals (resume, handover, pre-charge, reliability review)
+     into the store's action queue. These never execute until an operator accepts them.
 
 The decision policy is deterministic and testable — it is the source of truth and
 the *only* thing that ever takes an action. An optional LLM produces a human-readable
@@ -19,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 import uuid
 from typing import Optional
@@ -28,13 +31,17 @@ from .events import hub
 from .models import (
     AlertSeverity,
     AlertType,
+    APIScope,
+    AssigneeType,
     FleetSummary,
     OrchestratorAction,
     OrchestratorDecision,
     OrchestratorStatus,
+    Recommendation,
+    RecommendationKind,
     RobotState,
 )
-from .store import Store, store
+from .store import RobotRuntime, Store, store
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +50,15 @@ _AUTO_HALT_TYPES = {AlertType.DRIFT_EXCEEDED, AlertType.HIJACK_SUSPECTED, AlertT
 
 # Don't re-recommend review for the same robot more often than this.
 _REVIEW_COOLDOWN_S = 30.0
+
+# Policy 4 thresholds.
+_RESUME_AFTER_S = 60.0           # give the operator a minute before suggesting they undo their E-Stop
+_HANDOVER_AFTER_S = 30.0         # floor; also at least 2× auto-recover so self-healing halts don't trigger it
+_PRECHARGE_BAND_PCT = 15.0       # band above low_battery_pct where charging early is worth suggesting
+_RELIABILITY_MIN_EVENTS = 3
+_RELIABILITY_MAX_MTBD_S = 300.0
+# Simulator placeholder tasks that aren't real work to hand over.
+_NON_TRANSFERABLE_TASKS = {"Idle", "Autonomous patrol", "Awaiting next shuttle", "Shuttle turnaround"}
 
 
 class Orchestrator:
@@ -120,6 +136,9 @@ class Orchestrator:
                         auto_executed=False,
                     ))
 
+        # Policy 4 — propose ranked next actions; nothing here executes.
+        self._propose_actions(now)
+
         if new_decisions:
             self._decisions = (new_decisions + self._decisions)[:50]
 
@@ -151,7 +170,80 @@ class Orchestrator:
         if llm:
             self._last_narrative = llm
 
+    def top_actions(self, limit: int = 3) -> list[Recommendation]:
+        return self._store.actions.ranked(limit=limit)
+
     # ── Internals ───────────────────────────────────────────────────────────────
+    def _propose_actions(self, now: float) -> None:
+        q = self._store.actions
+        live: set[tuple[RecommendationKind, str]] = set()
+        low = settings.low_battery_pct
+        precharge_ceiling = low + _PRECHARGE_BAND_PCT
+        handover_after = max(_HANDOVER_AFTER_S, 2.0 * settings.auto_recover_s)
+
+        with self._store._lock:
+            robots = list(self._store.robots.values())
+            idle_peers = [r for r in robots if r.state == RobotState.IDLE and r.battery_pct >= precharge_ceiling]
+
+            for r in robots:
+                halted_for = (now - r.halted_at) if (r.state == RobotState.HALTED and r.halted_at) else 0.0
+                name = f"{r.vendor} {r.model} ({r.id})"
+
+                if (r.state == RobotState.HALTED and r.error_code == "E_STOP"
+                        and halted_for >= _RESUME_AFTER_S
+                        and r.drift_delta_m <= settings.drift_degraded_m):
+                    live.add((RecommendationKind.RESUME, r.id))
+                    q.propose(
+                        RecommendationKind.RESUME, robot_id=r.id, scope=APIScope.ESTOP,
+                        score=min(90.0, 60.0 + halted_for / 10.0),
+                        rationale=(f"{name} has been held by an operator E-Stop for {halted_for:.0f}s and "
+                                   f"its drift is {r.drift_delta_m:.2f}m (under {settings.drift_degraded_m:.2f}m). "
+                                   f"Safe to resume."),
+                        now=now,
+                    )
+
+                if (r.state == RobotState.HALTED and halted_for >= handover_after
+                        and r.current_task and r.current_task not in _NON_TRANSFERABLE_TASKS
+                        and idle_peers):
+                    peer = min(idle_peers, key=lambda p: _distance(p, r))
+                    live.add((RecommendationKind.HANDOVER, r.id))
+                    q.propose(
+                        RecommendationKind.HANDOVER, robot_id=r.id, target_robot_id=peer.id,
+                        task=r.current_task, scope=APIScope.MISSION,
+                        score=min(90.0, 70.0 + halted_for / 15.0),
+                        rationale=(f"{name} has been halted mid-task for {halted_for:.0f}s. Idle "
+                                   f"{peer.vendor} {peer.model} ({peer.id}) is {_distance(peer, r):.1f}m away "
+                                   f"and can take over '{r.current_task}'."),
+                        now=now,
+                    )
+
+                if r.state == RobotState.ACTIVE and low <= r.battery_pct < precharge_ceiling:
+                    live.add((RecommendationKind.PRECHARGE, r.id))
+                    q.propose(
+                        RecommendationKind.PRECHARGE, robot_id=r.id, scope=APIScope.MISSION,
+                        score=40.0 + (precharge_ceiling - r.battery_pct) * 2.0,
+                        rationale=(f"{name} is at {r.battery_pct:.0f}% battery. Charging now avoids a "
+                                   f"forced dispatch at {low:.0f}% in the middle of a task."),
+                        now=now,
+                    )
+
+                events = r.degradation_events
+                mtbd = r.uptime_seconds / events if events else None
+                if (r.state != RobotState.OFFLINE and events >= _RELIABILITY_MIN_EVENTS
+                        and mtbd is not None and mtbd <= _RELIABILITY_MAX_MTBD_S):
+                    live.add((RecommendationKind.RELIABILITY_REVIEW, r.id))
+                    q.propose(
+                        RecommendationKind.RELIABILITY_REVIEW, robot_id=r.id,
+                        assignee_type=AssigneeType.OPERATOR,
+                        score=min(50.0, 30.0 + events * 2.0),
+                        rationale=(f"{name} has drifted past {settings.drift_degraded_m:.2f}m {events} times "
+                                   f"(about once every {mtbd:.0f}s). Check camera coverage and floor "
+                                   f"conditions along its route."),
+                        now=now,
+                    )
+
+        q.sync_policy(live, now)
+
     def _decision(self, ts: float, robot_id: Optional[str], action: OrchestratorAction,
                   severity: AlertSeverity, rationale: str, *, auto_executed: bool) -> OrchestratorDecision:
         return OrchestratorDecision(
@@ -183,10 +275,13 @@ class Orchestrator:
         if s.worst_drift_robot:
             parts.append(f"Worst drift: {s.worst_drift_robot} at {s.worst_drift_m:.2f}m.")
         acted = [d for d in decisions if d.auto_executed]
+        top = self.top_actions(limit=1)
         if acted:
             parts.append("Actions: " + "; ".join(d.rationale for d in acted))
-        elif not decisions:
+        elif not decisions and not top:
             parts.append("No action required — fleet nominal.")
+        if top:
+            parts.append(f"Suggested next: {top[0].rationale}")
         return " ".join(parts)
 
     async def _llm_narrative(self, s: FleetSummary) -> str:
@@ -199,12 +294,16 @@ class Orchestrator:
         try:
             import httpx
 
+            suggested = "; ".join(
+                f"[{a.kind.value}, score {a.score:.0f}] {a.rationale}" for a in self.top_actions(limit=3)
+            ) or "none"
             prompt = (
                 "You are the Orbital AI fleet supervisor. In two sentences, give an operator a "
                 "calm, factual status read and the single most important thing to watch. "
                 f"Fleet: total={s.total}, active={s.active}, charging={s.charging}, halted={s.halted}, "
                 f"open_alerts={s.unacked_alerts}, worst_drift_robot={s.worst_drift_robot}, "
-                f"worst_drift_m={s.worst_drift_m}."
+                f"worst_drift_m={s.worst_drift_m}. "
+                f"Suggested next actions awaiting the operator: {suggested}."
             )
             async with httpx.AsyncClient(timeout=8.0) as client:
                 resp = await client.post(
@@ -224,19 +323,32 @@ class Orchestrator:
             return ""
 
 
+def _distance(a: RobotRuntime, b: RobotRuntime) -> float:
+    return math.hypot(a.pose_external.x - b.pose_external.x, a.pose_external.y - b.pose_external.y)
+
+
 # Process-wide singleton bound to the shared store.
 orchestrator = Orchestrator(store)
+
+
+def actions_message(st: Store) -> dict:
+    return {"type": "actions", "actions": [a.model_dump(mode="json") for a in st.actions.ranked()]}
 
 
 async def run() -> None:
     """Background supervisory loop — evaluate, (optionally) narrate, broadcast."""
     interval = max(1.0, settings.orchestrator_interval_s)
+    last_actions: tuple = ()
     while True:
         try:
             status = orchestrator.evaluate()
             await orchestrator.refresh_narrative()
             status = orchestrator.status()
             await hub.broadcast({"type": "orchestrator", "status": status.model_dump(mode="json")})
+            sig = store.actions.signature()
+            if sig != last_actions:
+                last_actions = sig
+                await hub.broadcast(actions_message(store))
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 — one bad tick must not kill the loop

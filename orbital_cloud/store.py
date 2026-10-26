@@ -18,6 +18,7 @@ from typing import Optional
 
 from .config import SEED_FLEET, VENDOR_BRIEFS, WAREHOUSE, settings
 from . import persistence
+from .recommendations import RecommendationQueue
 from .telemetry_store import TelemetryStore, build_telemetry_store
 from fleet_adapters.oem_apis.audit import (
     OemCallAuditSink,
@@ -168,6 +169,7 @@ class Store:
         self.sensors: dict[str, SensorSnapshot] = {}
         self.alerts: list[Alert] = []
         self.tasks: dict[str, Task] = {}
+        self.actions = RecommendationQueue()
         # Current fleet mission sequence (the simulator rotates this every ~30s).
         self.sequence: dict = {"id": 0, "theme": "boot", "label": "Warming up",
                                "objective": "Bringing the fleet online…", "started_at": time.time(),
