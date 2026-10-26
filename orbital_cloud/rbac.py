@@ -1,8 +1,10 @@
 """Dashboard RBAC — Admin / Operator / Viewer (Sprint C4).
 
 Enforcement is opt-in via ``ORBITAL_RBAC_ENFORCE=1``. When enforced:
-  * Operator / Admin actions require ``Authorization: Bearer <token>`` (or role header).
-    * Anonymous callers default to **Viewer** when ``ORBITAL_RBAC_ANON_VIEWER=1`` (default),
+  * Operator / Admin actions require ``Authorization: Bearer <token>``, or ``X-Orbital-Role``
+    from the trusted proxy (``X-Orbital-Proxy-Secret`` = ``ORBITAL_RBAC_PROXY_SECRET``).
+    From anyone else, ``X-Orbital-Role`` can only lower the caller's role.
+  * Anonymous callers default to **Viewer** when ``ORBITAL_RBAC_ANON_VIEWER=1`` (default),
     so the marketing embed and public map keep working while control stays locked.
 
 The **Agent** role (Sprint F) is for external AI models. It reads like a Viewer, may always
@@ -11,6 +13,7 @@ E-Stop and propose actions, and gets direct control only when
 """
 from __future__ import annotations
 
+import hmac
 import os
 import threading
 import time
@@ -72,17 +75,51 @@ def _token_role_map() -> dict[str, Role]:
     return out
 
 
+# Ordering for "may this header lower my role?" — unlike _RANK, Agent sits above Viewer
+# because it can E-Stop and propose.
+_PRIVILEGE = {Role.VIEWER: 0, Role.AGENT: 1, Role.OPERATOR: 2, Role.ADMIN: 3}
+
+
+def proxy_secret_configured() -> bool:
+    return bool(_strip_wrapping_quotes(os.getenv("ORBITAL_RBAC_PROXY_SECRET") or ""))
+
+
+def _proxy_trusted(provided: str | None) -> bool:
+    expected = _strip_wrapping_quotes(os.getenv("ORBITAL_RBAC_PROXY_SECRET") or "")
+    if not expected or not provided:
+        return False
+    return hmac.compare_digest(_strip_wrapping_quotes(provided).encode(), expected.encode())
+
+
 def resolve_role(
     *,
     x_orbital_role: str | None = None,
     authorization: str | None = None,
+    x_orbital_proxy_secret: str | None = None,
 ) -> Role:
+    """``X-Orbital-Role`` is honoured as-is only from the trusted proxy (StageGate), which
+    proves itself with ``X-Orbital-Proxy-Secret``. From anyone else it may only lower the
+    role their token (or anonymous access) already grants."""
+    claimed: Role | None = None
     if x_orbital_role:
         try:
-            return Role(_strip_wrapping_quotes(x_orbital_role).lower())
+            claimed = Role(_strip_wrapping_quotes(x_orbital_role).lower())
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=f"unknown role: {x_orbital_role}") from exc
+        if _proxy_trusted(x_orbital_proxy_secret):
+            return claimed
 
+    base = _credential_role(authorization)
+    if claimed is None or _PRIVILEGE[claimed] <= _PRIVILEGE[base]:
+        return claimed or base
+    raise HTTPException(
+        status_code=403,
+        detail=(f"X-Orbital-Role '{claimed.value}' exceeds this caller's '{base.value}' access; "
+                "raising a role needs a matching bearer token or the trusted proxy secret"),
+    )
+
+
+def _credential_role(authorization: str | None) -> Role:
     if authorization and authorization.lower().startswith("bearer "):
         token = _strip_wrapping_quotes(authorization[7:])
         mapped = _token_role_map().get(token)
@@ -95,7 +132,7 @@ def resolve_role(
     if anon_viewer_allowed():
         return Role.VIEWER  # public map / marketing embed
 
-    raise HTTPException(status_code=401, detail="X-Orbital-Role or RBAC bearer token required")
+    raise HTTPException(status_code=401, detail="RBAC bearer token required")
 
 
 def require_min_role(minimum: Role):
@@ -103,9 +140,11 @@ def require_min_role(minimum: Role):
 
     async def _dep(
         x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
+        x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
         authorization: str | None = Header(default=None),
     ) -> Role:
-        role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization)
+        role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
+                            x_orbital_proxy_secret=x_orbital_proxy_secret)
         _check_agents_enabled(role)
         if _RANK[role] < _RANK[minimum]:
             raise HTTPException(
@@ -200,9 +239,11 @@ def _caller_dep(*, agent_allowed, rate_limited: bool):
         request: Request,
         x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
         x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
+        x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
         authorization: str | None = Header(default=None),
     ) -> Caller:
-        role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization)
+        role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
+                            x_orbital_proxy_secret=x_orbital_proxy_secret)
         caller = _caller(role, x_orbital_actor)
         if role == Role.AGENT:
             if not agents_enabled():
@@ -242,8 +283,10 @@ RequireController = _caller_dep(agent_allowed=_direct_control, rate_limited=True
 async def CurrentCaller(
     x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
     x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
+    x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
     authorization: str | None = Header(default=None),
 ) -> Caller:
-    role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization)
+    role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
+                        x_orbital_proxy_secret=x_orbital_proxy_secret)
     _check_agents_enabled(role)
     return _caller(role, x_orbital_actor)

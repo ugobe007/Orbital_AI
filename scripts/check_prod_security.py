@@ -37,6 +37,8 @@ def main() -> int:
         missing.append("ORBITAL_STRICT_OEM_SCOPES=1")
     if flags["rbac_enforce"] and not flags["rbac_tokens_configured"]:
         missing.append("ORBITAL_RBAC_TOKENS=admin:…,operator:…,viewer:…")
+    if flags["rbac_enforce"] and not flags["rbac_proxy_secret_configured"]:
+        missing.append("ORBITAL_RBAC_PROXY_SECRET=… (only if a proxy such as StageGate sends X-Orbital-Role)")
     if flags["agents_enabled"] and flags["agent_direct_control"]:
         missing.append("ORBITAL_AGENT_DIRECT_CONTROL=0 (agents can drive robots without an operator accept)")
 

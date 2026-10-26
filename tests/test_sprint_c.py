@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from aria_edge.edge_agent import CloudSync
@@ -139,12 +140,48 @@ def test_rbac_viewer_cannot_estop(monkeypatch):
     assert r.status_code == 403
 
 
-def test_rbac_operator_can_estop(monkeypatch):
+def test_rbac_operator_via_trusted_proxy_can_estop(monkeypatch):
     monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
-    rid = client.get("/api/dashboard/fleet", headers={"X-Orbital-Role": "operator"}).json()["robots"][0]["id"]
-    r = client.post(f"/api/dashboard/robot/{rid}/estop", headers={"X-Orbital-Role": "operator"})
+    monkeypatch.setenv("ORBITAL_RBAC_PROXY_SECRET", "proxy-s3cret")
+    proxy = {"X-Orbital-Role": "operator", "X-Orbital-Proxy-Secret": "proxy-s3cret"}
+    rid = client.get("/api/dashboard/fleet", headers=proxy).json()["robots"][0]["id"]
+    r = client.post(f"/api/dashboard/robot/{rid}/estop", headers=proxy)
     assert r.status_code == 200
-    client.post(f"/api/dashboard/robot/{rid}/resume", headers={"X-Orbital-Role": "operator"})
+    client.post(f"/api/dashboard/robot/{rid}/resume", headers=proxy)
+
+
+@pytest.mark.parametrize("claimed", ["operator", "admin", "agent"])
+def test_rbac_role_header_cannot_raise_privilege_without_proxy_secret(monkeypatch, claimed):
+    monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.setenv("ORBITAL_RBAC_PROXY_SECRET", "proxy-s3cret")
+    rid = client.get("/api/dashboard/fleet").json()["robots"][0]["id"]
+    for headers in ({"X-Orbital-Role": claimed},
+                    {"X-Orbital-Role": claimed, "X-Orbital-Proxy-Secret": "wrong"}):
+        r = client.post(f"/api/dashboard/robot/{rid}/estop", headers=headers)
+        assert r.status_code == 403 and "exceeds" in r.json()["detail"]
+
+
+def test_rbac_proxy_secret_header_ignored_when_unconfigured(monkeypatch):
+    monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.delenv("ORBITAL_RBAC_PROXY_SECRET", raising=False)
+    with pytest.raises(HTTPException) as exc:
+        resolve_role(x_orbital_role="admin", x_orbital_proxy_secret="")
+    assert exc.value.status_code == 403
+
+
+def test_rbac_role_header_can_lower_a_token_role(monkeypatch):
+    monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
+    monkeypatch.setenv("ORBITAL_RBAC_TOKENS", "operator:ops-secret,agent:bot-secret")
+    assert resolve_role(authorization="Bearer ops-secret", x_orbital_role="viewer") == Role.VIEWER
+    assert resolve_role(authorization="Bearer ops-secret", x_orbital_role="agent") == Role.AGENT
+    assert resolve_role(authorization="Bearer bot-secret", x_orbital_role="agent") == Role.AGENT
+    with pytest.raises(HTTPException):
+        resolve_role(authorization="Bearer bot-secret", x_orbital_role="operator")
+
+
+def test_rbac_role_header_unchanged_when_rbac_off(monkeypatch):
+    monkeypatch.delenv("ORBITAL_RBAC_ENFORCE", raising=False)
+    assert resolve_role(x_orbital_role="operator") == Role.OPERATOR
 
 
 def test_rbac_viewer_can_read_fleet(monkeypatch):
