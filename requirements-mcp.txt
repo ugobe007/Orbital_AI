@@ -1,0 +1,4 @@
+# Optional: the Orbital AI MCP server (orbital_mcp/). Not needed by the cloud service.
+#   pip install -r requirements.txt -r requirements-mcp.txt
+#   python -m orbital_mcp
+mcp>=1.9,<2.0
