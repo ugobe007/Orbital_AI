@@ -6,11 +6,14 @@ store ingest path, so swapping it for real edges needs no API changes.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+import asyncio
+
+from fastapi import APIRouter, HTTPException, Path
 
 from ..events import hub
-from ..models import AlertIn, TelemetryIn
+from ..models import AlertIn, CalibrationIn, TelemetryIn
 from ..occupancy import synthetic_occupancy_grid
+from ..rig_calibration import calibration_store
 from ..store import store
 from ..zones import zone_store
 
@@ -45,6 +48,23 @@ async def get_map(facility_id: str) -> dict:
 async def post_telemetry(t: TelemetryIn) -> dict:
     store.ingest_telemetry(t)
     return {"ok": True}
+
+
+@router.post("/calibration/{facility_id}", status_code=201)
+async def post_calibration(body: CalibrationIn,
+                           facility_id: str = Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")) -> dict:
+    """Solve a camera-rig marker map from raw captures and keep the report for the dashboard."""
+    entry = await asyncio.to_thread(calibration_store.solve_and_store, facility_id, body)
+    await hub.broadcast({"type": "calibration", "calibration": entry})
+    return entry
+
+
+@router.get("/calibration/{facility_id}")
+async def get_calibration(facility_id: str) -> dict:
+    entry = calibration_store.get(facility_id)
+    if entry is None:
+        raise HTTPException(404, f"no calibration uploaded for {facility_id}")
+    return entry
 
 
 @router.post("/alerts", status_code=201)

@@ -25,6 +25,7 @@ const state = {
   zones: [],            // keep-out / slow zones on the spatial map
   zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
   auth: null,           // /api/auth/me: who is signed in to this console
+  calibration: null,    // latest rig-calibration report for this facility (Sprint H)
 };
 
 // Fleet states, ordered for the overview distribution bar + chips.
@@ -637,6 +638,16 @@ function renderMap() {
     for (const q of draft.points) p.push(`<circle cx="${q.x}" cy="${Y(q.y)}" r="0.12" fill="${color}"/>`);
   }
 
+  // Calibrated floor markers, coloured by how well the rig agrees on each one.
+  for (const mk of (state.calibration?.markers || [])) {
+    if (!mk.pose || mk.status === "unanchored") continue;
+    const color = CALIB_COLOR[mk.status] || CALIB_COLOR.ok;
+    const x = mk.pose.x, y = Y(mk.pose.y);
+    p.push(`<g><title>Marker ${mk.marker_id} · ${esc(CALIB_LABEL[mk.status] || mk.status)}</title>`);
+    p.push(`<rect x="${x - 0.13}" y="${y - 0.13}" width="0.26" height="0.26" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="0.04" transform="rotate(45 ${x} ${y})"/>`);
+    p.push(`<text x="${x}" y="${y - 0.24}" fill="${color}" font-size="0.24" text-anchor="middle" opacity="0.9">${mk.marker_id}</text></g>`);
+  }
+
   // Lead-published relay waypoints (shared shuttle network).
   for (const rp of (state.sequence?.relay_points || [])) {
     p.push(`<circle cx="${rp.x}" cy="${Y(rp.y)}" r="0.38" fill="none" stroke="#ffc24d" stroke-width="0.05" stroke-dasharray="0.12 0.1" opacity="0.85"/>`);
@@ -866,6 +877,59 @@ function renderLogic() {
 async function loadOrchestrator() {
   try { state.orch = await getJSON("/api/dashboard/orchestrator"); renderLogic(); }
   catch (_) {}
+}
+
+// ── rig calibration (Sprint H) ────────────────────────────────────────────────
+const CALIB_COLOR = { ok: "#00be7d", likely_error: "#e5484d", single_view: "#ffa01f", unanchored: "#828c9b",
+  moved: "#e5484d", high_residual: "#ffa01f" };
+const CALIB_LABEL = { ok: "ok", likely_error: "likely bumped", single_view: "seen once", unanchored: "not linked",
+  moved: "camera moved", high_residual: "poor fit" };
+async function loadCalibration() {
+  try {
+    const data = await getJSON("/api/dashboard/calibration");
+    state.calibration = data.calibration;
+    renderCalibration(); renderMap();
+  } catch (_) {}
+}
+function renderCalibration() {
+  const box = $("#calibration"), badge = $("#calib-status");
+  if (!box) return;
+  const c = state.calibration;
+  if (!c) {
+    if (badge) { badge.textContent = "none"; badge.style.color = ""; }
+    box.innerHTML = `<div class="px-4 py-4 text-[12px] text-ink-dim leading-relaxed">No calibration uploaded yet. Capture the floor markers, then run
+      <span class="mono text-ink-mut">scripts/calibrate_rig.py captures.json --upload ${esc(location.origin)}</span>.</div>`;
+    return;
+  }
+  if (badge) {
+    badge.textContent = c.ok ? "clean" : "needs fixing";
+    badge.style.color = c.ok ? CALIB_COLOR.ok : CALIB_COLOR.likely_error;
+  }
+  const flagged = [
+    ...c.markers.filter((m) => m.status !== "ok").map((m) =>
+      ({ label: `Marker ${m.marker_id}`, status: m.status,
+         detail: m.status === "likely_error" ? `off by ${(m.max_m * 100).toFixed(1)} cm` : `${m.views} view${m.views === 1 ? "" : "s"}` })),
+    ...c.captures.filter((k) => k.status !== "ok").map((k) =>
+      ({ label: `Capture ${k.id}`, status: k.status,
+         detail: k.offset_m != null && k.status === "moved" ? `${(k.offset_m * 100).toFixed(0)} cm, ${k.offset_deg.toFixed(1)}°` : `${(k.rms_m * 100).toFixed(1)} cm RMS` })),
+  ];
+  const mapped = c.markers.filter((m) => m.pose && m.status !== "unanchored").length;
+  const rows = flagged.map((f) => `
+    <div class="flex items-center gap-2 px-3 py-1.5">
+      <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${CALIB_COLOR[f.status] || "#828c9b"}"></span>
+      <span class="text-[11.5px] text-ink truncate">${esc(f.label)}</span>
+      <span class="text-[10.5px] text-ink-mut">${esc(CALIB_LABEL[f.status] || f.status)}</span>
+      <span class="text-[10px] text-ink-dim mono ml-auto shrink-0">${esc(f.detail)}</span>
+    </div>`).join("");
+  const hints = (c.hints || []).map((h) => `<li>${esc(h)}</li>`).join("");
+  box.innerHTML = `
+    <div class="px-3 py-2 text-[11.5px] text-ink-mut">
+      ${mapped} markers · ${c.captures.length} captures · RMS <span class="mono">${(c.rms_m * 100).toFixed(1)} cm</span>
+      <span class="text-ink-dim">(limit ${(c.threshold_m * 100).toFixed(0)} cm) · ${fmtTime(c.received_at)}</span>
+    </div>
+    ${rows ? `<div class="divide-y divide-line/60 border-t border-line/60">${rows}</div>` : ""}
+    ${hints ? `<ul class="px-4 py-2.5 border-t border-line/60 list-disc pl-6 space-y-1 text-[11.5px] text-ink-mut leading-relaxed">${hints}</ul>`
+            : `<div class="px-3 pb-2.5 text-[11.5px]" style="color:${CALIB_COLOR.ok}">Every marker and camera agrees. Nothing to fix.</div>`}`;
 }
 
 // ── alerts ────────────────────────────────────────────────────────────────────
@@ -1320,6 +1384,11 @@ function connectWS() {
       const box = $("#alerts").firstChild; if (box) box.classList.add("flash");
     }
     else if (msg.type === "actions") { state.actions = msg.actions; renderActions(); }
+    else if (msg.type === "calibration") {
+      if (!state.facility || msg.calibration.facility_id === state.facility.id) {
+        state.calibration = msg.calibration; renderCalibration(); renderMap();
+      }
+    }
     else if (msg.type === "zones") { state.zones = msg.zones; renderMap(); if (!state.zoneDraft) renderZoneBar(); }
   };
 }
@@ -1736,6 +1805,7 @@ async function init() {
     await loadOEMs();
     await loadOrchestrator();
     await loadActions();
+    await loadCalibration();
     setInterval(loadBenchmark, 5000);
     setInterval(loadOEMs, 8000);
     setInterval(loadOrchestrator, 5000);

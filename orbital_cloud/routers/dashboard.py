@@ -49,6 +49,7 @@ from ..rbac import (
     diagnose_caller,
 )
 from .. import recommendations, scope_guard
+from ..rig_calibration import calibration_store
 from ..store import store
 from ..zones import zone_store
 
@@ -92,6 +93,14 @@ async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
     """The warehouse floor plan operators drop waypoints on (Global Spatial Map), with the
     keep-out and slow zones drawn on it."""
     return {**WAREHOUSE, "zones": [z.model_dump(mode="json") for z in zone_store.list()]}
+
+
+@router.get("/calibration")
+async def get_calibration(_role: Role = Depends(RequireViewer)) -> dict:
+    """Latest rig-calibration report for this facility; ``calibration`` is null until one is
+    uploaded."""
+    return {"facility_id": settings.facility_id,
+            "calibration": calibration_store.get(settings.facility_id)}
 
 
 def _zones_message() -> dict:
