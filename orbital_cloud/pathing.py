@@ -138,7 +138,9 @@ _NEIGHBORS = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 
 
 
 def _astar(start: tuple[int, int], goal: tuple[int, int],
-           grid: Grid = _GRID) -> Optional[list[tuple[int, int]]]:
+           grid: Grid = _GRID, partial: bool = False) -> Optional[list[tuple[int, int]]]:
+    """A* over ``grid``. When the goal is unreachable, returns None — or, with ``partial``,
+    the path to the reachable cell closest to the goal."""
     if start == goal:
         return [start]
     open_heap: list[tuple[float, tuple[int, int]]] = [(0.0, start)]
@@ -148,15 +150,21 @@ def _astar(start: tuple[int, int], goal: tuple[int, int],
     def h(c: tuple[int, int]) -> float:
         return math.hypot(c[0] - goal[0], c[1] - goal[1])
 
+    def walk_back(cur: tuple[int, int]) -> list[tuple[int, int]]:
+        path = [cur]
+        while cur in came:
+            cur = came[cur]
+            path.append(cur)
+        path.reverse()
+        return path
+
+    best = start
     while open_heap:
         _, cur = heapq.heappop(open_heap)
         if cur == goal:
-            path = [cur]
-            while cur in came:
-                cur = came[cur]
-                path.append(cur)
-            path.reverse()
-            return path
+            return walk_back(cur)
+        if h(cur) < h(best):
+            best = cur
         ci, cj = cur
         for di, dj in _NEIGHBORS:
             ni, nj = ci + di, cj + dj
@@ -172,7 +180,7 @@ def _astar(start: tuple[int, int], goal: tuple[int, int],
                 g[nb] = ng
                 came[nb] = cur
                 heapq.heappush(open_heap, (ng + h(nb), nb))
-    return None
+    return walk_back(best) if partial else None
 
 
 def _segment_clear(p0: tuple[float, float], p1: tuple[float, float], polys: Polys = ()) -> bool:
@@ -204,9 +212,10 @@ def plan(start: tuple[float, float], goal: tuple[float, float],
          vendor: Optional[str] = None) -> list[tuple[float, float]]:
     """Return a list of world waypoints from just after ``start`` to ``goal`` that avoids
     the racks and every keep-out zone that applies to ``vendor``. Falls back to a direct
-    segment when already clear or when no grid path exists. The final point is the exact
-    ``goal`` so the robot arrives precisely — unless the goal sits inside a keep-out zone,
-    in which case the route stops at the nearest reachable point outside it."""
+    segment when already clear or when no grid path exists and no keep-outs apply. The final
+    point is the exact ``goal`` so the robot arrives precisely — unless the goal sits inside
+    a keep-out zone or is cut off by one, in which case the route stops at the nearest
+    reachable point outside it."""
     polys = _keepout_polys(vendor)
     if _segment_clear(start, goal, polys):
         return [goal]
@@ -214,11 +223,11 @@ def plan(start: tuple[float, float], goal: tuple[float, float],
     goal_in_keepout = any(point_in_polygon(goal[0], goal[1], p) for p in polys)
     s_cell = _nearest_free(*_to_cell(*start), grid)
     g_cell = _nearest_free(*_to_cell(*goal), grid)
-    cells = _astar(s_cell, g_cell, grid)
+    cells = _astar(s_cell, g_cell, grid, partial=bool(polys))
     if not cells:
-        return [_center(*g_cell)] if goal_in_keepout else [goal]
+        return [goal]
     pts = [start, *[_center(ci, cj) for ci, cj in cells]]
-    if not goal_in_keepout:
+    if not goal_in_keepout and cells[-1] == g_cell:
         pts.append(goal)
     pts = _simplify(pts, polys)
     return pts[1:] if len(pts) > 1 else pts

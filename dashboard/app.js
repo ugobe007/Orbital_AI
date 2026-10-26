@@ -726,8 +726,9 @@ function cancelZoneDraft() {
 }
 async function finishZoneDraft() {
   const d = state.zoneDraft;
-  if (!d) return;
+  if (!d || d.submitting) return;
   if (d.points.length < 3) { toast("A zone needs at least 3 points", "warn"); return; }
+  d.submitting = true;
   const fallback = `${d.type === "slow" ? "Slow zone" : "Keep-out"} ${state.zones.filter((z) => z.type === d.type).length + 1}`;
   const body = {
     name: ($("#zone-name")?.value || "").trim() || fallback,
@@ -741,6 +742,7 @@ async function finishZoneDraft() {
     state.zoneDraft = null;
     toast(`Zone "${zone.name}" added — robots re-plan around it`);
   } catch (e) {
+    d.submitting = false;
     toast(e.status === 403 ? `Blocked: ${e.detail} — zones need an operator` : `Failed: ${e.detail}`, "warn");
   }
   renderZoneBar(); renderMap();
