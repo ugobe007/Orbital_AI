@@ -18,7 +18,7 @@ from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 
 
 class Role(str, Enum):
@@ -175,8 +175,19 @@ def _caller(role: Role, x_orbital_actor: str | None) -> Caller:
     return Caller(role, label or role.value)
 
 
+def _reject_agent(request: Request, caller: Caller, status: int, detail: str) -> HTTPException:
+    from .store import store  # lazy: store pulls in the whole cloud state
+
+    robot_id = request.path_params.get("robot_id")
+    store.record_control(actor=caller.actor, role=caller.role.value,
+                         action=f"{request.method} {request.url.path}", robot_id=robot_id,
+                         ok=False, detail=detail)
+    return HTTPException(status_code=status, detail=detail)
+
+
 def _caller_dep(*, agent_allowed, rate_limited: bool):
     async def _dep(
+        request: Request,
         x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
         x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
         authorization: str | None = Header(default=None),
@@ -186,12 +197,10 @@ def _caller_dep(*, agent_allowed, rate_limited: bool):
         if role == Role.AGENT:
             allowed, reason = agent_allowed()
             if not allowed:
-                raise HTTPException(status_code=403, detail=reason)
+                raise _reject_agent(request, caller, 403, reason)
             if rate_limited and not agent_limiter.check(caller.actor, agent_rate_per_min()):
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"agent rate limit: {agent_rate_per_min()} write calls per minute",
-                )
+                raise _reject_agent(request, caller, 429,
+                                    f"agent rate limit: {agent_rate_per_min()} write calls per minute")
             return caller
         if _RANK[role] < _RANK[Role.OPERATOR]:
             raise HTTPException(status_code=403, detail=f"requires role operator or higher (have {role.value})")

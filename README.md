@@ -126,6 +126,52 @@ python3 scripts/oem_onboard.py unlock  --url ... --oem-id oem-xxxx --api-key orb
 python3 scripts/oem_onboard.py profile --url ... --oem-id oem-xxxx
 ```
 
+## Connect your model (MCP)
+
+`orbital_mcp/` is an MCP server, so Claude, Cursor, or any MCP-capable agent can read the
+fleet and act on it. It calls the public API as role **agent**, so the same RBAC, OEM scope
+checks and audit apply:
+
+| Agents can | Notes |
+|---|---|
+| Read fleet, robots, map, alerts, actions, benchmarks | Viewer-level |
+| `propose_action` | Lands in the dashboard's Next Actions card; an operator accepts or dismisses |
+| `estop_robot` | Always allowed (still needs the OEM's `control.estop`); never rate-limited |
+| `dispatch_task`, `navigate_robot`, `set_speed`, `resume_robot` | Only with `ORBITAL_AGENT_DIRECT_CONTROL=1` on the cloud |
+
+Agents can never accept or dismiss proposals. Writes are rate-limited per agent
+(`ORBITAL_AGENT_RATE_PER_MIN`, default 30), every write tool takes `dry_run`, and every call —
+including refused ones — is recorded with the agent's name at `GET /api/dashboard/control-audit` (Admin).
+
+```bash
+pip install -r requirements.txt -r requirements-mcp.txt
+ORBITAL_URL=http://localhost:8090 python -m orbital_mcp            # stdio
+```
+
+Cursor (`.cursor/mcp.json`) or Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "orbital-ai": {
+      "command": "python",
+      "args": ["-m", "orbital_mcp"],
+      "cwd": "/path/to/Orbital_AI",
+      "env": {
+        "ORBITAL_URL": "https://orbital-ai.io",
+        "ORBITAL_AGENT_TOKEN": "<token mapped to agent in ORBITAL_RBAC_TOKENS>",
+        "ORBITAL_AGENT_NAME": "claude-desktop"
+      }
+    }
+  }
+}
+```
+
+Hosted agents can use streamable HTTP instead: `python -m orbital_mcp --transport http`
+(serves `http://127.0.0.1:8765/mcp`). Binding off loopback requires `ORBITAL_MCP_HTTP_TOKEN`,
+which clients send as `Authorization: Bearer …`. With RBAC enforced, add an agent token to
+the cloud: `ORBITAL_RBAC_TOKENS=…,agent:<secret>`.
+
 ## Run it
 
 ```bash
