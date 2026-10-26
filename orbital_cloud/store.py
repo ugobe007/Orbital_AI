@@ -170,6 +170,7 @@ class Store:
         self.alerts: list[Alert] = []
         self.tasks: dict[str, Task] = {}
         self.actions = RecommendationQueue()
+        self.control_audit: deque[dict] = deque(maxlen=500)
         # Current fleet mission sequence (the simulator rotates this every ~30s).
         self.sequence: dict = {"id": 0, "theme": "boot", "label": "Warming up",
                                "objective": "Bringing the fleet online…", "started_at": time.time(),
@@ -181,6 +182,20 @@ class Store:
     def oem_audit_recent(self, *, limit: int = 100, robot_id: str | None = None) -> list[dict]:
         """Security Phase 5 — recent OEM API call audit trail."""
         return [e.as_dict() for e in self.oem_audit.recent(limit=limit, robot_id=robot_id)]
+
+    def record_control(self, *, actor: str, role: str, action: str, robot_id: Optional[str],
+                       ok: bool, detail: str = "", dry_run: bool = False) -> None:
+        """Who issued which control/proposal call, and what happened (Sprint F attribution)."""
+        with self._lock:
+            self.control_audit.appendleft({
+                "ts": time.time(), "actor": actor, "role": role, "action": action,
+                "robot_id": robot_id, "ok": ok, "detail": detail, "dry_run": dry_run,
+            })
+
+    def control_audit_recent(self, *, limit: int = 100, actor: Optional[str] = None) -> list[dict]:
+        with self._lock:
+            rows = [r for r in self.control_audit if actor is None or r["actor"] == actor]
+            return [dict(r) for r in rows[:limit]]
 
     def set_sequence(self, *, id: int, theme: str, label: str, objective: str,
                      started_at: float, period_s: float) -> None:
@@ -284,9 +299,9 @@ class Store:
             return [a for a in self.alerts if not a.acknowledged]
 
     # ── Tasks ──────────────────────────────────────────────────────────────────
-    def create_task(self, t: TaskIn) -> Task:
+    def create_task(self, t: TaskIn, actor: Optional[str] = None) -> Task:
         with self._lock:
-            task = Task(id=f"tsk-{uuid.uuid4().hex[:10]}", created_at=time.time(), **t.model_dump())
+            task = Task(id=f"tsk-{uuid.uuid4().hex[:10]}", created_at=time.time(), actor=actor, **t.model_dump())
             self.tasks[task.id] = task
             robot = self.robots.get(t.robot_id)
             if robot is not None:
