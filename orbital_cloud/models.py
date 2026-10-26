@@ -298,6 +298,48 @@ class APIScope(str, Enum):
     MAP = "map.read"
 
 
+# ── Next-best-action queue (orchestrator Policy 4 + operator accept/dismiss) ──
+
+class RecommendationKind(str, Enum):
+    RESUME = "resume"                          # operator-latched halt whose drift has re-converged
+    HANDOVER = "handover"                      # move a halted robot's task to an idle peer
+    PRECHARGE = "precharge"                    # charge before the battery hits the auto-dispatch floor
+    RELIABILITY_REVIEW = "reliability_review"  # repeated degradation events — needs a human look
+
+
+class RecommendationStatus(str, Enum):
+    PROPOSED = "proposed"
+    ACCEPTED = "accepted"    # operator took it on; nothing for Orbital to execute
+    DONE = "done"            # Orbital executed it
+    DISMISSED = "dismissed"
+    EXPIRED = "expired"      # TTL passed or the triggering condition cleared
+
+
+class AssigneeType(str, Enum):
+    ROBOT = "robot"
+    PERSON = "person"
+    OPERATOR = "operator"
+
+
+class Recommendation(BaseModel):
+    id: str
+    kind: RecommendationKind
+    robot_id: Optional[str] = None
+    target_robot_id: Optional[str] = None   # robot that executes it, when not robot_id (handover)
+    task: Optional[str] = None
+    score: float
+    rationale: str
+    assignee_type: AssigneeType = AssigneeType.ROBOT
+    scope: Optional[APIScope] = None        # OEM scope needed on the executing robot
+    status: RecommendationStatus = RecommendationStatus.PROPOSED
+    source: str = "policy"                  # policy | agent
+    actor: Optional[str] = None
+    created_at: float
+    updated_at: float
+    expires_at: Optional[float] = None
+    blocked_reason: Optional[str] = None    # filled at read time when the scope isn't granted
+
+
 class OEMStatus(str, Enum):
     PENDING = "pending"      # registered, no scopes granted yet
     ACTIVE = "active"        # at least one scope granted

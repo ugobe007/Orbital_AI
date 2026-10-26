@@ -17,6 +17,8 @@ from ..models import (
     OEMPolicies,
     OEMStatus,
     OrchestratorStatus,
+    Recommendation,
+    RecommendationStatus,
     RobotDetail,
     RobotSummary,
     ScopeGrantIn,
@@ -27,9 +29,9 @@ from ..models import (
 )
 from ..oem_store import ceiling_scopes_for_vendor, oem_store
 from fleet_adapters import known_vendors
-from ..orchestrator import orchestrator
+from ..orchestrator import actions_message, orchestrator
 from ..rbac import RequireAdmin, RequireOperator, RequireViewer, Role
-from .. import scope_guard
+from .. import recommendations, scope_guard
 from ..store import store
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -203,6 +205,60 @@ async def orchestrator_run(_role: Role = Depends(RequireOperator)) -> Orchestrat
     status = orchestrator.status()
     await _broadcast_fleet()
     return status
+
+
+def _with_block_reason(rec: Recommendation) -> Recommendation:
+    if rec.scope is None or rec.status != RecommendationStatus.PROPOSED:
+        return rec
+    check = scope_guard.check_robot(recommendations.executing_robot(rec) or "", rec.scope)
+    if not check.allowed:
+        rec.blocked_reason = check.reason
+    return rec
+
+
+def _open_action_or_error(action_id: str) -> Recommendation:
+    rec = store.actions.get(action_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="action not found")
+    if rec.status != RecommendationStatus.PROPOSED:
+        raise HTTPException(status_code=409, detail=f"action is already {rec.status.value}")
+    return rec
+
+
+@router.get("/actions", response_model=list[Recommendation])
+async def list_actions(include_closed: bool = False, limit: int = 50,
+                       _role: Role = Depends(RequireViewer)) -> list[Recommendation]:
+    """Ranked next-best-action queue (orchestrator Policy 4). Open items first, by score."""
+    ranked = store.actions.ranked(include_closed=include_closed, limit=min(max(limit, 1), 100))
+    return [_with_block_reason(r) for r in ranked]
+
+
+@router.post("/actions/{action_id}/accept", response_model=Recommendation)
+async def accept_action(action_id: str, _role: Role = Depends(RequireOperator)) -> Recommendation:
+    """Accept a proposal. Executable kinds run now, through the same OEM scope check as the
+    direct control endpoints; advisory kinds are marked accepted for the operator to handle."""
+    rec = _open_action_or_error(action_id)
+    if rec.scope is None:
+        resolved = store.actions.resolve(action_id, RecommendationStatus.ACCEPTED)
+    else:
+        _enforce(recommendations.executing_robot(rec) or "", rec.scope)
+        executed, detail = recommendations.execute(store, rec)
+        if not executed:
+            store.actions.resolve(action_id, RecommendationStatus.EXPIRED)
+            await hub.broadcast(actions_message(store))
+            raise HTTPException(status_code=409, detail=f"no longer applicable: {detail}")
+        resolved = store.actions.resolve(action_id, RecommendationStatus.DONE)
+        await _broadcast_fleet()
+    await hub.broadcast(actions_message(store))
+    return resolved.model_copy()
+
+
+@router.post("/actions/{action_id}/dismiss", response_model=Recommendation)
+async def dismiss_action(action_id: str, _role: Role = Depends(RequireOperator)) -> Recommendation:
+    _open_action_or_error(action_id)
+    resolved = store.actions.resolve(action_id, RecommendationStatus.DISMISSED)
+    await hub.broadcast(actions_message(store))
+    return resolved.model_copy()
 
 
 @router.post("/robot/{robot_id}/estop")

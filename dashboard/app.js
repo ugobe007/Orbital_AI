@@ -11,6 +11,7 @@ const state = {
   robots: [],
   sequence: null,       // current fleet mission sequence (theme + objective + per-robot goals)
   alerts: [],
+  actions: [],
   activeTab: "All",
   statusFilter: null,   // fleet filter by robot state (set from the overview chips)
   connLive: false,
@@ -776,6 +777,57 @@ function renderAlerts() {
   }
 }
 
+// ── next actions (orchestrator Policy 4) ──────────────────────────────────────
+const ACTION_LABEL = {
+  resume: "Resume", handover: "Hand over task", precharge: "Pre-charge", reliability_review: "Review reliability",
+};
+const ASSIGNEE_LABEL = { robot: "robot", person: "person", operator: "operator" };
+async function loadActions() {
+  try { state.actions = await getJSON("/api/dashboard/actions"); renderActions(); }
+  catch (_) {}
+}
+async function resolveAction(id, verb) {
+  try {
+    const rec = await postJSON(`/api/dashboard/actions/${id}/${verb}`);
+    toast(verb === "accept" ? `${ACTION_LABEL[rec.kind] || rec.kind}: ${rec.status}` : "Dismissed");
+  } catch (e) {
+    toast(e.status === 403 ? `Blocked: ${e.detail}` : `Failed: ${e.detail}`, "warn");
+  }
+  await loadActions();
+}
+function renderActions() {
+  const box = $("#actions");
+  if (!box) return;
+  const open = state.actions.filter((a) => a.status === "proposed");
+  $("#action-count").textContent = open.length;
+  box.innerHTML = "";
+  if (!open.length) { box.appendChild(el(`<div class="px-4 py-5 text-[12px] text-ink-dim">Nothing to suggest right now.</div>`)); return; }
+  for (const a of open) {
+    const blocked = !!a.blocked_reason;
+    const acceptLabel = a.scope ? "Accept" : "Take it";
+    const row = el(`
+      <div class="px-3 py-2">
+        <div class="flex items-center gap-2">
+          <span class="mono text-[10.5px] px-1.5 py-0.5 rounded bg-surface-input text-brand shrink-0">${Math.round(a.score)}</span>
+          <span class="text-[12px] font-semibold truncate">${esc(ACTION_LABEL[a.kind] || a.kind)}</span>
+          <span class="text-[10.5px] text-ink-dim mono truncate">${esc(a.robot_id || "")}${a.target_robot_id ? " → " + esc(a.target_robot_id) : ""}</span>
+          <span class="text-[10px] text-ink-dim ml-auto shrink-0">${esc(ASSIGNEE_LABEL[a.assignee_type] || "")}${a.source === "agent" ? " · agent" : ""}</span>
+        </div>
+        <div class="text-[11.5px] text-ink-mut leading-snug mt-1">${esc(a.rationale)}</div>
+        <div class="flex items-center gap-3 mt-1.5">
+          <button data-verb="accept" class="text-[11px] ${blocked ? "text-ink-dim cursor-not-allowed" : "text-brand hover:underline"}" ${blocked ? "disabled" : ""}
+            title="${esc(blocked ? a.blocked_reason : "")}">${blocked ? "🔒 " : ""}${acceptLabel}</button>
+          <button data-verb="dismiss" class="text-[11px] text-ink-dim hover:underline">Dismiss</button>
+          ${blocked ? `<span class="text-[10px] text-amber-400 truncate">${esc(a.blocked_reason)}</span>` : ""}
+        </div>
+      </div>`);
+    row.querySelectorAll("button[data-verb]").forEach((b) => {
+      b.onclick = () => resolveAction(a.id, b.dataset.verb);
+    });
+    box.appendChild(row);
+  }
+}
+
 // ── benchmark ─────────────────────────────────────────────────────────────────
 async function loadBenchmark() {
   try {
@@ -1073,6 +1125,7 @@ function connectWS() {
       renderAlerts(); renderStats();
       const box = $("#alerts").firstChild; if (box) box.classList.add("flash");
     }
+    else if (msg.type === "actions") { state.actions = msg.actions; renderActions(); }
   };
 }
 
@@ -1485,6 +1538,7 @@ async function init() {
     await loadCatalog();
     await loadOEMs();
     await loadOrchestrator();
+    await loadActions();
     setInterval(loadBenchmark, 5000);
     setInterval(loadOEMs, 8000);
     setInterval(loadOrchestrator, 5000);
