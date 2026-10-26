@@ -1,22 +1,471 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Orbital AI — Reality. Intelligence. Revenue.</title>
-    <meta name="description" content="Orbital AI is the memory and control layer for physical AI deployments. Reality Engine + ARIA + Experience Memory." />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Orbital AI — Reality. Intelligence. Revenue." />
-    <meta property="og:description" content="Orbital AI transforms real-world operational intelligence into faster adoption, stronger products, and repeatable commercial growth." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" href="/orbital-logo.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <script type="module" crossorigin src="/assets/index-DWu3zOSb.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-0EaFuQXy.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbital AI — Reality. Intelligence. Revenue.</title>
+  <meta name="description" content="Orbital AI is the memory and control layer for physical AI deployments. Reality Engine + ARIA + Experience Memory, and Digital Net — our own multi-camera harness for measuring real robot work." />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:title" content="Orbital AI — Reality. Intelligence. Revenue." />
+  <meta property="og:description" content="Orbital AI transforms real-world operational intelligence into faster adoption, stronger products, and repeatable commercial growth." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://orbital-ai.io/assets/robot-harness.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/orbital-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- orbital-base.css is the compiled Tailwind build of the original July site: only the
+       utility classes already used on this page exist in it. New styles go in site.css. -->
+  <link rel="stylesheet" href="/assets/orbital-base.css">
+  <link rel="stylesheet" href="/assets/site.css?v=1">
+  <script>document.documentElement.classList.add("js");</script>
+  <script src="/assets/site.js?v=1" defer></script>
+</head>
+<body>
+<div class="min-h-[100dvh] bg-background text-foreground">
+
+  <!-- ── Navigation ─────────────────────────────────────────────────────────── -->
+  <nav class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-background/80 backdrop-blur-xl border-b border-border">
+    <div class="max-w-7xl mx-auto px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="/" class="flex items-center gap-3">
+          <img alt="Orbital AI" class="h-8 w-8" src="/assets/orbital-logo-D9n2owqh.png" />
+          <span class="text-lg font-bold tracking-tight">Orbital AI</span>
+        </a>
+        <div class="hidden md:flex items-center gap-8">
+          <a href="#platform" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Platform</a>
+          <a href="#digital-net" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Digital Net</a>
+          <a href="#how-it-works" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+          <a href="#intelligence" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Intelligence</a>
+          <a href="#pilot" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pilot</a>
+        </div>
+        <div class="flex items-center gap-4">
+          <a href="/app" class="nav-console text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Console</a>
+          <button type="button" data-contact="early-access" class="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold px-5 py-2.5 nav-cta">Start a pilot</button>
+          <button type="button" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="mobile-menu" class="mobile-menu" hidden>
+      <a href="#platform">Platform</a>
+      <a href="#digital-net">Digital Net</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#intelligence">Intelligence</a>
+      <a href="#pilot">Pilot</a>
+      <a href="/app">Console</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero: photos cross-fade every few seconds (paused for reduced motion) ── -->
+  <section class="relative min-h-[100dvh] flex items-end overflow-hidden">
+    <div class="hero-slides" aria-hidden="true">
+      <img class="hero-slide is-active" src="/orbital-ai-site/hero-warehouse.jpg" alt="" />
+      <img class="hero-slide" src="/orbital-ai-site/humanoid-deployment.png" alt="" loading="lazy" />
+      <img class="hero-slide" src="/orbital-ai-site/stack-spot-posco.jpg" alt="" loading="lazy" />
+    </div>
+    <div class="absolute inset-0 photo-overlay"></div>
+    <div class="relative z-10 w-full px-6 lg:px-8 pb-24 hero-content">
+      <div class="max-w-6xl mx-auto">
+        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm border border-primary/40 mb-12 reveal">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 text-primary animate-pulse" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path></svg>
+          <span class="text-xs font-medium tracking-wide uppercase text-white">Live · Operational Layer for Physical AI</span>
+        </div>
+        <h1 class="text-white hero-title mb-8 reveal">Physical AI<br />Has a Missing<br />Layer.</h1>
+        <p class="text-lg md:text-xl text-white/90 max-w-2xl mb-10 leading-relaxed reveal">
+          Every robot sees its world. Orbital sees the operation. Robots operate within their own local context. Orbital AI continuously
+          observes every robot, every person, and every environment, transforming fragmented activity into operational intelligence that
+          learns, coordinates, and improves every deployment.
+        </p>
+        <div class="flex flex-col sm:flex-row items-start gap-4 mb-12 reveal">
+          <button type="button" data-contact="early-access" class="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold px-6 py-3 bg-primary text-primary-foreground hover:bg-primary/90">Start a pilot</button>
+          <a href="/app" class="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold border border-white/30 text-white hover:bg-white/10 px-6 py-3 bg-transparent">See it live</a>
+        </div>
+        <div class="pt-8 border-t border-white/20 reveal">
+          <p class="text-sm text-white/70 tracking-wide">Works with ROS2 · gRPC · REST — any OEM</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The Moment Is Now ─────────────────────────────────────────────────── -->
+  <section class="min-h-[600px] grid lg:grid-cols-[55%_45%] relative overflow-hidden">
+    <div class="relative min-h-[400px] lg:min-h-[600px]">
+      <img alt="Humanoid robot deployed in live factory environment" class="absolute inset-0 w-full h-full object-cover" src="/orbital-ai-site/humanoid-deployment.png" loading="lazy" style="filter: brightness(0.85) contrast(1.05)" />
+    </div>
+    <div class="bg-background px-8 md:px-12 lg:px-16 py-16 lg:py-20 flex flex-col justify-center">
+      <div class="mb-12 reveal">
+        <h2 class="mb-4 section-title">The Moment Is Now</h2>
+        <p class="text-lg font-semibold text-muted-foreground mb-4">Hardware is ready. Infrastructure is not.</p>
+        <p class="text-base text-foreground leading-relaxed max-w-md">
+          Forty OEMs are shipping commercial robots today. The missing layer is operational intelligence.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-8">
+        <div class="relative p-8 reveal">
+          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight">2027</div>
+          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Projection horizon for 1M+ humanoids in commercial deployment</div>
+        </div>
+        <div class="relative p-8 reveal">
+          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight" data-count="40" data-suffix="+">40+</div>
+          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Active OEMs shipping commercial robots today</div>
+        </div>
+        <div class="relative p-8 reveal">
+          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight" data-count="38" data-prefix="$" data-suffix="B">$38B</div>
+          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Projected humanoid robotics market by 2035</div>
+        </div>
+        <div class="relative p-8 reveal">
+          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight">0</div>
+          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Dedicated deployment intelligence platforms in market today</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── What's missing ────────────────────────────────────────────────────── -->
+  <section class="py-32 px-6 lg:px-8 relative border-t border-b border-border" style="background-color: rgb(13, 17, 24)">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid lg:grid-cols-2 gap-16 lg:gap-24">
+        <div class="space-y-8 reveal">
+          <p class="text-sm uppercase tracking-widest text-muted-foreground">What's missing</p>
+          <h3 style="font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 700; line-height: 1.2">
+            Teams generate thousands of recovery events, adaptations, and outcomes daily. Almost all of it is discarded.
+          </h3>
+          <p class="text-base text-foreground leading-relaxed">Raw logs exist. Structured memory doesn't. Knowledge restarts from zero at each new site.</p>
+        </div>
+        <div class="space-y-8 reveal">
+          <p class="text-sm uppercase tracking-widest text-muted-foreground">What Orbital introduces</p>
+          <p class="text-base text-foreground leading-relaxed">A memory layer that captures context alongside every event, so deployments compound instead of reset.</p>
+          <div class="space-y-6">
+            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Context</div><div class="text-muted-foreground text-sm">what was happening before the event</div></div></div>
+            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Ground truth</div><div class="text-muted-foreground text-sm">what the camera actually saw</div></div></div>
+            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Outcome</div><div class="text-muted-foreground text-sm">what worked, what didn't</div></div></div>
+            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Lesson</div><div class="text-muted-foreground text-sm">structured, reusable, verifiable</div></div></div>
+            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Confidence</div><div class="text-muted-foreground text-sm">compounding trust in every recommendation</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The Intelligence Stack ────────────────────────────────────────────── -->
+  <section id="intelligence" class="py-20 px-6 lg:px-8 relative overflow-hidden">
+    <div class="max-w-7xl mx-auto relative">
+      <div class="text-center mb-10 reveal">
+        <h2 class="mb-4 section-title">The Intelligence Stack</h2>
+        <p class="text-sm font-semibold uppercase tracking-widest text-primary mb-4">Three components. One compounding advantage.</p>
+        <p class="text-lg text-foreground max-w-2xl mx-auto leading-relaxed">Reality Engine captures what happened. ARIA structures why. Experience Memory makes both reusable.</p>
+      </div>
+      <div class="relative mb-20 w-full overflow-hidden rounded-lg reveal" style="aspect-ratio: 16 / 6">
+        <img alt="Boston Dynamics Spot robot deployed at POSCO steel mill" class="absolute inset-0 w-full h-full object-cover" src="/orbital-ai-site/stack-spot-posco.jpg" loading="lazy" />
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background"></div>
+      </div>
+      <div class="grid md:grid-cols-3 gap-16 lg:gap-20">
+        <div class="relative pl-6 border-l-2 border-secondary reveal">
+          <div class="flex items-center gap-3 mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary flex-shrink-0" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <h3 class="card-title">Reality Engine</h3>
+          </div>
+          <div class="uppercase text-primary mb-4 caption">What happened</div>
+          <p class="text-foreground leading-relaxed">Fuses live camera feeds with robot API telemetry to produce verified ground truth. Not what the system reported — what the environment actually showed.</p>
+        </div>
+        <div class="relative pl-6 border-l-2 border-secondary reveal">
+          <div class="flex items-center gap-3 mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary flex-shrink-0" aria-hidden="true"><path d="M12 18V5"></path><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"></path><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"></path><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"></path><path d="M18 18a4 4 0 0 0 2-7.464"></path><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"></path><path d="M6 18a4 4 0 0 1-2-7.464"></path><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"></path></svg>
+            <h3 class="card-title">ARIA</h3>
+          </div>
+          <div class="uppercase text-primary mb-4 caption">Why it happened</div>
+          <p class="text-foreground leading-relaxed">Processes the fused stream to extract behavior-level understanding: what triggered the event, what the robot decided, and what that decision produced.</p>
+        </div>
+        <div class="relative pl-6 border-l-2 border-secondary reveal">
+          <div class="flex items-center gap-3 mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary flex-shrink-0" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg>
+            <h3 class="card-title">Experience Memory</h3>
+          </div>
+          <div class="uppercase text-primary mb-4 caption">What to do next</div>
+          <p class="text-foreground leading-relaxed">Packages each verified event into an Experience Memory Module — structured, reusable, and queryable. Every deployment adds to the fabric. The network gets smarter by default.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The Intelligence Flywheel ─────────────────────────────────────────── -->
+  <section class="py-20 px-6 lg:px-8 relative overflow-hidden">
+    <img alt="Figure humanoid robot in BMW production facility" class="absolute inset-0 w-full h-full object-cover" src="/orbital-ai-site/flywheel-figure-bmw.jpg" loading="lazy" />
+    <div class="absolute inset-0 bg-background/88"></div>
+    <div class="max-w-7xl mx-auto relative">
+      <div class="text-center mb-16 reveal">
+        <h2 class="mb-3 section-title">The Intelligence Flywheel</h2>
+        <p class="text-base text-foreground max-w-xl mx-auto">Each event becomes an EMM — structured context, outcome, confidence score. The network learns from all of them.</p>
+      </div>
+      <div class="flywheel reveal">
+        <svg viewBox="0 0 400 400" class="flywheel-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Intelligence flywheel: deployment event, memory capture, fabric growth, improved execution, in a cycle">
+          <defs>
+            <marker id="fw-arrow" markerWidth="8" markerHeight="8" refX="7" refY="2.5" orient="auto"><polygon points="0 0, 8 2.5, 0 5" fill="#6B81F0"></polygon></marker>
+            <radialGradient id="fw-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#6B81F0" stop-opacity="0.12"></stop><stop offset="100%" stop-color="#6B81F0" stop-opacity="0"></stop></radialGradient>
+          </defs>
+          <circle cx="200" cy="200" r="200" fill="url(#fw-glow)"></circle>
+          <circle cx="200" cy="200" r="155" fill="none" stroke="#6B81F0" stroke-width="1.5" opacity="0.25"></circle>
+          <circle cx="200" cy="200" r="72" fill="rgba(107,129,240,0.15)" stroke="#6B81F0" stroke-width="1" opacity="0.4"></circle>
+          <text x="200" y="193" text-anchor="middle" font-size="12" font-weight="600" fill="white" opacity="0.95">Memory Fabric</text>
+          <text x="200" y="211" text-anchor="middle" font-size="10" fill="#6B81F0" opacity="0.9">compounds each cycle</text>
+          <g class="flywheel-arrows">
+            <path d="M 220,58 A 155 155 0 0 1 342,212" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
+            <path d="M 342,220 A 155 155 0 0 1 212,342" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
+            <path d="M 188,342 A 155 155 0 0 1 58,188" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
+            <path d="M 58,180 A 155 155 0 0 1 188,58" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
+          </g>
+          <g><circle cx="200" cy="45" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="200" cy="45" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="200" y="51" text-anchor="middle" font-size="15" font-weight="700" fill="white">1</text></g>
+          <g><circle cx="355" cy="200" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="355" cy="200" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="355" y="206" text-anchor="middle" font-size="15" font-weight="700" fill="white">2</text></g>
+          <g><circle cx="200" cy="355" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="200" cy="355" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="200" y="361" text-anchor="middle" font-size="15" font-weight="700" fill="white">3</text></g>
+          <g><circle cx="45" cy="200" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="45" cy="200" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="45" y="206" text-anchor="middle" font-size="15" font-weight="700" fill="white">4</text></g>
+        </svg>
+        <ol class="flywheel-steps">
+          <li><span class="step-no">01</span><div><div class="font-semibold text-foreground text-sm mb-1">Deployment Event</div><div class="text-foreground text-xs leading-relaxed opacity-80">Robot encounters a real environment. Reality Engine records ground truth.</div></div></li>
+          <li><span class="step-no">02</span><div><div class="font-semibold text-foreground text-sm mb-1">Memory Capture</div><div class="text-foreground text-xs leading-relaxed opacity-80">ARIA structures the event into an EMM: context, outcome, lesson, confidence.</div></div></li>
+          <li><span class="step-no">03</span><div><div class="font-semibold text-foreground text-sm mb-1">Fabric Growth</div><div class="text-foreground text-xs leading-relaxed opacity-80">The EMM joins the network. Every future deployment can draw on it.</div></div></li>
+          <li><span class="step-no">04</span><div><div class="font-semibold text-foreground text-sm mb-1">Improved Execution</div><div class="text-foreground text-xs leading-relaxed opacity-80">Recommendations sharpen. The fleet learns from all prior deployments.</div></div></li>
+        </ol>
+      </div>
+      <div class="max-w-3xl mx-auto mt-16 reveal">
+        <div class="border border-border overflow-hidden table-scroll">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-border">
+                <th class="text-left px-5 py-3 font-semibold text-foreground/60 w-1/3">Metric</th>
+                <th class="text-left px-5 py-3 font-semibold text-foreground/60">Traditional OEM</th>
+                <th class="text-left px-5 py-3 font-semibold" style="color: hsl(var(--secondary))">With Orbital</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-border"><td class="px-5 py-3 text-foreground/60">Environments/robot</td><td class="px-5 py-3 text-foreground">1 customer</td><td class="px-5 py-3 font-semibold text-foreground">5–10 venues/year</td></tr>
+              <tr class="border-b border-border"><td class="px-5 py-3 text-foreground/60">Learning cycle</td><td class="px-5 py-3 text-foreground">Months</td><td class="px-5 py-3 font-semibold text-foreground">Every event</td></tr>
+              <tr><td class="px-5 py-3 text-foreground/60">EMMs generated</td><td class="px-5 py-3 text-foreground">Minimal</td><td class="px-5 py-3 font-semibold text-foreground">Compounds with each deployment</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Platform Capabilities ─────────────────────────────────────────────── -->
+  <section id="platform" class="py-20 px-6 lg:px-8 relative">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <h2 class="mb-4 section-title">Platform Capabilities</h2>
+        <p class="text-lg md:text-xl font-semibold text-muted-foreground mb-4">Everything a deployed robot generates — captured, governed, actioned.</p>
+        <p class="text-base text-foreground max-w-2xl mx-auto leading-relaxed">Connect over ROS2, gRPC, or REST. Full operational visibility from day one.</p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-10">
+        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
+          <div class="flex items-start gap-4 mb-4">
+            <span class="text-sm font-mono text-secondary">01</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path></svg>
+          </div>
+          <h3 class="mb-3 card-title">Real-time telemetry</h3>
+          <p class="text-foreground leading-relaxed">Pose, sensors, motor load, battery &amp; thermal — live on a 2-second heartbeat from every robot.</p>
+        </div>
+        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
+          <div class="flex items-start gap-4 mb-4">
+            <span class="text-sm font-mono text-secondary">02</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.520 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>
+          </div>
+          <h3 class="mb-3 card-title">Scope &amp; safety governance</h3>
+          <p class="text-foreground leading-relaxed">Every command checked against per-OEM API scopes before it reaches a robot. Granular grants, E-Stop, safety-halt controller, keep-out and slow zones.</p>
+        </div>
+        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
+          <div class="flex items-start gap-4 mb-4">
+            <span class="text-sm font-mono text-secondary">03</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+          </div>
+          <h3 class="mb-3 card-title">Visual navigation</h3>
+          <p class="text-foreground leading-relaxed">Drop a waypoint on the overhead map; ARIA's cameras guide the robot there, circumventing onboard SLAM when it drifts.</p>
+        </div>
+        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
+          <div class="flex items-start gap-4 mb-4">
+            <span class="text-sm font-mono text-secondary">04</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg>
+          </div>
+          <h3 class="mb-3 card-title">Multi-OEM control plane</h3>
+          <p class="text-foreground leading-relaxed">One surface across ROS2, gRPC, and cloud REST. Onboard any vendor's fleet and command it from a single pane.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Digital Net: Orbital's own sensing hardware ───────────────────────── -->
+  <section id="digital-net" class="py-20 px-6 lg:px-8 relative border-t border-b border-border" style="background-color: rgb(13, 17, 24)">
+    <div class="max-w-7xl mx-auto">
+      <div class="dn-intro reveal">
+        <p class="text-sm uppercase tracking-widest text-primary mb-4">Digital Net · our own sensing hardware</p>
+        <h2 class="mb-4 section-title">See. Measure. Validate.<br />Real robot work.</h2>
+        <p class="text-lg text-foreground leading-relaxed">
+          Most physical-AI platforms borrow their eyes from phones, store CCTV, and the robots themselves.
+          Orbital builds its own: a modular frame of 8–16 synchronized cameras that puts a 3-D digital net
+          around a deployed robot, measures real-world performance, catches deviations, and records
+          training-grade data.
+        </p>
+      </div>
+      <figure class="dn-figure reveal">
+        <a href="/assets/robot-harness.jpg" target="_blank" rel="noopener" aria-label="Open the full Digital Net diagram">
+          <img src="/assets/robot-harness.jpg" loading="lazy" alt="Digital Net: a frame with 8 to 16 synchronized camera positions around a humanoid robot carrying a box. Sensor options are 16 MP global-shutter RGB cameras, RGB plus IR depth cameras, 850/940 nm IR illumination, and AprilTag/ChArUco calibration targets. Cameras feed a PoE switch with IEEE 1588 time sync, edge compute, and NVMe storage, synced with robot telemetry. Outputs are 3-D pose and trajectory, object interaction, and performance analytics against a golden run." />
+        </a>
+        <figcaption>Digital Net · 8–16 sensor positions · IEEE 1588 time sync · synced with robot telemetry on ARIA</figcaption>
+      </figure>
+      <div class="dn-grid">
+        <div class="dn-card reveal">
+          <div class="caption text-primary uppercase">Sensors</div>
+          <h3 class="card-title">Synchronized, calibrated, ours</h3>
+          <p>Global-shutter RGB cameras, depth cameras, and IR illumination on one PoE network with hardware time sync, so every frame from every angle lines up to the same instant.</p>
+        </div>
+        <div class="dn-card reveal">
+          <div class="caption text-primary uppercase">Calibration</div>
+          <h3 class="card-title">Known geometry, every time</h3>
+          <p>AprilTag and ChArUco targets give the rig its geometry automatically, and the residuals say which camera moved — so the volume can be re-established on any floor.</p>
+        </div>
+        <div class="dn-card reveal">
+          <div class="caption text-primary uppercase">Depth from many views</div>
+          <h3 class="card-title">Stereo from RGB</h3>
+          <p>Neighbouring cameras act as stereo pairs. Multi-view disparity recovers depth, shape, orientation, and motion of the robot and the objects it handles.</p>
+        </div>
+        <div class="dn-card reveal">
+          <div class="caption text-secondary uppercase">Output</div>
+          <h3 class="card-title">3-D pose &amp; trajectory</h3>
+          <p>Precise motion tracking of the robot's body and arms, compared with what the robot reports about itself.</p>
+        </div>
+        <div class="dn-card reveal">
+          <div class="caption text-secondary uppercase">Output</div>
+          <h3 class="card-title">Object interaction</h3>
+          <p>Grasp, placement, cycle time, and success rate — measured from outside the robot, the same way for every OEM.</p>
+        </div>
+        <div class="dn-card reveal">
+          <div class="caption text-secondary uppercase">Output</div>
+          <h3 class="card-title">Golden Run analytics</h3>
+          <p>Record one good run of a job; every later run is compared with it to detect drift, deviations, and recoveries — and becomes labelled training data.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How It Works ──────────────────────────────────────────────────────── -->
+  <section id="how-it-works" class="py-20 px-6 lg:px-8 relative">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <h2 class="mb-4 section-title">How It Works</h2>
+        <p class="text-lg md:text-xl font-semibold text-muted-foreground mb-4">Connect. Observe. Control.</p>
+        <p class="text-base text-foreground max-w-xl mx-auto leading-relaxed">Three phases. Fourteen days. No professional services required.</p>
+      </div>
+      <div class="space-y-16 relative">
+        <div class="absolute left-8 md:left-12 top-0 bottom-0 w-px bg-gradient-to-b from-primary/50 via-primary/20 to-transparent"></div>
+        <div class="relative pl-24 md:pl-32 reveal">
+          <div class="absolute left-0 top-0 text-[8rem] md:text-[10rem] font-bold leading-none select-none" style="color: hsl(var(--primary) / 0.05)" aria-hidden="true">01</div>
+          <div class="absolute left-8 md:left-12 top-8 -translate-x-1/2 p-3 rounded-xl bg-primary/10 border border-primary/30 z-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+          </div>
+          <div class="relative">
+            <h3 class="text-3xl md:text-4xl font-bold mb-4">Connect the fleet</h3>
+            <p class="text-lg text-foreground leading-relaxed mb-6">Onboard an OEM through the API wizard. Pick ROS2, gRPC, or REST — grant exactly the scopes Orbital should hold.</p>
+            <div class="inline-flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/50"><span class="uppercase font-semibold text-primary whitespace-nowrap caption">Outcome:</span><span class="text-sm text-foreground/90">Robots appear on the spatial map with live telemetry.</span></div>
+          </div>
+        </div>
+        <div class="relative pl-24 md:pl-32 reveal">
+          <div class="absolute left-0 top-0 text-[8rem] md:text-[10rem] font-bold leading-none select-none" style="color: hsl(var(--primary) / 0.05)" aria-hidden="true">02</div>
+          <div class="absolute left-8 md:left-12 top-8 -translate-x-1/2 p-3 rounded-xl bg-primary/10 border border-primary/30 z-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </div>
+          <div class="relative">
+            <h3 class="text-3xl md:text-4xl font-bold mb-4">Observe everything</h3>
+            <p class="text-lg text-foreground leading-relaxed mb-6">Fleet status, mission sequences, drift alerts, and ARIA camera-tracked ground truth — one dashboard, every robot, every OEM.</p>
+            <div class="inline-flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/50"><span class="uppercase font-semibold text-primary whitespace-nowrap caption">Outcome:</span><span class="text-sm text-foreground/90">Operators see what each robot is doing in real time.</span></div>
+          </div>
+        </div>
+        <div class="relative pl-24 md:pl-32 reveal">
+          <div class="absolute left-0 top-0 text-[8rem] md:text-[10rem] font-bold leading-none select-none" style="color: hsl(var(--primary) / 0.05)" aria-hidden="true">03</div>
+          <div class="absolute left-8 md:left-12 top-8 -translate-x-1/2 p-3 rounded-xl bg-primary/10 border border-primary/30 z-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></svg>
+          </div>
+          <div class="relative">
+            <h3 class="text-3xl md:text-4xl font-bold mb-4">Control and learn</h3>
+            <p class="text-lg text-foreground leading-relaxed mb-6">Issue commands, set waypoints, trigger E-Stops, review EMMs. Every action feeds the memory fabric.</p>
+            <div class="inline-flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/50"><span class="uppercase font-semibold text-primary whitespace-nowrap caption">Outcome:</span><span class="text-sm text-foreground/90">The fleet gets smarter with every deployment.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Pilot ─────────────────────────────────────────────────────────────── -->
+  <section id="pilot" class="py-20 px-6 lg:px-8 relative overflow-hidden bg-background">
+    <div class="max-w-4xl mx-auto text-center relative z-10 reveal">
+      <div class="uppercase font-semibold text-primary mb-8 caption">14 Days. Real Robots. Ground Truth.</div>
+      <h2 class="mb-8 section-title">The infrastructure layer for physical AI is ready.</h2>
+      <p class="text-lg md:text-xl text-foreground mb-6 max-w-2xl mx-auto leading-relaxed">Deployment review, pilot scope definition, and executive brief — grounded in live operational truth.</p>
+      <p class="text-base text-foreground mb-12 max-w-xl mx-auto leading-relaxed">We connect to your fleet, observe one operational cycle, and return a brief your team can act on.</p>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
+        <button type="button" data-contact="early-access" class="inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all bg-primary text-primary-foreground hover:bg-primary/90 border border-primary-border h-12 text-base font-semibold group px-6 py-3 rounded-lg">
+          Start the pilot
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+        </button>
+        <button type="button" data-contact="general" class="inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all hover:text-accent hover:border-accent h-12 text-base font-semibold bg-transparent border border-border text-foreground hover:bg-muted px-6 py-3 rounded-lg">Request a demo</button>
+      </div>
+      <p class="text-sm text-muted-foreground">Works with any OEM: <span class="text-foreground font-medium">ROS2 · gRPC · REST</span></p>
+    </div>
+  </section>
+
+  <!-- ── Footer ────────────────────────────────────────────────────────────── -->
+  <footer class="border-t border-border bg-background">
+    <div class="max-w-7xl mx-auto px-6 lg:px-8 py-12">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="flex items-center gap-3">
+          <img alt="Orbital AI" class="h-8 w-8" src="/assets/orbital-logo-D9n2owqh.png" />
+          <div>
+            <div class="text-lg font-bold tracking-tight">Orbital AI</div>
+            <div class="text-sm text-muted-foreground">The operational memory layer for physical AI.</div>
+          </div>
+        </div>
+        <nav class="footer-nav" aria-label="Footer">
+          <a href="#platform" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Platform</a>
+          <a href="#digital-net" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Digital Net</a>
+          <a href="#how-it-works" class="text-sm text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+          <a href="#intelligence" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Intelligence</a>
+          <a href="#pilot" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Pilot</a>
+          <a href="/app" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Console</a>
+          <button type="button" data-contact="partnership" class="text-sm text-muted-foreground hover:text-foreground transition-colors">OEM partnerships</button>
+        </nav>
+      </div>
+      <div class="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">© 2026 Orbital AI. All rights reserved.</div>
+    </div>
+  </footer>
+</div>
+
+<!-- ── Contact dialog (posts to /api/contact) ──────────────────────────────── -->
+<dialog id="contact-dialog" class="contact-dialog" aria-labelledby="contact-title">
+  <form id="contact-form" method="dialog" novalidate>
+    <div class="contact-head">
+      <h2 id="contact-title" class="card-title">Start a pilot</h2>
+      <button type="button" class="contact-close" data-close aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <p id="contact-lede" class="text-sm text-muted-foreground">Tell us about your fleet and we'll scope a 14-day pilot.</p>
+    <label>Topic
+      <select name="topic">
+        <option value="early-access">Start a pilot</option>
+        <option value="general">Request a demo</option>
+        <option value="partnership">OEM partnership</option>
+      </select>
+    </label>
+    <label>Name<input name="name" autocomplete="name" required maxlength="120" /></label>
+    <label>Work email<input name="email" type="email" autocomplete="email" required maxlength="200" /></label>
+    <label>What are you deploying? <span class="text-muted-foreground">(optional)</span><textarea name="message" rows="4" maxlength="4000" placeholder="Robots, sites, and what you want to measure"></textarea></label>
+    <label class="hp" aria-hidden="true">Company URL<input name="company_url" tabindex="-1" autocomplete="off" /></label>
+    <p id="contact-status" class="contact-status" role="status"></p>
+    <div class="contact-actions">
+      <button type="button" data-close class="rounded-lg text-sm font-semibold px-5 py-2.5 border border-border text-foreground hover:bg-muted">Cancel</button>
+      <button type="submit" class="rounded-lg text-sm font-semibold px-5 py-2.5 bg-primary text-primary-foreground hover:bg-primary/90">Send</button>
+    </div>
+  </form>
+</dialog>
+</body>
 </html>
