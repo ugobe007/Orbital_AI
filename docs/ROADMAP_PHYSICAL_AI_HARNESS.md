@@ -96,12 +96,22 @@ dependency-light (the `mcp` SDK goes in a new `requirements-mcp.txt`, not `requi
 
 ## Sprint G — Zones and people on the map
 
+**Status:** **G1, G2, G8 (zones part) done (sim)** — `orbital_cloud/zones.py`, zone-aware
+`pathing.plan(..., vendor)`, `tests/test_zones.py`, dashboard zone overlay and drawing tool.
+Zones also ride along in `GET /api/v1/map/{facility}` (the transport half of G4). G3–G7 open.
+
+As built, `drivable` zones were left out: the floor is drivable by default, so only keep-out
+and slow zones change behaviour. Keep-out zones are inflated by the planner's 0.45 m clearance.
+`navigate` refuses (409) a waypoint inside a keep-out zone; a simulated mission whose goal is
+inside one stops at the nearest free point. Zone edits are Operator-only — agents cannot
+change them, even with direct control enabled.
+
 **Goal:** The map becomes a site model, not just a floor plan: operator-drawn zones the planner
 and safety layer respect, and human workers as first-class participants.
 
 | ID | Work | Files | Exit criteria |
 |----|------|-------|---------------|
-| G1 | `Zone` model: polygon, `type (keepout\|slow\|drivable)`, `speed_cap_mps?`, `vendors?` (zone applies to these OEMs only). CRUD at `/api/dashboard/zones` (Operator), persisted in SQLite | `models.py`, `persistence.py`, `routers/dashboard.py` | CRUD + persistence tests |
+| G1 | `Zone` model: polygon, `type (keepout\|slow\|drivable)`, `speed_cap_mps?`, `vendors?` (zone applies to these OEMs only). CRUD at `/api/dashboard/zones` (Operator), persisted in SQLite | `models.py`, `persistence.py`, `zones.py`, `routers/dashboard.py` | CRUD + persistence tests |
 | G2 | Planner honours keep-out zones as blocked cells; simulator caps speed in slow zones | `pathing.py` (`_point_blocked`), `simulator.py` | `tests/test_pathing.py`: route avoids keep-out |
 | G3 | `OEMPolicies.geofence` resolves to zone ids instead of a free-text label | `models.py`, `oem_store.py` | Migration keeps `"facility"` = whole map |
 | G4 | Edge enforcement: new `AlertType.GEOFENCE_BREACH`; `SafetyHaltController` halts a robot whose camera pose enters a keep-out zone. Zones ship to the edge in `GET /api/v1/map/{facility}` | `aria_edge/safety_halt.py`, `aria_edge/edge_agent.py`, `routers/edge.py` | Edge test: breach → halt + alert |
