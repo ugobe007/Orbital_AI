@@ -1,8 +1,9 @@
 """Dashboard RBAC — Admin / Operator / Viewer (Sprint C4).
 
 Enforcement is opt-in via ``ORBITAL_RBAC_ENFORCE=1``. When enforced:
-  * Operator / Admin actions require ``Authorization: Bearer <token>``, or ``X-Orbital-Role``
-    from the trusted proxy (``X-Orbital-Proxy-Secret`` = ``ORBITAL_RBAC_PROXY_SECRET``).
+  * Operator / Admin actions require ``Authorization: Bearer <token>``, a console sign-in
+    session cookie (see ``sessions``), or ``X-Orbital-Role`` from the trusted proxy
+    (``X-Orbital-Proxy-Secret`` = ``ORBITAL_RBAC_PROXY_SECRET``).
     From anyone else, ``X-Orbital-Role`` can only lower the caller's role.
   * Anonymous callers default to **Viewer** when ``ORBITAL_RBAC_ANON_VIEWER=1`` (default),
     so the marketing embed and public map keep working while control stays locked.
@@ -22,7 +23,9 @@ from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Cookie, Header, HTTPException, Request
+
+from . import sessions
 
 
 class Role(str, Enum):
@@ -97,6 +100,7 @@ def resolve_role(
     x_orbital_role: str | None = None,
     authorization: str | None = None,
     x_orbital_proxy_secret: str | None = None,
+    session_cookie: str | None = None,
 ) -> Role:
     """``X-Orbital-Role`` is honoured as-is only from the trusted proxy (StageGate), which
     proves itself with ``X-Orbital-Proxy-Secret``. From anyone else it may only lower the
@@ -110,7 +114,7 @@ def resolve_role(
         if _proxy_trusted(x_orbital_proxy_secret):
             return claimed
 
-    base = _credential_role(authorization)
+    base = _credential_role(authorization, session_cookie)
     if claimed is None or _PRIVILEGE[claimed] <= _PRIVILEGE[base]:
         return claimed or base
     raise HTTPException(
@@ -130,6 +134,7 @@ def diagnose_caller(
     x_orbital_actor: str | None,
     x_orbital_proxy_secret: str | None,
     authorization: str | None,
+    session_cookie: str | None = None,
 ) -> dict:
     """Explain how this request's headers resolve, without revealing any secret. Fingerprints
     are the first 8 hex chars of SHA-256, so an operator can compare the value each side holds
@@ -138,7 +143,8 @@ def diagnose_caller(
     expected = _strip_wrapping_quotes(os.getenv("ORBITAL_RBAC_PROXY_SECRET") or "")
     try:
         role: str | None = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
-                                        x_orbital_proxy_secret=x_orbital_proxy_secret).value
+                                        x_orbital_proxy_secret=x_orbital_proxy_secret,
+                                        session_cookie=session_cookie).value
         error = None
     except HTTPException as exc:
         role, error = None, str(exc.detail)
@@ -150,6 +156,7 @@ def diagnose_caller(
         "role_header": x_orbital_role,
         "actor_header": x_orbital_actor,
         "bearer_sent": bool(authorization),
+        "signed_in": sessions.read(session_cookie) is not None,
         "proxy_secret_configured": bool(expected),
         "proxy_secret_sent": bool(sent),
         "proxy_secret_matches": _proxy_trusted(x_orbital_proxy_secret),
@@ -158,12 +165,22 @@ def diagnose_caller(
     }
 
 
-def _credential_role(authorization: str | None) -> Role:
+def role_for_token(token: str) -> Role | None:
+    return _token_role_map().get(_strip_wrapping_quotes(token))
+
+
+def _credential_role(authorization: str | None, session_cookie: str | None = None) -> Role:
     if authorization and authorization.lower().startswith("bearer "):
-        token = _strip_wrapping_quotes(authorization[7:])
-        mapped = _token_role_map().get(token)
+        mapped = role_for_token(authorization[7:])
         if mapped is not None:
             return mapped
+
+    session = sessions.read(session_cookie)
+    if session is not None:
+        try:
+            return Role(session.role)
+        except ValueError:
+            pass
 
     if not rbac_enforced():
         return Role.ADMIN  # permissive default for demos/tests
@@ -181,9 +198,10 @@ def require_min_role(minimum: Role):
         x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
         x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
         authorization: str | None = Header(default=None),
+        orbital_session: str | None = Cookie(default=None),
     ) -> Role:
         role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
-                            x_orbital_proxy_secret=x_orbital_proxy_secret)
+                            x_orbital_proxy_secret=x_orbital_proxy_secret, session_cookie=orbital_session)
         _check_agents_enabled(role)
         if _RANK[role] < _RANK[minimum]:
             raise HTTPException(
@@ -256,8 +274,9 @@ class _RateLimiter:
 agent_limiter = _RateLimiter()
 
 
-def _caller(role: Role, x_orbital_actor: str | None) -> Caller:
-    label = _strip_wrapping_quotes(x_orbital_actor or "")[:64]
+def _caller(role: Role, x_orbital_actor: str | None, session_cookie: str | None = None) -> Caller:
+    session = sessions.read(session_cookie)
+    label = _strip_wrapping_quotes(x_orbital_actor or "")[:64] or (session.actor if session else "")
     if role == Role.AGENT:
         return Caller(role, f"agent:{label or 'unnamed'}")
     return Caller(role, label or role.value)
@@ -280,10 +299,11 @@ def _caller_dep(*, agent_allowed, rate_limited: bool):
         x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
         x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
         authorization: str | None = Header(default=None),
+        orbital_session: str | None = Cookie(default=None),
     ) -> Caller:
         role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
-                            x_orbital_proxy_secret=x_orbital_proxy_secret)
-        caller = _caller(role, x_orbital_actor)
+                            x_orbital_proxy_secret=x_orbital_proxy_secret, session_cookie=orbital_session)
+        caller = _caller(role, x_orbital_actor, orbital_session)
         if role == Role.AGENT:
             if not agents_enabled():
                 raise _reject_agent(request, caller, 403,
@@ -324,8 +344,9 @@ async def CurrentCaller(
     x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
     x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
     authorization: str | None = Header(default=None),
+    orbital_session: str | None = Cookie(default=None),
 ) -> Caller:
     role = resolve_role(x_orbital_role=x_orbital_role, authorization=authorization,
-                        x_orbital_proxy_secret=x_orbital_proxy_secret)
+                        x_orbital_proxy_secret=x_orbital_proxy_secret, session_cookie=orbital_session)
     _check_agents_enabled(role)
-    return _caller(role, x_orbital_actor)
+    return _caller(role, x_orbital_actor, orbital_session)

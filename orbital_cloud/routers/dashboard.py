@@ -1,7 +1,7 @@
 """Module 7 — Fleet Management Dashboard API (+ monitor/control actions)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
 
 from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, WAREHOUSE, settings
@@ -419,11 +419,13 @@ async def whoami(
     x_orbital_actor: str | None = Header(default=None, alias="X-Orbital-Actor"),
     x_orbital_proxy_secret: str | None = Header(default=None, alias="X-Orbital-Proxy-Secret"),
     authorization: str | None = Header(default=None),
+    orbital_session: str | None = Cookie(default=None),
 ) -> dict:
     """How Orbital resolves this caller's role — for debugging a proxy or token that is
     refused. Never raises on bad credentials; reports the refusal instead."""
     return diagnose_caller(x_orbital_role=x_orbital_role, x_orbital_actor=x_orbital_actor,
-                           x_orbital_proxy_secret=x_orbital_proxy_secret, authorization=authorization)
+                           x_orbital_proxy_secret=x_orbital_proxy_secret, authorization=authorization,
+                           session_cookie=orbital_session)
 
 
 @router.get("/agent-policy")
