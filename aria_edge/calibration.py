@@ -149,10 +149,13 @@ def solve(captures: list[Capture], origin_marker: int, *, origin_pose: Pose = Po
         if worst is None or worst[2] <= threshold_m:
             break
         cid, mid, _ = worst
-        others = sum(1 for c, ids in inliers.items() if c != cid and mid in ids)
-        if len(inliers[cid]) <= 2 or others == 0 or len(rejected) >= _MAX_REJECTIONS:
-            break   # dropping it would disconnect the graph; report it instead
+        if len(inliers[cid]) <= 2 or len(rejected) >= _MAX_REJECTIONS:
+            break
+        before = _connected(inliers, origin_marker)
         inliers[cid].discard(mid)
+        if _connected(inliers, origin_marker) != before:
+            inliers[cid].add(mid)
+            break   # dropping it would disconnect the graph; report it instead
         rejected.append((cid, mid))
 
     return _report(captures, by_id, anchored, inliers, rejected, markers, poses,
@@ -181,6 +184,23 @@ def _anchored_captures(captures: list[Capture], origin_marker: int) -> set[str]:
                     seen_markers.add(o.marker_id)
                     frontier.append(o.marker_id)
     return seen_caps
+
+
+def _connected(inliers: dict[str, set[int]], origin_marker: int) -> tuple[set[str], set[int]]:
+    """Captures and markers reachable from the origin marker through inlier observations."""
+    seen_markers = {origin_marker}
+    seen_caps: set[str] = set()
+    frontier = [origin_marker]
+    while frontier:
+        mid = frontier.pop()
+        for cid, ids in inliers.items():
+            if cid in seen_caps or mid not in ids:
+                continue
+            seen_caps.add(cid)
+            for m in ids - seen_markers:
+                seen_markers.add(m)
+                frontier.append(m)
+    return seen_caps, seen_markers
 
 
 def _initialise(by_id: dict[str, Capture], anchored: set[str], origin_marker: int,
@@ -234,7 +254,7 @@ def _refine(by_id: dict[str, Capture], inliers: dict[str, set[int]], markers: di
             rx = cp.x + c * o.x - s * o.y - mp.x
             ry = cp.y + s * o.x + c * o.y - mp.y
             ra = _THETA_WEIGHT * _wrap(cp.theta + o.theta - mp.theta)
-            sw = 1.0 / math.sqrt(1.0 + (math.hypot(rx, ry) / cauchy_c) ** 2) if it > 1 else 1.0
+            sw = 1.0 / math.sqrt(1.0 + (math.hypot(rx, ry) / cauchy_c) ** 2) if it > 1 and cauchy_c > 0 else 1.0
             ci = index[("c", cid)]
             mi = index.get(("m", o.marker_id))
             # Rows of the Jacobian for (rx, ry, ra) as sparse {column: value}.
