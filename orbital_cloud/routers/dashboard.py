@@ -51,6 +51,7 @@ from ..rbac import (
     diagnose_caller,
 )
 from .. import recommendations, scope_guard
+from ..objects import objects_json, objects_message
 from ..rig_calibration import calibration_store
 from ..store import store
 from ..workers import worker_store
@@ -105,11 +106,18 @@ async def get_robot_sensors(robot_id: str, _role: Role = Depends(RequireViewer))
 @router.get("/map")
 async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
     """The warehouse floor plan operators drop waypoints on (Global Spatial Map), with the
-    keep-out and slow zones drawn on it."""
+    keep-out and slow zones drawn on it, and the objects the camera rig is tracking."""
     return {**WAREHOUSE, "zones": [z.model_dump(mode="json") for z in zone_store.list()],
+            "objects": objects_json(),
             "people_safety": {"slow_radius_m": settings.human_slow_radius_m,
                               "stop_radius_m": settings.human_stop_radius_m,
                               "slow_speed_mps": settings.human_slow_speed_mps}}
+
+
+@router.get("/objects")
+async def list_objects(_role: Role = Depends(RequireViewer)) -> dict:
+    """Live tracked objects (pallets, carts, forklifts…) for this facility."""
+    return objects_message()
 
 
 @router.get("/calibration")

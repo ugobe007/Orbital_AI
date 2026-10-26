@@ -67,8 +67,11 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
 
     @mcp.tool()
     def get_map() -> Any:
-        """Facility floor plan: dimensions, racks/obstacles, named stations, charge pads, and
-        operator-drawn zones (keep-out: robots never enter; slow: speed capped inside)."""
+        """Facility floor plan: dimensions, racks/obstacles, named stations, charge pads,
+        operator-drawn zones (keep-out: robots never enter; slow: speed capped inside), and
+        ``objects`` the cameras are tracking right now — each with a label (pallet, cart,
+        forklift…), centre x/y, yaw (radians), footprint size in metres, velocity vx/vy (m/s)
+        and confidence. Objects disappear when the cameras stop seeing them."""
         return client.get_map()
 
     @mcp.tool()

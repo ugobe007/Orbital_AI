@@ -25,6 +25,8 @@ const state = {
   zones: [],            // keep-out / slow zones on the spatial map
   workers: [],          // people on the floor (live only)
   zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
+  objects: [],          // tracked objects (pallets, carts, forklifts) from the camera rig
+  clockSkew: 0,         // server time minus browser time, so objects expire on the server's clock
   auth: null,           // /api/auth/me: who is signed in to this console
   calibration: null,    // latest rig-calibration report for this facility (Sprint H)
 };
@@ -559,12 +561,14 @@ function renderCapabilities() {
 
 // ── warehouse map ──────────────────────────────────────────────────────────────
 const ZONE_COLOR = { keepout: "#e5484d", slow: "#ffa01f" };
+const OBJECT_COLOR = { pallet: "#c9a26b", forklift: "#f2c94c", cart: "#56ccf2", person: "#ff7ab6", default: "#b4bcc8" };
 const ROBOT_FILL = { active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#5b667a" };
 
 async function loadMap() {
   try {
     state.map = await getJSON("/api/dashboard/map");
     state.zones = state.map.zones || [];
+    state.objects = state.map.objects || [];
     renderMap(); renderZoneBar();
   } catch (e) { console.error(e); }
 }
@@ -637,6 +641,25 @@ function renderMap() {
     const pts = draft.points.map((q) => `${q.x},${Y(q.y)}`).join(" ");
     p.push(`<polygon points="${pts}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="0.06"/>`);
     for (const q of draft.points) p.push(`<circle cx="${q.x}" cy="${Y(q.y)}" r="0.12" fill="${color}"/>`);
+  }
+
+  // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
+  // is moving, and its label. Objects past their expiry are dropped even between updates.
+  const now = Date.now() / 1000 + state.clockSkew;
+  state.objects = state.objects.filter((o) => o.expires_at > now);
+  for (const o of state.objects) {
+    const color = OBJECT_COLOR[o.label] || OBJECT_COLOR.default;
+    const L = o.size.length, Wd = o.size.width, deg = -o.yaw * 180 / Math.PI;
+    const cx = o.x, cy = Y(o.y);
+    p.push(`<g><title>${esc(o.label)} ${esc(o.id)} · ${(o.confidence * 100).toFixed(0)}% · ${esc(o.source)}</title>`);
+    p.push(`<rect x="${cx - L / 2}" y="${cy - Wd / 2}" width="${L}" height="${Wd}" rx="0.06" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="0.045" transform="rotate(${deg} ${cx} ${cy})"/>`);
+    p.push(`<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(o.yaw) * L / 2}" y2="${Y(o.y + Math.sin(o.yaw) * L / 2)}" stroke="${color}" stroke-width="0.04" opacity="0.7"/>`);
+    if (Math.hypot(o.vx, o.vy) > 0.05) {
+      const ax = o.x + o.vx, ay = o.y + o.vy;
+      p.push(`<line x1="${cx}" y1="${cy}" x2="${ax}" y2="${Y(ay)}" stroke="${color}" stroke-width="0.05" stroke-dasharray="0.12 0.08"/>`);
+      p.push(`<circle cx="${ax}" cy="${Y(ay)}" r="0.07" fill="${color}"/>`);
+    }
+    p.push(`<text x="${cx}" y="${cy - Wd / 2 - 0.12}" fill="${color}" font-size="0.28" font-weight="600" text-anchor="middle">${esc(o.label)}</text></g>`);
   }
 
   // Calibrated floor markers, coloured by how well the rig agrees on each one.
@@ -1403,6 +1426,12 @@ function connectWS() {
       const box = $("#alerts").firstChild; if (box) box.classList.add("flash");
     }
     else if (msg.type === "actions") { state.actions = msg.actions; renderActions(); }
+    else if (msg.type === "objects") {
+      if (!state.facility || msg.facility_id === state.facility.id) {
+        state.clockSkew = msg.now - Date.now() / 1000;
+        state.objects = msg.objects; renderMap();
+      }
+    }
     else if (msg.type === "calibration") {
       if (!state.facility || msg.calibration.facility_id === state.facility.id) {
         state.calibration = msg.calibration; renderCalibration(); renderMap();

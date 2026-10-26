@@ -86,6 +86,46 @@ class Zone(ZoneIn):
     actor: Optional[str] = None
 
 
+class ObjectSize(BaseModel):
+    """Bounding box in metres: length along the object's yaw, width across it, height up."""
+    length: float = Field(default=0.5, gt=0, le=50)
+    width: float = Field(default=0.5, gt=0, le=50)
+    height: float = Field(default=0.0, ge=0, le=20)
+
+
+class TrackedObjectIn(BaseModel):
+    """One object seen by the camera rig: what it is, where, which way it faces and how it is
+    moving. Published by the edge (or a partner's perception stack) every frame or so; an
+    object that stops being reported expires after ``ttl_s``."""
+    id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
+    label: str = Field(min_length=1, max_length=40)
+    x: float = Field(ge=-1000, le=1000)
+    y: float = Field(ge=-1000, le=1000)
+    z: float = 0.0
+    yaw: float = 0.0
+    vx: float = Field(default=0.0, ge=-20, le=20)
+    vy: float = Field(default=0.0, ge=-20, le=20)
+    size: ObjectSize = Field(default_factory=ObjectSize)
+    confidence: float = Field(default=1.0, ge=0, le=1)
+    ttl_s: Optional[float] = Field(default=None, gt=0, le=300)
+
+
+class ObjectsIn(BaseModel):
+    """A batch of objects from one source. With ``replace``, objects from this source that are
+    not in the batch are dropped at once instead of waiting to expire (a full-frame snapshot)."""
+    source: str = Field(default="edge", pattern=r"^[A-Za-z0-9_.:-]{1,40}$")
+    objects: list[TrackedObjectIn] = Field(default_factory=list, max_length=200)
+    replace: bool = False
+
+
+class TrackedObject(TrackedObjectIn):
+    source: str
+    facility_id: str
+    first_seen: float
+    updated_at: float
+    expires_at: float
+
+
 class MarkerObservationIn(BaseModel):
     """One floor marker as seen by one capture, in that capture's own frame (metres, radians)."""
     marker_id: int = Field(ge=0, le=100_000)
