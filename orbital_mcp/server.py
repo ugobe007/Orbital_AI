@@ -91,7 +91,8 @@ def build_server(client_factory: Callable[[], OrbitalClient] = OrbitalClient.fro
         """Recorded task runs (one robot doing one station-to-station leg such as
         "Aisle AB → Dock"), newest first, each scored against the golden (reference) run for
         that task and vendor. verdict is pass, slow, deviated (path strayed), unstable (more
-        safety halts), failed, golden, or no_golden; reasons say why in plain words."""
+        safety halts), failed, aborted (pre-empted, not the robot's fault), golden, or
+        no_golden; reasons say why in plain words."""
         return client.list_runs(task_key=task_key, robot_id=robot_id, limit=limit)
 
     @mcp.tool()

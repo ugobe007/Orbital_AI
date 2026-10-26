@@ -61,7 +61,8 @@ def test_scoring_pass_slow_deviated_unstable_failed():
     shaky = score(RunIn(**_run(halts=(5, 6, 14))), golden)
     assert shaky.verdict == "unstable" and shaky.recoveries == 2
 
-    assert score(RunIn(**_run(outcome="aborted")), golden).verdict == "failed"
+    assert score(RunIn(**_run(outcome="aborted")), golden).verdict == "aborted"
+    assert score(RunIn(**_run(outcome="failed")), golden).verdict == "failed"
     assert score(RunIn(**_run()), None).verdict == "no_golden"
 
 

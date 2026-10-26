@@ -78,8 +78,10 @@ def score(run: RunIn, golden: Optional[Run]) -> RunScore:
     max_drift = max((s.drift_m for s in run.samples), default=0.0)
     out = RunScore(verdict="pass", cycle_time_s=round(cycle, 2), recoveries=rec, max_drift_m=round(max_drift, 3))
     reasons: list[tuple[str, str]] = []
-    if run.outcome != RunOutcome.COMPLETE:
-        reasons.append(("failed", f"Run {run.outcome.value}, did not finish the task."))
+    if run.outcome == RunOutcome.ABORTED:
+        reasons.append(("aborted", "Pre-empted before it finished (new mission or operator override)."))
+    elif run.outcome == RunOutcome.FAILED:
+        reasons.append(("failed", "The robot did not finish the task."))
     if golden is None:
         out.verdict = reasons[0][0] if reasons else "no_golden"
         out.reasons = [r for _, r in reasons] or ["No golden run for this task yet."]

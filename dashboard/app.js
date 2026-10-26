@@ -884,9 +884,9 @@ async function loadOrchestrator() {
 
 // ── validation: golden runs (Sprint K) ──────────────────────────────────────
 const VERDICT_COLOR = { pass: "#00be7d", golden: "#ffc24d", slow: "#ffa01f", deviated: "#e5484d",
-  unstable: "#ff3b6b", failed: "#e5484d", no_golden: "#828c9b" };
+  unstable: "#ff3b6b", failed: "#e5484d", aborted: "#5b667a", no_golden: "#828c9b" };
 const VERDICT_LABEL = { pass: "pass", golden: "★ golden", slow: "slow", deviated: "deviated",
-  unstable: "unstable", failed: "failed", no_golden: "no golden yet" };
+  unstable: "unstable", failed: "failed", aborted: "pre-empted", no_golden: "no golden yet" };
 async function loadRuns() {
   try { state.runs = await getJSON("/api/dashboard/runs?limit=30"); renderRuns(); }
   catch (_) {}

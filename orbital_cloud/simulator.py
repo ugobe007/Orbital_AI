@@ -280,7 +280,7 @@ def _begin_carry(robot: RobotRuntime) -> None:
     robot.task_target = (dx, dy)
     robot.route = []
     robot.route_goal = None
-    if robot.mission_pickup is not None:
+    if robot.mission_pickup is not None and robot.mission_pickup[0] != label:
         recorder.start(robot, f"{robot.mission_pickup[0]} → {label}")
 
 
@@ -380,6 +380,8 @@ def _new_sequence() -> None:
             continue
         if robot.error_code == "E_STOP":
             continue
+        if robot.mission_phase == "carrying" and robot.state == RobotState.ACTIVE:
+            continue          # finish the delivery; the new theme starts at its next assignment
         robot.error_code = None
         robot.halted_at = None
         robot.pending_pickup = None

@@ -133,7 +133,7 @@ class Run(RunIn):
 
 class RunScore(BaseModel):
     """How a run compares with the golden run for the same task and vendor."""
-    verdict: str                        # pass | slow | deviated | unstable | failed | no_golden
+    verdict: str                        # pass | slow | deviated | unstable | failed | aborted | no_golden | golden
     reasons: list[str] = Field(default_factory=list)
     golden_id: Optional[str] = None
     cycle_time_s: float
