@@ -86,6 +86,45 @@ class Zone(ZoneIn):
     actor: Optional[str] = None
 
 
+class MarkerObservationIn(BaseModel):
+    """One floor marker as seen by one capture, in that capture's own frame (metres, radians)."""
+    marker_id: int = Field(ge=0, le=100_000)
+    x: float = Field(ge=-1000, le=1000)
+    y: float = Field(ge=-1000, le=1000)
+    theta: float = 0.0
+
+
+class CalibrationCaptureIn(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    expected_pose: Optional[Pose] = None
+    observations: list[MarkerObservationIn] = Field(min_length=1, max_length=40)
+
+
+class MarkerAnchorIn(BaseModel):
+    """A tape-measured floor position for a marker."""
+    marker_id: int = Field(ge=0, le=100_000)
+    x: float
+    y: float
+
+
+class CalibrationIn(BaseModel):
+    """Rig calibration captures (Sprint H). Bounded so one upload can't tie up the solver."""
+    origin_marker: int = 0
+    origin_pose: Optional[Pose] = None
+    anchors: list[MarkerAnchorIn] = Field(default_factory=list, max_length=20)
+    threshold_m: Optional[float] = Field(default=None, gt=0, le=1.0)
+    captures: list[CalibrationCaptureIn] = Field(min_length=1, max_length=60)
+
+    @field_validator("captures")
+    @classmethod
+    def _bounded_marker_set(cls, captures: list[CalibrationCaptureIn]) -> list[CalibrationCaptureIn]:
+        if len({o.marker_id for c in captures for o in c.observations}) > 150:
+            raise ValueError("at most 150 distinct markers per calibration")
+        if len({c.id for c in captures}) != len(captures):
+            raise ValueError("capture ids must be unique")
+        return captures
+
+
 class WorkerStatus(str, Enum):
     ON_SHIFT = "on_shift"
     BREAK = "break"        # visible on the map, never assigned work

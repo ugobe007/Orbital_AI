@@ -51,6 +51,7 @@ from ..rbac import (
     diagnose_caller,
 )
 from .. import recommendations, scope_guard
+from ..rig_calibration import calibration_store
 from ..store import store
 from ..workers import worker_store
 from ..zones import zone_store
@@ -109,6 +110,14 @@ async def get_map(_role: Role = Depends(RequireViewer)) -> dict:
             "people_safety": {"slow_radius_m": settings.human_slow_radius_m,
                               "stop_radius_m": settings.human_stop_radius_m,
                               "slow_speed_mps": settings.human_slow_speed_mps}}
+
+
+@router.get("/calibration")
+async def get_calibration(_role: Role = Depends(RequireViewer)) -> dict:
+    """Latest rig-calibration report for this facility; ``calibration`` is null until one is
+    uploaded."""
+    return {"facility_id": settings.facility_id,
+            "calibration": calibration_store.get(settings.facility_id)}
 
 
 def _zones_message() -> dict:

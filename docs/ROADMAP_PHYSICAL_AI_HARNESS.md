@@ -159,6 +159,10 @@ not persisted beyond the live session unless `ORBITAL_WORKER_HISTORY=1`.
 **Goal:** A guided setup for the overhead camera rig that tells the installer *which* marker is
 wrong and by how much, so the lab cutover takes hours not days.
 
+**Status:** H1–H6 shipped. The solver is Gauss-Newton with robust (Cauchy) weights plus optional
+tape-measured anchor markers, which pin the map's rotation; it also flags a camera whose solved
+pose has drifted from its configured extrinsics ("moved"). Tests: `tests/test_calibration.py`.
+
 | ID | Work | Files | Exit criteria |
 |----|------|-------|---------------|
 | H1 | Multi-capture marker-map solver: given captures that each observe ≥2 markers, solve each marker's global `(x, y, θ)` anchored on an origin marker (2-D pose-graph, stdlib iterative least squares — no numpy in CI) | `aria_edge/calibration.py` | Recovers synthetic ground truth within 1 cm |
