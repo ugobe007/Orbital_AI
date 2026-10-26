@@ -36,6 +36,7 @@ from .models import (
     TelemetryIn,
 )
 from .store import RobotRuntime, store
+from .zones import zone_store
 
 _SPEED_MPS = 0.6
 _DRIFT_DECAY = 0.90          # ARIA re-convergence per tick
@@ -74,7 +75,7 @@ def _sensors(robot: RobotRuntime) -> dict:
             temperature_c=round(45.0 + j * 3.0 + load * 15.0 + robot.drift_delta_m * 12.0 + random.gauss(0, 0.6), 1),
             current_a=round((0.4 + load * 3.5) + random.gauss(0, 0.2), 2),
             torque_nm=round((0.4 + load * 3.5) * 3.2 + random.gauss(0, 0.4), 1),
-            velocity_rad_s=round((robot.speed_mps * 2.0 if active else 0.0) + random.gauss(0, 0.05), 2),
+            velocity_rad_s=round((_zone_speed(robot) * 2.0 if active else 0.0) + random.gauss(0, 0.05), 2),
         )
         for j, joint in enumerate(_JOINTS)
     ]
@@ -87,7 +88,7 @@ def _sensors(robot: RobotRuntime) -> dict:
     spatial = SpatialTelemetry(
         x=round(robot.pose_internal.x, 3), y=round(robot.pose_internal.y, 3), z=0.0,
         yaw=round(robot.pose_internal.theta, 3),
-        linear_velocity_mps=round(robot.speed_mps if active else 0.0, 2),
+        linear_velocity_mps=round(_zone_speed(robot) if active else 0.0, 2),
         angular_velocity_rps=round(random.gauss(0, 0.05), 3),
     )
 
@@ -304,13 +305,19 @@ def _complete_task(robot: RobotRuntime) -> None:
     robot.cooldown_until = time.time() + pause
 
 
+def _zone_speed(robot: RobotRuntime) -> float:
+    """The robot's speed, capped by any slow zone it is currently inside."""
+    cap = zone_store.speed_cap(robot.pose_external.x, robot.pose_external.y, robot.vendor)
+    return robot.speed_mps if cap is None else min(robot.speed_mps, cap)
+
+
 def _advance_point(robot: RobotRuntime, dt: float, target: tuple[float, float]) -> bool:
     """Drive the camera-observed pose straight to a point; return True on arrival."""
     tx, ty = target
     x, y = robot.pose_external.x, robot.pose_external.y
     dx, dy = tx - x, ty - y
     dist = math.hypot(dx, dy)
-    step = robot.speed_mps * dt
+    step = _zone_speed(robot) * dt
     if dist <= step or dist == 0.0:
         theta = math.atan2(dy, dx) if dist else robot.pose_external.theta
         robot.pose_external = robot.pose_external.model_copy(update={"x": tx, "y": ty, "theta": theta})
@@ -327,7 +334,7 @@ def _drive_to_goal(robot: RobotRuntime, dt: float, goal: tuple[float, float]) ->
     if (robot.route_goal is None
             or math.hypot(robot.route_goal[0] - gx, robot.route_goal[1] - gy) > 0.05
             or not robot.route):
-        robot.route = pathing.plan((robot.pose_external.x, robot.pose_external.y), (gx, gy))
+        robot.route = pathing.plan((robot.pose_external.x, robot.pose_external.y), (gx, gy), robot.vendor)
         robot.route_goal = (gx, gy)
     if not robot.route:
         robot.route = [goal]
@@ -407,7 +414,7 @@ def _advance_external(robot: RobotRuntime, dt: float) -> None:
     x, y = robot.pose_external.x, robot.pose_external.y
     dx, dy = tx - x, ty - y
     dist = math.hypot(dx, dy)
-    step = robot.speed_mps * dt
+    step = _zone_speed(robot) * dt
     if dist <= step or dist == 0.0:
         robot.traj_index = (robot.traj_index + 1) % len(robot.trajectory)
         nx, ny = tx, ty
@@ -436,13 +443,16 @@ def _advance_manual(robot: RobotRuntime, dt: float) -> None:
     Clamps to the warehouse bounds; if it reaches a wall it stops (drops back to idle)."""
     theta = robot.manual_heading or 0.0
     w = float(WAREHOUSE["width_m"]); h = float(WAREHOUSE["height_m"])
-    step = robot.speed_mps * dt
+    step = _zone_speed(robot) * dt
     nx = robot.pose_external.x + math.cos(theta) * step
     ny = robot.pose_external.y + math.sin(theta) * step
     cx = min(max(nx, 0.0), w)
     cy = min(max(ny, 0.0), h)
-    # Stop the jog at a wall OR a rack face so the robot never drives into an obstacle.
-    if cx != nx or cy != ny or pathing._point_blocked(cx, cy):
+    # Stop the jog at a wall, a rack face, or a keep-out edge so the robot never drives into
+    # an obstacle. A robot already inside a keep-out may still jog out of it.
+    entering_keepout = (zone_store.keepout_at(cx, cy, robot.vendor) is not None
+                        and zone_store.keepout_at(robot.pose_external.x, robot.pose_external.y, robot.vendor) is None)
+    if cx != nx or cy != ny or pathing._point_blocked(cx, cy) or entering_keepout:
         robot.manual_heading = None
         robot.current_task = "Idle"
         robot.state = RobotState.IDLE

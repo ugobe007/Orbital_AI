@@ -22,6 +22,8 @@ const state = {
   oems: [],
   catalog: null,        // /oem-catalog: vendors + scopes + transports + default policies
   wizard: null,         // onboarding wizard working state
+  zones: [],            // keep-out / slow zones on the spatial map
+  zoneDraft: null,      // { type, points: [{x, y}] } while the operator is drawing a zone
 };
 
 // Fleet states, ordered for the overview distribution bar + chips.
@@ -548,11 +550,15 @@ function renderCapabilities() {
 }
 
 // ── warehouse map ──────────────────────────────────────────────────────────────
+const ZONE_COLOR = { keepout: "#e5484d", slow: "#ffa01f" };
 const ROBOT_FILL = { active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#5b667a" };
 
 async function loadMap() {
-  try { state.map = await getJSON("/api/dashboard/map"); renderMap(); }
-  catch (e) { console.error(e); }
+  try {
+    state.map = await getJSON("/api/dashboard/map");
+    state.zones = state.map.zones || [];
+    renderMap(); renderZoneBar();
+  } catch (e) { console.error(e); }
 }
 function clickToWorld(evt, svg) {
   const m = state.map, rect = svg.getBoundingClientRect();
@@ -604,6 +610,25 @@ function renderMap() {
     p.push(`<circle cx="0" cy="0" r="0.11" fill="none" stroke="#b7a6ff" stroke-width="0.05"/>`);
     p.push(`<rect x="0.2" y="-0.1" width="0.14" height="0.2" rx="0.04" fill="#7c5cff"/>`);
     p.push(`</g>`);
+  }
+
+  // Keep-out (red) and slow (amber) zones: the planner never enters a keep-out and caps
+  // speed inside a slow zone.
+  for (const z of state.zones) {
+    const color = ZONE_COLOR[z.type] || ZONE_COLOR.keepout;
+    const pts = z.polygon.map(([x, y]) => `${x},${Y(y)}`).join(" ");
+    p.push(`<polygon points="${pts}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-width="0.05" stroke-dasharray="0.22 0.14"/>`);
+    const cx = z.polygon.reduce((a, q) => a + q[0], 0) / z.polygon.length;
+    const cy = z.polygon.reduce((a, q) => a + q[1], 0) / z.polygon.length;
+    const label = z.type === "slow" ? `${z.name} · ≤${z.speed_cap_mps} m/s` : z.name;
+    p.push(`<text x="${cx}" y="${Y(cy) + 0.12}" fill="${color}" font-size="0.32" font-weight="600" text-anchor="middle" opacity="0.95">${esc(label)}</text>`);
+  }
+  const draft = state.zoneDraft;
+  if (draft && draft.points.length) {
+    const color = ZONE_COLOR[draft.type];
+    const pts = draft.points.map((q) => `${q.x},${Y(q.y)}`).join(" ");
+    p.push(`<polygon points="${pts}" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="0.06"/>`);
+    for (const q of draft.points) p.push(`<circle cx="${q.x}" cy="${Y(q.y)}" r="0.12" fill="${color}"/>`);
   }
 
   // Lead-published relay waypoints (shared shuttle network).
@@ -685,14 +710,114 @@ async function setWaypoint(id, x, y, append) {
   try { await postJSON(`/api/dashboard/robot/${id}/navigate`, { waypoints }); toast(`Waypoint set for ${id}`); }
   catch (e) {
     if (e.status === 403) toast(`Blocked: ${e.detail} — grant control.velocity to this OEM`, "warn");
+    else if (e.status === 409) toast(`Refused: ${e.detail}`, "warn");
     else toast(`Failed: ${e.detail}`, "warn");
+  }
+}
+
+// ── zones ─────────────────────────────────────────────────────────────────────
+function startZoneDraft(type) {
+  state.zoneDraft = { type, points: [] };
+  renderZoneBar(); renderMap();
+}
+function cancelZoneDraft() {
+  state.zoneDraft = null;
+  renderZoneBar(); renderMap();
+}
+async function finishZoneDraft() {
+  const d = state.zoneDraft;
+  if (!d) return;
+  if (d.points.length < 3) { toast("A zone needs at least 3 points", "warn"); return; }
+  const fallback = `${d.type === "slow" ? "Slow zone" : "Keep-out"} ${state.zones.filter((z) => z.type === d.type).length + 1}`;
+  const body = {
+    name: ($("#zone-name")?.value || "").trim() || fallback,
+    type: d.type,
+    polygon: d.points.map((q) => [q.x, q.y]),
+  };
+  if (d.type === "slow") body.speed_cap_mps = parseFloat($("#zone-cap")?.value) || 0.3;
+  try {
+    const zone = await postJSON("/api/dashboard/zones", body);
+    if (!state.zones.some((z) => z.id === zone.id)) state.zones.push(zone);
+    state.zoneDraft = null;
+    toast(`Zone "${zone.name}" added — robots re-plan around it`);
+  } catch (e) {
+    toast(e.status === 403 ? `Blocked: ${e.detail} — zones need an operator` : `Failed: ${e.detail}`, "warn");
+  }
+  renderZoneBar(); renderMap();
+}
+async function deleteZone(id) {
+  try {
+    await reqJSON("DELETE", `/api/dashboard/zones/${id}`);
+    state.zones = state.zones.filter((z) => z.id !== id);
+    toast("Zone removed");
+  } catch (e) {
+    toast(e.status === 403 ? `Blocked: ${e.detail} — zones need an operator` : `Failed: ${e.detail}`, "warn");
+  }
+  renderZoneBar(); renderMap();
+}
+
+function renderZoneBar() {
+  const bar = $("#zone-bar");
+  if (!bar) return;
+  const d = state.zoneDraft;
+  bar.innerHTML = "";
+  if (d) {
+    const color = ZONE_COLOR[d.type];
+    bar.appendChild(el(`<span class="text-[11.5px] font-medium" style="color:${color}">Drawing ${d.type === "slow" ? "slow zone" : "keep-out"} · ${d.points.length} pt${d.points.length === 1 ? "" : "s"}</span>`));
+    bar.appendChild(el(`<input id="zone-name" placeholder="Name" maxlength="60" class="bg-surface-input border border-line rounded-md px-2 py-1 text-[12px] w-36"/>`));
+    if (d.type === "slow") {
+      bar.appendChild(el(`<label class="flex items-center gap-1 text-[11.5px] text-ink-mut">cap <input id="zone-cap" type="number" min="0.05" max="5" step="0.05" value="0.3" class="bg-surface-input border border-line rounded-md px-2 py-1 text-[12px] w-16"/> m/s</label>`));
+    }
+    const finish = el(`<button class="text-[11.5px] px-2.5 py-1 rounded-md bg-brand/20 text-brand hover:bg-brand/30">Finish</button>`);
+    finish.onclick = finishZoneDraft;
+    const cancel = el(`<button class="text-[11.5px] px-2.5 py-1 rounded-md bg-surface-input hover:bg-line-strong">Cancel</button>`);
+    cancel.onclick = cancelZoneDraft;
+    bar.append(finish, cancel);
+    bar.appendChild(el(`<span class="text-[10.5px] text-ink-dim">click the floor to add corners · Enter or double-click to finish · Esc to cancel</span>`));
+    return;
+  }
+  bar.appendChild(el(`<span class="text-[11px] text-ink-dim mr-1">Zones</span>`));
+  for (const [type, label] of [["keepout", "+ Keep-out"], ["slow", "+ Slow zone"]]) {
+    const b = el(`<button class="text-[11.5px] px-2.5 py-1 rounded-md border hover:bg-surface-input" style="border-color:${ZONE_COLOR[type]}66;color:${ZONE_COLOR[type]}">${label}</button>`);
+    b.onclick = () => startZoneDraft(type);
+    bar.appendChild(b);
+  }
+  for (const z of state.zones) {
+    const color = ZONE_COLOR[z.type] || ZONE_COLOR.keepout;
+    const vendors = z.vendors && z.vendors.length ? ` · ${z.vendors.join(", ")}` : "";
+    const chip = el(`<span class="flex items-center gap-1.5 text-[11px] pl-2 pr-1 py-0.5 rounded-full bg-surface-raised border border-line">
+      <span class="inline-block w-2 h-2 rounded-sm" style="background:${color}"></span>${esc(z.name)}<span class="text-ink-dim">${esc(vendors)}</span>
+      <button class="px-1 text-ink-dim hover:text-red-400" title="Remove zone" aria-label="Remove zone ${esc(z.name)}">×</button></span>`);
+    chip.querySelector("button").onclick = () => deleteZone(z.id);
+    bar.appendChild(chip);
   }
 }
 
 function wireMap() {
   const svg = $("#map");
   if (!svg) return;
+  svg.addEventListener("dblclick", (e) => {
+    if (!state.zoneDraft) return;
+    e.preventDefault();
+    finishZoneDraft();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!state.zoneDraft) return;
+    if (e.key === "Enter") finishZoneDraft();
+    else if (e.key === "Escape") cancelZoneDraft();
+  });
   svg.addEventListener("click", (e) => {
+    if (state.zoneDraft) {
+      // A double-click fires two clicks first; ignore the second so it doesn't add a duplicate corner.
+      if (e.detail > 1) return;
+      const q = clickToWorld(e, svg);
+      state.zoneDraft.points.push({ x: +q.x.toFixed(2), y: +q.y.toFixed(2) });
+      const name = $("#zone-name")?.value, cap = $("#zone-cap")?.value;
+      renderZoneBar(); renderMap();
+      if (name && $("#zone-name")) $("#zone-name").value = name;
+      if (cap && $("#zone-cap")) $("#zone-cap").value = cap;
+      return;
+    }
     const hit = e.target.closest("[data-robot]");
     if (hit) { selectRobot(hit.getAttribute("data-robot")); return; }
     if (state.selectedRobot) {
@@ -1128,6 +1253,7 @@ function connectWS() {
       const box = $("#alerts").firstChild; if (box) box.classList.add("flash");
     }
     else if (msg.type === "actions") { state.actions = msg.actions; renderActions(); }
+    else if (msg.type === "zones") { state.zones = msg.zones; renderMap(); if (!state.zoneDraft) renderZoneBar(); }
   };
 }
 
