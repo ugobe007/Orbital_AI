@@ -33,7 +33,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # Human-readable topic labels for the three site CTAs.
 _TOPICS = {
     "signup": "Sign up",
-    "early-access": "Early access request",
+    "early-access": "14-day pilot request",
     "partnership": "OEM partnership",
     "general": "General inquiry",
 }
@@ -49,6 +49,7 @@ class ContactPayload(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     topic: str = Field(default="general", max_length=40)
     message: str = Field(default="", max_length=4000)
+    website: str = Field(default="", max_length=200)
     # Honeypot — real users never fill this hidden field; bots do.
     company_url: str = Field(default="", max_length=200)
 
@@ -102,6 +103,9 @@ async def contact(payload: ContactPayload, request: Request) -> JSONResponse:
     topic_label = _TOPICS.get(payload.topic, "General inquiry")
     name = payload.name.strip()
     msg = (payload.message or "").strip() or "(no message provided)"
+    website = payload.website.strip()
+    if website:
+        msg = f"{msg}\n\nCompany website: {website}"
     safe_name, safe_msg = html.escape(name), html.escape(msg)
 
     # Capture the lead first — it lands in the operator inbox (same place inbound mail to

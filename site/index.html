@@ -1,471 +1,306 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Orbital AI — Reality. Intelligence. Revenue.</title>
-  <meta name="description" content="Orbital AI is the memory and control layer for physical AI deployments. Reality Engine + ARIA + Experience Memory, and Digital Net — our own multi-camera harness for measuring real robot work." />
-  <meta name="robots" content="index, follow" />
-  <meta property="og:title" content="Orbital AI — Reality. Intelligence. Revenue." />
-  <meta property="og:description" content="Orbital AI transforms real-world operational intelligence into faster adoption, stronger products, and repeatable commercial growth." />
-  <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://orbital-ai.io/assets/robot-harness.jpg" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" href="/orbital-logo.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- orbital-base.css is the compiled Tailwind build of the original July site: only the
-       utility classes already used on this page exist in it. New styles go in site.css. -->
-  <link rel="stylesheet" href="/assets/orbital-base.css">
-  <link rel="stylesheet" href="/assets/site.css?v=1">
-  <script>document.documentElement.classList.add("js");</script>
-  <script src="/assets/site.js?v=1" defer></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbital AI — The operational layer for physical AI</title>
+<meta name="description" content="Orbital AI is the memory and control layer for physical AI deployments. Start a 14-day pilot.">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+html{scroll-behavior:smooth}body{margin:0;background:#EEF0EC}
+a{color:#111418}a:hover{color:#4A4F57}
+#contact-form input:focus,#contact-form select:focus,#contact-form textarea:focus{outline:2px solid #1D4ED8;outline-offset:-1px}
+#contact-form button:disabled{opacity:.6;cursor:default}
+.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.contact-status{margin:0;font-size:15px;min-height:1.5em;color:#4A4F57}
+.contact-status.is-ok{color:#166534}.contact-status.is-error{color:#B91C1C}
+</style>
 </head>
 <body>
-<div class="min-h-[100dvh] bg-background text-foreground">
+<div style="background: #EEF0EC; color: #111418; font-family: 'IBM Plex Sans', sans-serif; font-size: 16px; line-height: 1.5">
 
-  <!-- ── Navigation ─────────────────────────────────────────────────────────── -->
-  <nav class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-background/80 backdrop-blur-xl border-b border-border">
-    <div class="max-w-7xl mx-auto px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        <a href="/" class="flex items-center gap-3">
-          <img alt="Orbital AI" class="h-8 w-8" src="/assets/orbital-logo-D9n2owqh.png" />
-          <span class="text-lg font-bold tracking-tight">Orbital AI</span>
-        </a>
-        <div class="hidden md:flex items-center gap-8">
-          <a href="#platform" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Platform</a>
-          <a href="#digital-net" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Digital Net</a>
-          <a href="#how-it-works" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
-          <a href="#intelligence" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Intelligence</a>
-          <a href="#pilot" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pilot</a>
-        </div>
-        <div class="flex items-center gap-4">
-          <a href="/app" class="nav-console text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Console</a>
-          <button type="button" data-contact="early-access" class="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold px-5 py-2.5 nav-cta">Start a pilot</button>
-          <button type="button" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-    <div id="mobile-menu" class="mobile-menu" hidden>
-      <a href="#platform">Platform</a>
-      <a href="#digital-net">Digital Net</a>
-      <a href="#how-it-works">How It Works</a>
-      <a href="#intelligence">Intelligence</a>
-      <a href="#pilot">Pilot</a>
-      <a href="/app">Console</a>
-    </div>
-  </nav>
+<header style="border-bottom: 2px solid #111418; background: #EEF0EC">
+<div style="max-width: 1296px; margin: 0 auto; padding: 0 24px; min-height: 76px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px">
+<a href="#top" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #111418; font-family: Archivo, sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -0.03em; line-height: 1">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9.5" fill="none" stroke="#111418" stroke-width="2"></circle><circle cx="11" cy="11" r="3.5" fill="#1D4ED8"></circle><rect x="16.5" y="2.5" width="4" height="4" fill="#111418"></rect></svg>
+<span>Orbital<span style="color: #1D4ED8"> AI</span></span>
+</a>
+<nav aria-label="Primary" style="display: flex; flex-wrap: wrap; gap: 0 28px; flex: 1 1 auto; font-size: 15px; font-weight: 500">
+<a href="#platform" style="text-decoration: none; padding: 12px 0">Platform</a>
+<a href="#digital-net" style="text-decoration: none; padding: 12px 0">Digital Net</a>
+<a href="#pilot" style="text-decoration: none; padding: 12px 0">Pilot</a>
+<a href="/app/" style="text-decoration: none; padding: 12px 0">Console</a>
+</nav>
+<a href="#pilot" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; background: #111418; color: #FFFFFF; font-weight: 600; font-size: 15px; text-decoration: none">Start a pilot</a>
+</div>
+</header>
 
-  <!-- ── Hero: photos cross-fade every few seconds (paused for reduced motion) ── -->
-  <section class="relative min-h-[100dvh] flex items-end overflow-hidden">
-    <div class="hero-slides" aria-hidden="true">
-      <img class="hero-slide is-active" src="/orbital-ai-site/hero-warehouse.jpg" alt="" />
-      <img class="hero-slide" src="/orbital-ai-site/humanoid-deployment.png" alt="" loading="lazy" />
-      <img class="hero-slide" src="/orbital-ai-site/stack-spot-posco.jpg" alt="" loading="lazy" />
-    </div>
-    <div class="absolute inset-0 photo-overlay"></div>
-    <div class="relative z-10 w-full px-6 lg:px-8 pb-24 hero-content">
-      <div class="max-w-6xl mx-auto">
-        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm border border-primary/40 mb-12 reveal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 text-primary animate-pulse" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path></svg>
-          <span class="text-xs font-medium tracking-wide uppercase text-white">Live · Operational Layer for Physical AI</span>
-        </div>
-        <h1 class="text-white hero-title mb-8 reveal">Physical AI<br />Has a Missing<br />Layer.</h1>
-        <p class="text-lg md:text-xl text-white/90 max-w-2xl mb-10 leading-relaxed reveal">
-          Every robot sees its world. Orbital sees the operation. Robots operate within their own local context. Orbital AI continuously
-          observes every robot, every person, and every environment, transforming fragmented activity into operational intelligence that
-          learns, coordinates, and improves every deployment.
-        </p>
-        <div class="flex flex-col sm:flex-row items-start gap-4 mb-12 reveal">
-          <button type="button" data-contact="early-access" class="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold px-6 py-3 bg-primary text-primary-foreground hover:bg-primary/90">Start a pilot</button>
-          <a href="/app" class="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold border border-white/30 text-white hover:bg-white/10 px-6 py-3 bg-transparent">See it live</a>
-        </div>
-        <div class="pt-8 border-t border-white/20 reveal">
-          <p class="text-sm text-white/70 tracking-wide">Works with ROS2 · gRPC · REST — any OEM</p>
-        </div>
-      </div>
-    </div>
-  </section>
+<main style="max-width: 1296px; margin: 0 auto; padding: 0 24px">
 
-  <!-- ── The Moment Is Now ─────────────────────────────────────────────────── -->
-  <section class="min-h-[600px] grid lg:grid-cols-[55%_45%] relative overflow-hidden">
-    <div class="relative min-h-[400px] lg:min-h-[600px]">
-      <img alt="Humanoid robot deployed in live factory environment" class="absolute inset-0 w-full h-full object-cover" src="/orbital-ai-site/humanoid-deployment.png" loading="lazy" style="filter: brightness(0.85) contrast(1.05)" />
-    </div>
-    <div class="bg-background px-8 md:px-12 lg:px-16 py-16 lg:py-20 flex flex-col justify-center">
-      <div class="mb-12 reveal">
-        <h2 class="mb-4 section-title">The Moment Is Now</h2>
-        <p class="text-lg font-semibold text-muted-foreground mb-4">Hardware is ready. Infrastructure is not.</p>
-        <p class="text-base text-foreground leading-relaxed max-w-md">
-          Forty OEMs are shipping commercial robots today. The missing layer is operational intelligence.
-        </p>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-8">
-        <div class="relative p-8 reveal">
-          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight">2027</div>
-          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Projection horizon for 1M+ humanoids in commercial deployment</div>
-        </div>
-        <div class="relative p-8 reveal">
-          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight" data-count="40" data-suffix="+">40+</div>
-          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Active OEMs shipping commercial robots today</div>
-        </div>
-        <div class="relative p-8 reveal">
-          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight" data-count="38" data-prefix="$" data-suffix="B">$38B</div>
-          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Projected humanoid robotics market by 2035</div>
-        </div>
-        <div class="relative p-8 reveal">
-          <div class="text-5xl md:text-6xl font-bold text-primary mb-3 tracking-tight">0</div>
-          <div class="text-sm md:text-base text-muted-foreground leading-relaxed">Dedicated deployment intelligence platforms in market today</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── What's missing ────────────────────────────────────────────────────── -->
-  <section class="py-32 px-6 lg:px-8 relative border-t border-b border-border" style="background-color: rgb(13, 17, 24)">
-    <div class="max-w-7xl mx-auto">
-      <div class="grid lg:grid-cols-2 gap-16 lg:gap-24">
-        <div class="space-y-8 reveal">
-          <p class="text-sm uppercase tracking-widest text-muted-foreground">What's missing</p>
-          <h3 style="font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 700; line-height: 1.2">
-            Teams generate thousands of recovery events, adaptations, and outcomes daily. Almost all of it is discarded.
-          </h3>
-          <p class="text-base text-foreground leading-relaxed">Raw logs exist. Structured memory doesn't. Knowledge restarts from zero at each new site.</p>
-        </div>
-        <div class="space-y-8 reveal">
-          <p class="text-sm uppercase tracking-widest text-muted-foreground">What Orbital introduces</p>
-          <p class="text-base text-foreground leading-relaxed">A memory layer that captures context alongside every event, so deployments compound instead of reset.</p>
-          <div class="space-y-6">
-            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Context</div><div class="text-muted-foreground text-sm">what was happening before the event</div></div></div>
-            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Ground truth</div><div class="text-muted-foreground text-sm">what the camera actually saw</div></div></div>
-            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Outcome</div><div class="text-muted-foreground text-sm">what worked, what didn't</div></div></div>
-            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Lesson</div><div class="text-muted-foreground text-sm">structured, reusable, verifiable</div></div></div>
-            <div class="flex gap-4 items-start"><div class="w-0.5 h-6 bg-secondary flex-shrink-0 mt-1"></div><div><div class="font-semibold text-foreground mb-1">Confidence</div><div class="text-muted-foreground text-sm">compounding trust in every recommendation</div></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── The Intelligence Stack ────────────────────────────────────────────── -->
-  <section id="intelligence" class="py-20 px-6 lg:px-8 relative overflow-hidden">
-    <div class="max-w-7xl mx-auto relative">
-      <div class="text-center mb-10 reveal">
-        <h2 class="mb-4 section-title">The Intelligence Stack</h2>
-        <p class="text-sm font-semibold uppercase tracking-widest text-primary mb-4">Three components. One compounding advantage.</p>
-        <p class="text-lg text-foreground max-w-2xl mx-auto leading-relaxed">Reality Engine captures what happened. ARIA structures why. Experience Memory makes both reusable.</p>
-      </div>
-      <div class="relative mb-20 w-full overflow-hidden rounded-lg reveal" style="aspect-ratio: 16 / 6">
-        <img alt="Boston Dynamics Spot robot deployed at POSCO steel mill" class="absolute inset-0 w-full h-full object-cover" src="/orbital-ai-site/stack-spot-posco.jpg" loading="lazy" />
-        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background"></div>
-      </div>
-      <div class="grid md:grid-cols-3 gap-16 lg:gap-20">
-        <div class="relative pl-6 border-l-2 border-secondary reveal">
-          <div class="flex items-center gap-3 mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary flex-shrink-0" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            <h3 class="card-title">Reality Engine</h3>
-          </div>
-          <div class="uppercase text-primary mb-4 caption">What happened</div>
-          <p class="text-foreground leading-relaxed">Fuses live camera feeds with robot API telemetry to produce verified ground truth. Not what the system reported — what the environment actually showed.</p>
-        </div>
-        <div class="relative pl-6 border-l-2 border-secondary reveal">
-          <div class="flex items-center gap-3 mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary flex-shrink-0" aria-hidden="true"><path d="M12 18V5"></path><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"></path><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"></path><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"></path><path d="M18 18a4 4 0 0 0 2-7.464"></path><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"></path><path d="M6 18a4 4 0 0 1-2-7.464"></path><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"></path></svg>
-            <h3 class="card-title">ARIA</h3>
-          </div>
-          <div class="uppercase text-primary mb-4 caption">Why it happened</div>
-          <p class="text-foreground leading-relaxed">Processes the fused stream to extract behavior-level understanding: what triggered the event, what the robot decided, and what that decision produced.</p>
-        </div>
-        <div class="relative pl-6 border-l-2 border-secondary reveal">
-          <div class="flex items-center gap-3 mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary flex-shrink-0" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg>
-            <h3 class="card-title">Experience Memory</h3>
-          </div>
-          <div class="uppercase text-primary mb-4 caption">What to do next</div>
-          <p class="text-foreground leading-relaxed">Packages each verified event into an Experience Memory Module — structured, reusable, and queryable. Every deployment adds to the fabric. The network gets smarter by default.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── The Intelligence Flywheel ─────────────────────────────────────────── -->
-  <section class="py-20 px-6 lg:px-8 relative overflow-hidden">
-    <img alt="Figure humanoid robot in BMW production facility" class="absolute inset-0 w-full h-full object-cover" src="/orbital-ai-site/flywheel-figure-bmw.jpg" loading="lazy" />
-    <div class="absolute inset-0 bg-background/88"></div>
-    <div class="max-w-7xl mx-auto relative">
-      <div class="text-center mb-16 reveal">
-        <h2 class="mb-3 section-title">The Intelligence Flywheel</h2>
-        <p class="text-base text-foreground max-w-xl mx-auto">Each event becomes an EMM — structured context, outcome, confidence score. The network learns from all of them.</p>
-      </div>
-      <div class="flywheel reveal">
-        <svg viewBox="0 0 400 400" class="flywheel-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Intelligence flywheel: deployment event, memory capture, fabric growth, improved execution, in a cycle">
-          <defs>
-            <marker id="fw-arrow" markerWidth="8" markerHeight="8" refX="7" refY="2.5" orient="auto"><polygon points="0 0, 8 2.5, 0 5" fill="#6B81F0"></polygon></marker>
-            <radialGradient id="fw-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#6B81F0" stop-opacity="0.12"></stop><stop offset="100%" stop-color="#6B81F0" stop-opacity="0"></stop></radialGradient>
-          </defs>
-          <circle cx="200" cy="200" r="200" fill="url(#fw-glow)"></circle>
-          <circle cx="200" cy="200" r="155" fill="none" stroke="#6B81F0" stroke-width="1.5" opacity="0.25"></circle>
-          <circle cx="200" cy="200" r="72" fill="rgba(107,129,240,0.15)" stroke="#6B81F0" stroke-width="1" opacity="0.4"></circle>
-          <text x="200" y="193" text-anchor="middle" font-size="12" font-weight="600" fill="white" opacity="0.95">Memory Fabric</text>
-          <text x="200" y="211" text-anchor="middle" font-size="10" fill="#6B81F0" opacity="0.9">compounds each cycle</text>
-          <g class="flywheel-arrows">
-            <path d="M 220,58 A 155 155 0 0 1 342,212" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
-            <path d="M 342,220 A 155 155 0 0 1 212,342" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
-            <path d="M 188,342 A 155 155 0 0 1 58,188" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
-            <path d="M 58,180 A 155 155 0 0 1 188,58" fill="none" stroke="#6B81F0" stroke-width="2" marker-end="url(#fw-arrow)" opacity="0.7"></path>
-          </g>
-          <g><circle cx="200" cy="45" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="200" cy="45" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="200" y="51" text-anchor="middle" font-size="15" font-weight="700" fill="white">1</text></g>
-          <g><circle cx="355" cy="200" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="355" cy="200" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="355" y="206" text-anchor="middle" font-size="15" font-weight="700" fill="white">2</text></g>
-          <g><circle cx="200" cy="355" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="200" cy="355" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="200" y="361" text-anchor="middle" font-size="15" font-weight="700" fill="white">3</text></g>
-          <g><circle cx="45" cy="200" r="38" fill="#6B81F0" opacity="0.12"></circle><circle cx="45" cy="200" r="30" fill="#10131a" stroke="#6B81F0" stroke-width="2"></circle><text x="45" y="206" text-anchor="middle" font-size="15" font-weight="700" fill="white">4</text></g>
-        </svg>
-        <ol class="flywheel-steps">
-          <li><span class="step-no">01</span><div><div class="font-semibold text-foreground text-sm mb-1">Deployment Event</div><div class="text-foreground text-xs leading-relaxed opacity-80">Robot encounters a real environment. Reality Engine records ground truth.</div></div></li>
-          <li><span class="step-no">02</span><div><div class="font-semibold text-foreground text-sm mb-1">Memory Capture</div><div class="text-foreground text-xs leading-relaxed opacity-80">ARIA structures the event into an EMM: context, outcome, lesson, confidence.</div></div></li>
-          <li><span class="step-no">03</span><div><div class="font-semibold text-foreground text-sm mb-1">Fabric Growth</div><div class="text-foreground text-xs leading-relaxed opacity-80">The EMM joins the network. Every future deployment can draw on it.</div></div></li>
-          <li><span class="step-no">04</span><div><div class="font-semibold text-foreground text-sm mb-1">Improved Execution</div><div class="text-foreground text-xs leading-relaxed opacity-80">Recommendations sharpen. The fleet learns from all prior deployments.</div></div></li>
-        </ol>
-      </div>
-      <div class="max-w-3xl mx-auto mt-16 reveal">
-        <div class="border border-border overflow-hidden table-scroll">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-border">
-                <th class="text-left px-5 py-3 font-semibold text-foreground/60 w-1/3">Metric</th>
-                <th class="text-left px-5 py-3 font-semibold text-foreground/60">Traditional OEM</th>
-                <th class="text-left px-5 py-3 font-semibold" style="color: hsl(var(--secondary))">With Orbital</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="border-b border-border"><td class="px-5 py-3 text-foreground/60">Environments/robot</td><td class="px-5 py-3 text-foreground">1 customer</td><td class="px-5 py-3 font-semibold text-foreground">5–10 venues/year</td></tr>
-              <tr class="border-b border-border"><td class="px-5 py-3 text-foreground/60">Learning cycle</td><td class="px-5 py-3 text-foreground">Months</td><td class="px-5 py-3 font-semibold text-foreground">Every event</td></tr>
-              <tr><td class="px-5 py-3 text-foreground/60">EMMs generated</td><td class="px-5 py-3 text-foreground">Minimal</td><td class="px-5 py-3 font-semibold text-foreground">Compounds with each deployment</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Platform Capabilities ─────────────────────────────────────────────── -->
-  <section id="platform" class="py-20 px-6 lg:px-8 relative">
-    <div class="max-w-7xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <h2 class="mb-4 section-title">Platform Capabilities</h2>
-        <p class="text-lg md:text-xl font-semibold text-muted-foreground mb-4">Everything a deployed robot generates — captured, governed, actioned.</p>
-        <p class="text-base text-foreground max-w-2xl mx-auto leading-relaxed">Connect over ROS2, gRPC, or REST. Full operational visibility from day one.</p>
-      </div>
-      <div class="grid md:grid-cols-2 gap-10">
-        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
-          <div class="flex items-start gap-4 mb-4">
-            <span class="text-sm font-mono text-secondary">01</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path></svg>
-          </div>
-          <h3 class="mb-3 card-title">Real-time telemetry</h3>
-          <p class="text-foreground leading-relaxed">Pose, sensors, motor load, battery &amp; thermal — live on a 2-second heartbeat from every robot.</p>
-        </div>
-        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
-          <div class="flex items-start gap-4 mb-4">
-            <span class="text-sm font-mono text-secondary">02</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.520 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>
-          </div>
-          <h3 class="mb-3 card-title">Scope &amp; safety governance</h3>
-          <p class="text-foreground leading-relaxed">Every command checked against per-OEM API scopes before it reaches a robot. Granular grants, E-Stop, safety-halt controller, keep-out and slow zones.</p>
-        </div>
-        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
-          <div class="flex items-start gap-4 mb-4">
-            <span class="text-sm font-mono text-secondary">03</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
-          </div>
-          <h3 class="mb-3 card-title">Visual navigation</h3>
-          <p class="text-foreground leading-relaxed">Drop a waypoint on the overhead map; ARIA's cameras guide the robot there, circumventing onboard SLAM when it drifts.</p>
-        </div>
-        <div class="relative pt-8 border-t border-border hover:border-primary transition-colors duration-200 reveal">
-          <div class="flex items-start gap-4 mb-4">
-            <span class="text-sm font-mono text-secondary">04</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mt-0.5" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg>
-          </div>
-          <h3 class="mb-3 card-title">Multi-OEM control plane</h3>
-          <p class="text-foreground leading-relaxed">One surface across ROS2, gRPC, and cloud REST. Onboard any vendor's fleet and command it from a single pane.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Digital Net: Orbital's own sensing hardware ───────────────────────── -->
-  <section id="digital-net" class="py-20 px-6 lg:px-8 relative border-t border-b border-border" style="background-color: rgb(13, 17, 24)">
-    <div class="max-w-7xl mx-auto">
-      <div class="dn-intro reveal">
-        <p class="text-sm uppercase tracking-widest text-primary mb-4">Digital Net · our own sensing hardware</p>
-        <h2 class="mb-4 section-title">See. Measure. Validate.<br />Real robot work.</h2>
-        <p class="text-lg text-foreground leading-relaxed">
-          Most physical-AI platforms borrow their eyes from phones, store CCTV, and the robots themselves.
-          Orbital builds its own: a modular frame of 8–16 synchronized cameras that puts a 3-D digital net
-          around a deployed robot, measures real-world performance, catches deviations, and records
-          training-grade data.
-        </p>
-      </div>
-      <figure class="dn-figure reveal">
-        <a href="/assets/robot-harness.jpg" target="_blank" rel="noopener" aria-label="Open the full Digital Net diagram">
-          <img src="/assets/robot-harness.jpg" loading="lazy" alt="Digital Net: a frame with 8 to 16 synchronized camera positions around a humanoid robot carrying a box. Sensor options are 16 MP global-shutter RGB cameras, RGB plus IR depth cameras, 850/940 nm IR illumination, and AprilTag/ChArUco calibration targets. Cameras feed a PoE switch with IEEE 1588 time sync, edge compute, and NVMe storage, synced with robot telemetry. Outputs are 3-D pose and trajectory, object interaction, and performance analytics against a golden run." />
-        </a>
-        <figcaption>Digital Net · 8–16 sensor positions · IEEE 1588 time sync · synced with robot telemetry on ARIA</figcaption>
-      </figure>
-      <div class="dn-grid">
-        <div class="dn-card reveal">
-          <div class="caption text-primary uppercase">Sensors</div>
-          <h3 class="card-title">Synchronized, calibrated, ours</h3>
-          <p>Global-shutter RGB cameras, depth cameras, and IR illumination on one PoE network with hardware time sync, so every frame from every angle lines up to the same instant.</p>
-        </div>
-        <div class="dn-card reveal">
-          <div class="caption text-primary uppercase">Calibration</div>
-          <h3 class="card-title">Known geometry, every time</h3>
-          <p>AprilTag and ChArUco targets give the rig its geometry automatically, and the residuals say which camera moved — so the volume can be re-established on any floor.</p>
-        </div>
-        <div class="dn-card reveal">
-          <div class="caption text-primary uppercase">Depth from many views</div>
-          <h3 class="card-title">Stereo from RGB</h3>
-          <p>Neighbouring cameras act as stereo pairs. Multi-view disparity recovers depth, shape, orientation, and motion of the robot and the objects it handles.</p>
-        </div>
-        <div class="dn-card reveal">
-          <div class="caption text-secondary uppercase">Output</div>
-          <h3 class="card-title">3-D pose &amp; trajectory</h3>
-          <p>Precise motion tracking of the robot's body and arms, compared with what the robot reports about itself.</p>
-        </div>
-        <div class="dn-card reveal">
-          <div class="caption text-secondary uppercase">Output</div>
-          <h3 class="card-title">Object interaction</h3>
-          <p>Grasp, placement, cycle time, and success rate — measured from outside the robot, the same way for every OEM.</p>
-        </div>
-        <div class="dn-card reveal">
-          <div class="caption text-secondary uppercase">Output</div>
-          <h3 class="card-title">Golden Run analytics</h3>
-          <p>Record one good run of a job; every later run is compared with it to detect drift, deviations, and recoveries — and becomes labelled training data.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── How It Works ──────────────────────────────────────────────────────── -->
-  <section id="how-it-works" class="py-20 px-6 lg:px-8 relative">
-    <div class="max-w-5xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <h2 class="mb-4 section-title">How It Works</h2>
-        <p class="text-lg md:text-xl font-semibold text-muted-foreground mb-4">Connect. Observe. Control.</p>
-        <p class="text-base text-foreground max-w-xl mx-auto leading-relaxed">Three phases. Fourteen days. No professional services required.</p>
-      </div>
-      <div class="space-y-16 relative">
-        <div class="absolute left-8 md:left-12 top-0 bottom-0 w-px bg-gradient-to-b from-primary/50 via-primary/20 to-transparent"></div>
-        <div class="relative pl-24 md:pl-32 reveal">
-          <div class="absolute left-0 top-0 text-[8rem] md:text-[10rem] font-bold leading-none select-none" style="color: hsl(var(--primary) / 0.05)" aria-hidden="true">01</div>
-          <div class="absolute left-8 md:left-12 top-8 -translate-x-1/2 p-3 rounded-xl bg-primary/10 border border-primary/30 z-10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
-          </div>
-          <div class="relative">
-            <h3 class="text-3xl md:text-4xl font-bold mb-4">Connect the fleet</h3>
-            <p class="text-lg text-foreground leading-relaxed mb-6">Onboard an OEM through the API wizard. Pick ROS2, gRPC, or REST — grant exactly the scopes Orbital should hold.</p>
-            <div class="inline-flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/50"><span class="uppercase font-semibold text-primary whitespace-nowrap caption">Outcome:</span><span class="text-sm text-foreground/90">Robots appear on the spatial map with live telemetry.</span></div>
-          </div>
-        </div>
-        <div class="relative pl-24 md:pl-32 reveal">
-          <div class="absolute left-0 top-0 text-[8rem] md:text-[10rem] font-bold leading-none select-none" style="color: hsl(var(--primary) / 0.05)" aria-hidden="true">02</div>
-          <div class="absolute left-8 md:left-12 top-8 -translate-x-1/2 p-3 rounded-xl bg-primary/10 border border-primary/30 z-10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
-          </div>
-          <div class="relative">
-            <h3 class="text-3xl md:text-4xl font-bold mb-4">Observe everything</h3>
-            <p class="text-lg text-foreground leading-relaxed mb-6">Fleet status, mission sequences, drift alerts, and ARIA camera-tracked ground truth — one dashboard, every robot, every OEM.</p>
-            <div class="inline-flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/50"><span class="uppercase font-semibold text-primary whitespace-nowrap caption">Outcome:</span><span class="text-sm text-foreground/90">Operators see what each robot is doing in real time.</span></div>
-          </div>
-        </div>
-        <div class="relative pl-24 md:pl-32 reveal">
-          <div class="absolute left-0 top-0 text-[8rem] md:text-[10rem] font-bold leading-none select-none" style="color: hsl(var(--primary) / 0.05)" aria-hidden="true">03</div>
-          <div class="absolute left-8 md:left-12 top-8 -translate-x-1/2 p-3 rounded-xl bg-primary/10 border border-primary/30 z-10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-primary" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></svg>
-          </div>
-          <div class="relative">
-            <h3 class="text-3xl md:text-4xl font-bold mb-4">Control and learn</h3>
-            <p class="text-lg text-foreground leading-relaxed mb-6">Issue commands, set waypoints, trigger E-Stops, review EMMs. Every action feeds the memory fabric.</p>
-            <div class="inline-flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/50"><span class="uppercase font-semibold text-primary whitespace-nowrap caption">Outcome:</span><span class="text-sm text-foreground/90">The fleet gets smarter with every deployment.</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Pilot ─────────────────────────────────────────────────────────────── -->
-  <section id="pilot" class="py-20 px-6 lg:px-8 relative overflow-hidden bg-background">
-    <div class="max-w-4xl mx-auto text-center relative z-10 reveal">
-      <div class="uppercase font-semibold text-primary mb-8 caption">14 Days. Real Robots. Ground Truth.</div>
-      <h2 class="mb-8 section-title">The infrastructure layer for physical AI is ready.</h2>
-      <p class="text-lg md:text-xl text-foreground mb-6 max-w-2xl mx-auto leading-relaxed">Deployment review, pilot scope definition, and executive brief — grounded in live operational truth.</p>
-      <p class="text-base text-foreground mb-12 max-w-xl mx-auto leading-relaxed">We connect to your fleet, observe one operational cycle, and return a brief your team can act on.</p>
-      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
-        <button type="button" data-contact="early-access" class="inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all bg-primary text-primary-foreground hover:bg-primary/90 border border-primary-border h-12 text-base font-semibold group px-6 py-3 rounded-lg">
-          Start the pilot
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-        </button>
-        <button type="button" data-contact="general" class="inline-flex items-center justify-center gap-2 whitespace-nowrap transition-all hover:text-accent hover:border-accent h-12 text-base font-semibold bg-transparent border border-border text-foreground hover:bg-muted px-6 py-3 rounded-lg">Request a demo</button>
-      </div>
-      <p class="text-sm text-muted-foreground">Works with any OEM: <span class="text-foreground font-medium">ROS2 · gRPC · REST</span></p>
-    </div>
-  </section>
-
-  <!-- ── Footer ────────────────────────────────────────────────────────────── -->
-  <footer class="border-t border-border bg-background">
-    <div class="max-w-7xl mx-auto px-6 lg:px-8 py-12">
-      <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-        <div class="flex items-center gap-3">
-          <img alt="Orbital AI" class="h-8 w-8" src="/assets/orbital-logo-D9n2owqh.png" />
-          <div>
-            <div class="text-lg font-bold tracking-tight">Orbital AI</div>
-            <div class="text-sm text-muted-foreground">The operational memory layer for physical AI.</div>
-          </div>
-        </div>
-        <nav class="footer-nav" aria-label="Footer">
-          <a href="#platform" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Platform</a>
-          <a href="#digital-net" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Digital Net</a>
-          <a href="#how-it-works" class="text-sm text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
-          <a href="#intelligence" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Intelligence</a>
-          <a href="#pilot" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Pilot</a>
-          <a href="/app" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Console</a>
-          <button type="button" data-contact="partnership" class="text-sm text-muted-foreground hover:text-foreground transition-colors">OEM partnerships</button>
-        </nav>
-      </div>
-      <div class="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">© 2026 Orbital AI. All rights reserved.</div>
-    </div>
-  </footer>
+<section id="top" style="padding: 56px 0 72px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid #C9CCC6; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #4A4F57">
+<span>OPERATIONAL LAYER FOR PHYSICAL AI</span>
+<span>ANY OEM · ROS2 · GRPC · REST</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start">
+<div style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+<h1 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: clamp(44px, 5.6vw, 84px); line-height: 0.98; letter-spacing: -0.035em">Every robot sees its world. Orbital sees the operation.</h1>
+<p style="margin: 0; font-size: 20px; line-height: 1.5; color: #30353C; max-width: 560px">Orbital watches every robot, person and environment on the floor, turns what happens into structured memory, and makes each new deployment smarter than the last.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<a href="#pilot" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 26px; background: #1D4ED8; color: #FFFFFF; font-weight: 600; text-decoration: none">Start a 14-day pilot</a>
+<a href="/app/" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 26px; border: 1px solid #111418; color: #111418; font-weight: 600; text-decoration: none">See the live console</a>
+</div>
 </div>
 
-<!-- ── Contact dialog (posts to /api/contact) ──────────────────────────────── -->
-<dialog id="contact-dialog" class="contact-dialog" aria-labelledby="contact-title">
-  <form id="contact-form" method="dialog" novalidate>
-    <div class="contact-head">
-      <h2 id="contact-title" class="card-title">Start a pilot</h2>
-      <button type="button" class="contact-close" data-close aria-label="Close">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-    </div>
-    <p id="contact-lede" class="text-sm text-muted-foreground">Tell us about your fleet and we'll scope a 14-day pilot.</p>
-    <label>Topic
-      <select name="topic">
-        <option value="early-access">Start a pilot</option>
-        <option value="general">Request a demo</option>
-        <option value="partnership">OEM partnership</option>
-      </select>
-    </label>
-    <label>Name<input name="name" autocomplete="name" required maxlength="120" /></label>
-    <label>Work email<input name="email" type="email" autocomplete="email" required maxlength="200" /></label>
-    <label><span>What are you deploying? <span class="text-muted-foreground">(optional)</span></span><textarea name="message" rows="4" maxlength="4000" placeholder="Robots, sites, and what you want to measure"></textarea></label>
-    <label class="hp" aria-hidden="true">Company URL<input name="company_url" tabindex="-1" autocomplete="off" /></label>
-    <p id="contact-status" class="contact-status" role="status"></p>
-    <div class="contact-actions">
-      <button type="button" data-close class="rounded-lg text-sm font-semibold px-5 py-2.5 border border-border text-foreground hover:bg-muted">Cancel</button>
-      <button type="submit" class="rounded-lg text-sm font-semibold px-5 py-2.5 bg-primary text-primary-foreground hover:bg-primary/90">Send</button>
-    </div>
-  </form>
-</dialog>
+<div style="flex: 1 1 440px; min-width: 0; background: #FFFFFF; border: 1px solid #C9CCC6">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #C9CCC6; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: #4A4F57">
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; background: #1D4ED8"></span>FLEET VIEW · SITE 01</span>
+<span>OVERHEAD</span>
+</div>
+<svg viewBox="0 0 600 400" width="100%" style="display: block" role="img" aria-label="Overhead map of a facility showing five robots, four camera coverage zones, a keep-out zone, and one robot re-routing around it">
+<g stroke="#ECEEEA" stroke-width="1">
+<line x1="0" y1="80" x2="600" y2="80"></line><line x1="0" y1="160" x2="600" y2="160"></line><line x1="0" y1="240" x2="600" y2="240"></line><line x1="0" y1="320" x2="600" y2="320"></line>
+<line x1="120" y1="0" x2="120" y2="400"></line><line x1="240" y1="0" x2="240" y2="400"></line><line x1="360" y1="0" x2="360" y2="400"></line><line x1="480" y1="0" x2="480" y2="400"></line>
+</g>
+<g fill="#1D4ED8" opacity="0.07">
+<polygon points="16,16 240,76 150,200"></polygon>
+<polygon points="584,16 360,96 470,210"></polygon>
+<polygon points="16,384 210,280 260,364"></polygon>
+<polygon points="584,384 400,306 470,240"></polygon>
+</g>
+<g fill="#111418">
+<rect x="10" y="10" width="10" height="10"></rect><rect x="580" y="10" width="10" height="10"></rect><rect x="10" y="380" width="10" height="10"></rect><rect x="580" y="380" width="10" height="10"></rect>
+</g>
+<g fill="#E1E3DE">
+<rect x="70" y="58" width="160" height="24"></rect><rect x="70" y="134" width="160" height="24"></rect><rect x="70" y="210" width="160" height="24"></rect>
+<rect x="340" y="58" width="190" height="24"></rect><rect x="340" y="134" width="190" height="24"></rect>
+</g>
+<rect x="70" y="296" width="160" height="68" fill="none" stroke="#C9CCC6" stroke-width="1"></rect>
+<text x="80" y="314" fill="#4A4F57" font-family="IBM Plex Mono, monospace" font-size="11">DOCK</text>
+<rect x="340" y="210" width="190" height="86" fill="none" stroke="#111418" stroke-width="1" stroke-dasharray="4 4"></rect>
+<text x="350" y="228" fill="#111418" font-family="IBM Plex Mono, monospace" font-size="11">KEEP-OUT</text>
+<path d="M 560 364 L 560 186 L 310 186 L 310 112" fill="none" stroke="#1D4ED8" stroke-width="2"></path>
+<circle cx="310" cy="106" r="16" fill="none" stroke="#1D4ED8" stroke-width="1" opacity="0.5"></circle>
+<circle cx="310" cy="106" r="8" fill="#1D4ED8"></circle>
+<text x="330" y="102" fill="#111418" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600">R-03</text>
+<g fill="#111418">
+<circle cx="150" cy="112" r="6"></circle><circle cx="270" cy="262" r="6"></circle><circle cx="460" cy="112" r="6"></circle><circle cx="160" cy="342" r="6"></circle>
+</g>
+<g fill="#4A4F57" font-family="IBM Plex Mono, monospace" font-size="11">
+<text x="162" y="108">R-01</text><text x="282" y="258">R-02</text><text x="472" y="108">R-04</text><text x="172" y="338">R-05</text>
+</g>
+</svg>
+<div style="border-top: 1px solid #C9CCC6; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 7px; background: #1D4ED8; color: #FFFFFF">RECOVERY EVENT</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #4A4F57">→ Experience Memory</span>
+</div>
+<p style="margin: 0; font-weight: 600; font-size: 17px">R-03 re-routed around a keep-out zone</p>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; font-size: 14px; color: #30353C">
+<div><dt style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #4A4F57">CONTEXT</dt><dd style="margin: 0">Aisle 3 blocked by staged pallets</dd></div>
+<div><dt style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #4A4F57">GROUND TRUTH</dt><dd style="margin: 0">Two cameras confirmed the new path</dd></div>
+<div><dt style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #4A4F57">OUTCOME</dt><dd style="margin: 0">Task completed on alternate route</dd></div>
+<div><dt style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #4A4F57">LESSON</dt><dd style="margin: 0">Prefer aisle 4 while the dock is staged</dd></div>
+</dl>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-label="Market context" style="border-top: 2px solid #111418; border-bottom: 1px solid #C9CCC6; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+<div style="padding: 28px 24px 28px 0; border-right: 1px solid #C9CCC6"><p style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: 48px; letter-spacing: -0.03em; line-height: 1.05">40+</p><p style="margin: 6px 0 0; font-size: 15px; color: #30353C">OEMs shipping commercial robots today</p></div>
+<div style="padding: 28px 24px; border-right: 1px solid #C9CCC6"><p style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: 48px; letter-spacing: -0.03em; line-height: 1.05">$38B</p><p style="margin: 6px 0 0; font-size: 15px; color: #30353C">Projected humanoid robotics market by 2035</p></div>
+<div style="padding: 28px 24px; border-right: 1px solid #C9CCC6"><p style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: 48px; letter-spacing: -0.03em; line-height: 1.05">1M+</p><p style="margin: 6px 0 0; font-size: 15px; color: #30353C">Humanoids projected in commercial deployment, 2027 horizon</p></div>
+<div style="padding: 28px 24px"><p style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: 48px; letter-spacing: -0.03em; line-height: 1.05; color: #1D4ED8">0</p><p style="margin: 6px 0 0; font-size: 15px; color: #30353C">Dedicated deployment-intelligence platforms in market</p></div>
+</section>
+
+<section style="padding: 96px 0 0; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 16px; border-bottom: 2px solid #111418">
+<div style="flex: 1 1 520px">
+<p style="margin: 0 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #1D4ED8">THE MISSING LAYER</p>
+<h2 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: clamp(34px, 4vw, 56px); line-height: 1; letter-spacing: -0.03em">Deployments reset. Orbital makes them compound.</h2>
+</div>
+<p style="margin: 0; font-size: 17px; color: #30353C; max-width: 420px">Teams generate thousands of recovery events, adaptations and outcomes every day. Almost all of it is thrown away, and every new site starts from zero.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0 48px">
+<div style="display: flex; flex-direction: column">
+<p style="margin: 0; padding-bottom: 12px; border-bottom: 1px solid #C9CCC6; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #4A4F57">WITHOUT ORBITAL</p>
+<p style="margin: 0; padding: 16px 0; border-bottom: 1px solid #C9CCC6; color: #30353C">Raw logs exist, but there is no structured memory.</p>
+<p style="margin: 0; padding: 16px 0; border-bottom: 1px solid #C9CCC6; color: #30353C">Robots report on themselves, with nothing to check them against.</p>
+<p style="margin: 0; padding: 16px 0; border-bottom: 1px solid #C9CCC6; color: #30353C">Every new site relearns what the last one already knew.</p>
+</div>
+<div style="display: flex; flex-direction: column">
+<p style="margin: 0; padding-bottom: 12px; border-bottom: 1px solid #111418; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #1D4ED8">WITH ORBITAL</p>
+<p style="margin: 0; padding: 16px 0; border-bottom: 1px solid #C9CCC6; font-weight: 500">Context is captured alongside every event.</p>
+<p style="margin: 0; padding: 16px 0; border-bottom: 1px solid #C9CCC6; font-weight: 500">Cameras verify what actually happened on the floor.</p>
+<p style="margin: 0; padding: 16px 0; border-bottom: 1px solid #C9CCC6; font-weight: 500">Lessons carry across sites, so the whole fleet learns.</p>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #4A4F57">EVERY EVENT BECOMES AN EXPERIENCE MEMORY MODULE</p>
+<ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); background: #FFFFFF; border: 1px solid #C9CCC6">
+<li style="padding: 18px 20px; border-right: 1px solid #E1E3DE"><span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7078">01</span><span style="font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px">Context</span><span style="display: block; font-size: 14px; color: #4A4F57">What was happening before</span></li>
+<li style="padding: 18px 20px; border-right: 1px solid #E1E3DE"><span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7078">02</span><span style="font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px">Ground truth</span><span style="display: block; font-size: 14px; color: #4A4F57">What the cameras saw</span></li>
+<li style="padding: 18px 20px; border-right: 1px solid #E1E3DE"><span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7078">03</span><span style="font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px">Outcome</span><span style="display: block; font-size: 14px; color: #4A4F57">What worked, what didn't</span></li>
+<li style="padding: 18px 20px; border-right: 1px solid #E1E3DE"><span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7078">04</span><span style="font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px">Lesson</span><span style="display: block; font-size: 14px; color: #4A4F57">Structured and reusable</span></li>
+<li style="padding: 18px 20px"><span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #1D4ED8">05</span><span style="font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px">Confidence</span><span style="display: block; font-size: 14px; color: #4A4F57">Trust that compounds</span></li>
+</ol>
+</div>
+</section>
+
+<section id="platform" style="padding: 96px 0 0; display: flex; flex-direction: column; gap: 0">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 16px; border-bottom: 2px solid #111418">
+<div style="flex: 1 1 520px">
+<p style="margin: 0 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #1D4ED8">THE INTELLIGENCE STACK</p>
+<h2 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: clamp(34px, 4vw, 56px); line-height: 1; letter-spacing: -0.03em">What happened. Why. What next.</h2>
+</div>
+<p style="margin: 0; font-size: 17px; color: #30353C; max-width: 420px">Three layers that turn raw robot activity into memory the whole fleet can use.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 40px">
+<div style="padding: 28px 0 32px; border-bottom: 1px solid #C9CCC6; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">01 · WHAT HAPPENED</p>
+<h3 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; letter-spacing: -0.02em">Reality Engine</h3>
+<p style="margin: 0; font-size: 16px; color: #30353C">Fuses live camera feeds with robot telemetry into verified ground truth: what the floor showed, not just what the robot reported.</p>
+</div>
+<div style="padding: 28px 0 32px; border-bottom: 1px solid #C9CCC6; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">02 · WHY IT HAPPENED</p>
+<h3 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; letter-spacing: -0.02em">ARIA</h3>
+<p style="margin: 0; font-size: 16px; color: #30353C">Reads the fused stream for behavior: what triggered the event, what the robot decided, and what that decision produced.</p>
+</div>
+<div style="padding: 28px 0 32px; border-bottom: 1px solid #C9CCC6; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">03 · WHAT TO DO NEXT</p>
+<h3 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; letter-spacing: -0.02em">Experience Memory</h3>
+<p style="margin: 0; font-size: 16px; color: #30353C">Packages each verified event as a queryable EMM. Every deployment adds to the fabric, so recommendations sharpen across the fleet.</p>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 40px">
+<div style="padding: 24px 0; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 600">Real-time telemetry</h3><p style="margin: 0; font-size: 15px; color: #30353C">Pose, sensors, motor load, battery and thermal on a 2-second heartbeat.</p></div>
+<div style="padding: 24px 0; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 600">Scope and safety governance</h3><p style="margin: 0; font-size: 15px; color: #30353C">Every command checked against per-OEM scopes. E-Stop, safety halt, keep-out and slow zones.</p></div>
+<div style="padding: 24px 0; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 600">Visual navigation</h3><p style="margin: 0; font-size: 15px; color: #30353C">Drop a waypoint on the map; ARIA's cameras guide the robot when onboard SLAM drifts.</p></div>
+<div style="padding: 24px 0; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 600">Multi-OEM control plane</h3><p style="margin: 0; font-size: 15px; color: #30353C">ROS2, gRPC and cloud REST fleets, commanded from one surface.</p></div>
+</div>
+</section>
+
+<section id="digital-net" style="padding: 96px 0 0; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 16px; border-bottom: 2px solid #111418">
+<div style="flex: 1 1 520px">
+<p style="margin: 0 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #1D4ED8">DIGITAL NET · OUR OWN SENSING HARDWARE</p>
+<h2 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: clamp(34px, 4vw, 56px); line-height: 1; letter-spacing: -0.03em">We don't borrow our eyes. We build them.</h2>
+</div>
+<p style="margin: 0; font-size: 17px; color: #30353C; max-width: 420px">8–16 synchronized cameras put a 3-D net around a deployed robot and measure its real work from the outside, the same way for every OEM.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start">
+<figure style="flex: 1 1 440px; min-width: 0; margin: 0; background: #FFFFFF; border: 1px solid #C9CCC6">
+<svg viewBox="0 0 520 440" width="100%" style="display: block" role="img" aria-label="Top-down view of the Digital Net: twelve synchronized cameras arranged in a ring, all aimed at a robot in the center">
+<circle cx="260" cy="220" r="180" fill="none" stroke="#111418" stroke-width="1.5"></circle>
+<circle cx="260" cy="220" r="110" fill="none" stroke="#E1E3DE" stroke-width="1"></circle>
+<g stroke="#111418" stroke-width="1" opacity="0.18">
+<line x1="440" y1="220" x2="260" y2="220"></line><line x1="415.9" y1="310" x2="260" y2="220"></line><line x1="350" y1="375.9" x2="260" y2="220"></line><line x1="260" y1="400" x2="260" y2="220"></line><line x1="170" y1="375.9" x2="260" y2="220"></line><line x1="104.1" y1="310" x2="260" y2="220"></line><line x1="80" y1="220" x2="260" y2="220"></line><line x1="104.1" y1="130" x2="260" y2="220"></line><line x1="170" y1="64.1" x2="260" y2="220"></line><line x1="260" y1="40" x2="260" y2="220"></line><line x1="350" y1="64.1" x2="260" y2="220"></line><line x1="415.9" y1="130" x2="260" y2="220"></line>
+</g>
+<g fill="#111418">
+<rect x="434" y="214" width="12" height="12"></rect><rect x="409.9" y="304" width="12" height="12"></rect><rect x="344" y="369.9" width="12" height="12"></rect><rect x="254" y="394" width="12" height="12"></rect><rect x="164" y="369.9" width="12" height="12"></rect><rect x="98.1" y="304" width="12" height="12"></rect><rect x="74" y="214" width="12" height="12"></rect><rect x="98.1" y="124" width="12" height="12"></rect><rect x="164" y="58.1" width="12" height="12"></rect><rect x="254" y="34" width="12" height="12"></rect><rect x="344" y="58.1" width="12" height="12"></rect><rect x="409.9" y="124" width="12" height="12"></rect>
+</g>
+<g>
+<rect x="198" y="282" width="8" height="8" fill="#111418"></rect><rect x="206" y="282" width="8" height="8" fill="#FFFFFF" stroke="#111418" stroke-width="0.5"></rect><rect x="198" y="290" width="8" height="8" fill="#FFFFFF" stroke="#111418" stroke-width="0.5"></rect><rect x="206" y="290" width="8" height="8" fill="#111418"></rect>
+<rect x="306" y="142" width="8" height="8" fill="#111418"></rect><rect x="314" y="142" width="8" height="8" fill="#FFFFFF" stroke="#111418" stroke-width="0.5"></rect><rect x="306" y="150" width="8" height="8" fill="#FFFFFF" stroke="#111418" stroke-width="0.5"></rect><rect x="314" y="150" width="8" height="8" fill="#111418"></rect>
+</g>
+<circle cx="260" cy="220" r="30" fill="#1D4ED8"></circle>
+<rect x="274" y="208" width="26" height="24" fill="#111418"></rect>
+<text x="260" y="276" text-anchor="middle" fill="#111418" font-family="IBM Plex Mono, monospace" font-size="11">ROBOT UNDER TEST</text>
+</svg>
+<figcaption style="border-top: 1px solid #C9CCC6; padding: 12px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.04em; color: #4A4F57; display: flex; flex-wrap: wrap; gap: 6px 18px">
+<span>8–16 SENSOR POSITIONS</span><span>RGB · DEPTH · IR</span><span>IEEE 1588 SYNC</span><span>APRILTAG / CHARUCO</span>
+</figcaption>
+</figure>
+<div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column">
+<div style="padding: 0 0 24px; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.01em">3-D pose and trajectory</h3><p style="margin: 0; color: #30353C">Body and arm motion, compared with what the robot reports about itself.</p></div>
+<div style="padding: 24px 0; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.01em">Object interaction</h3><p style="margin: 0; color: #30353C">Grasp, placement, cycle time and success rate, measured externally.</p></div>
+<div style="padding: 24px 0; border-bottom: 1px solid #C9CCC6"><h3 style="margin: 0 0 6px; font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.01em">Golden Run analytics</h3><p style="margin: 0; color: #30353C">Record one good run. Every later run is checked against it and becomes labelled training data.</p></div>
+</div>
+</div>
+</section>
+
+<section id="pilot" style="padding: 96px 0 96px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 16px; border-bottom: 2px solid #111418">
+<div style="flex: 1 1 520px">
+<p style="margin: 0 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #1D4ED8">THE 14-DAY PILOT</p>
+<h2 style="margin: 0; font-family: Archivo, sans-serif; font-weight: 900; font-size: clamp(34px, 4vw, 56px); line-height: 1; letter-spacing: -0.03em">14 days. Real robots. Ground truth.</h2>
+</div>
+<p style="margin: 0; font-size: 17px; color: #30353C; max-width: 420px">We connect to your fleet, observe one operational cycle, and hand back a brief your team can act on. No professional services required.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start">
+<div style="flex: 1 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 32px">
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+<li style="display: flex; gap: 20px; padding: 0 0 22px; border-bottom: 1px solid #C9CCC6"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #1D4ED8; min-width: 28px; padding-top: 4px">01</span><div><h3 style="margin: 0; font-size: 20px; font-weight: 600">Connect the fleet</h3><p style="margin: 4px 0 0; color: #30353C">Onboard through the API wizard over ROS2, gRPC or REST, granting only the scopes you choose.</p></div></li>
+<li style="display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid #C9CCC6"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #1D4ED8; min-width: 28px; padding-top: 4px">02</span><div><h3 style="margin: 0; font-size: 20px; font-weight: 600">Observe everything</h3><p style="margin: 4px 0 0; color: #30353C">Fleet status, mission sequences, drift alerts and camera-verified ground truth in one dashboard.</p></div></li>
+<li style="display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid #C9CCC6"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #1D4ED8; min-width: 28px; padding-top: 4px">03</span><div><h3 style="margin: 0; font-size: 20px; font-weight: 600">Control and learn</h3><p style="margin: 4px 0 0; color: #30353C">Issue commands, set waypoints, review EMMs. Every action feeds the memory fabric.</p></div></li>
+</ol>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #4A4F57">YOU WALK AWAY WITH</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; padding: 6px 10px; background: #111418; color: #FFFFFF">DEPLOYMENT REVIEW</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; padding: 6px 10px; background: #111418; color: #FFFFFF">PILOT SCOPE</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; padding: 6px 10px; background: #111418; color: #FFFFFF">EXECUTIVE BRIEF</span>
+</div>
+</div>
+</div>
+
+<form id="contact-form" novalidate aria-labelledby="pilot-form-title" style="flex: 1 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #C9CCC6; border-top: 3px solid #1D4ED8; padding: 32px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h3 id="pilot-form-title" style="margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.02em">Scope your pilot</h3>
+<p style="margin: 0; color: #4A4F57; font-size: 15px">Tell us about your fleet. We'll come back with a pilot plan.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="topic" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">I'D LIKE TO</label>
+<select id="topic" name="topic" style="min-height: 48px; padding: 0 12px; border: 1px solid #C9CCC6; border-radius: 0; background: #FFFFFF; color: #111418; font: inherit; font-size: 16px">
+<option value="early-access">Start a 14-day pilot</option>
+<option value="general">Request a demo</option>
+<option value="partnership">Discuss an OEM partnership</option>
+</select>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 8px">
+<label for="name" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">NAME</label>
+<input id="name" name="name" type="text" autocomplete="name" required maxlength="120" style="min-height: 48px; padding: 0 12px; border: 1px solid #C9CCC6; border-radius: 0; background: #FFFFFF; color: #111418; font: inherit; font-size: 16px">
+</div>
+<div style="flex: 1 1 160px; display: flex; flex-direction: column; gap: 8px">
+<label for="email" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">WORK EMAIL</label>
+<input id="email" name="email" type="email" autocomplete="email" required maxlength="200" style="min-height: 48px; padding: 0 12px; border: 1px solid #C9CCC6; border-radius: 0; background: #FFFFFF; color: #111418; font: inherit; font-size: 16px">
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="website" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">COMPANY WEBSITE</label>
+<input id="website" name="website" type="text" inputmode="url" autocomplete="url" maxlength="200" style="min-height: 48px; padding: 0 12px; border: 1px solid #C9CCC6; border-radius: 0; background: #FFFFFF; color: #111418; font: inherit; font-size: 16px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="fleet" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #4A4F57">WHAT ARE YOU DEPLOYING? (OPTIONAL)</label>
+<textarea id="fleet" name="message" rows="3" maxlength="4000" placeholder="Robot types, OEMs, number of sites" style="padding: 12px; border: 1px solid #C9CCC6; border-radius: 0; background: #FFFFFF; color: #111418; font: inherit; font-size: 16px; resize: vertical"></textarea>
+</div>
+<div class="hp" aria-hidden="true"><label for="company_url">Leave this empty</label><input id="company_url" name="company_url" type="text" tabindex="-1" autocomplete="off"></div>
+<button type="submit" style="min-height: 52px; border: 0; border-radius: 0; background: #1D4ED8; color: #FFFFFF; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer">Request my 14-day pilot</button>
+<p id="contact-status" class="contact-status" role="status" aria-live="polite"></p>
+</form>
+</div>
+</section>
+</main>
+
+<footer style="border-top: 2px solid #111418">
+<div style="max-width: 1296px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; font-size: 14px; color: #4A4F57">
+<span style="font-family: Archivo, sans-serif; font-weight: 900; font-size: 18px; letter-spacing: -0.03em; color: #111418">Orbital<span style="color: #1D4ED8"> AI</span></span>
+<nav aria-label="Footer" style="display: flex; flex-wrap: wrap; gap: 0 24px">
+<a href="#platform" style="text-decoration: none; color: #4A4F57; padding: 12px 0">Platform</a>
+<a href="#digital-net" style="text-decoration: none; color: #4A4F57; padding: 12px 0">Digital Net</a>
+<a href="#pilot" style="text-decoration: none; color: #4A4F57; padding: 12px 0">Pilot</a>
+<a href="/app/" style="text-decoration: none; color: #4A4F57; padding: 12px 0">Console</a>
+<a href="#pilot" data-topic="partnership" style="text-decoration: none; color: #4A4F57; padding: 12px 0">OEM partnerships</a>
+</nav>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px">© 2026 ORBITAL AI</span>
+</div>
+</footer>
+
+</div>
+<script src="/assets/site.js" defer></script>
 </body>
 </html>
