@@ -18,8 +18,8 @@ module.exports = {
           raised: "#F6F7F4",
           input: "#ECEEEA",
         },
-        line: { DEFAULT: "#C9CCC6", strong: "#9EA29B" },
-        ink: { DEFAULT: "#111418", mut: "#30353C", dim: "#6B7078" },
+        line: { DEFAULT: "#A9ADA6", strong: "#6E736C" },
+        ink: { DEFAULT: "#111418", mut: "#1F2329", dim: "#464B53" },
       },
       fontFamily: {
         sans: ["IBM Plex Sans", "ui-sans-serif", "system-ui"],

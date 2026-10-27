@@ -9,13 +9,13 @@
   --card: #FFFFFF;
   --raised: #F6F7F4;
   --input: #ECEEEA;
-  --line: #C9CCC6;
-  --line-soft: #E1E3DE;
-  --line-strong: #9EA29B;
+  --line: #A9ADA6;
+  --line-soft: #D5D8D2;
+  --line-strong: #6E736C;
   --line-blue: #111418;   /* card hover border */
   --ink: #111418;
-  --ink-mut: #30353C;
-  --ink-dim: #6B7078;
+  --ink-mut: #1F2329;
+  --ink-dim: #464B53;
   --brand: #16A34A;       /* healthy / active */
   --brand-600: #15803D;
   --azure: #1D4ED8;       /* accent: telemetry, selection, primary actions */
@@ -51,7 +51,9 @@ body {
   transition: border-color 150ms cubic-bezier(0.23,1,0.32,1);
 }
 .card:hover { border-color: var(--line-strong); }
-.card-head { border-bottom: 1px solid var(--line); background: var(--card); }
+.card-head { border-bottom: 1px solid var(--ink); background: var(--raised); }
+/* Plex at 10–12px reads thin on the light ground; secondary text gets a heavier cut. */
+.text-ink-dim, .text-ink-mut, .sb-section-desc, .fleet-metric-lbl, .tick-label { font-weight: 500; }
 .card-head h2, .sb-section-title {
   font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-weight: 800; letter-spacing: -0.01em;
 }
@@ -174,7 +176,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-right: 1px solid #30353C;
   font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;
 }
-.tick-label { color: #9EA29B; text-transform: uppercase; }
+.tick-label { color: #D5D8D2; text-transform: uppercase; }
 .tick-val { color: #FFFFFF; font-weight: 600; }
 .tick-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 
