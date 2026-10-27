@@ -26,6 +26,9 @@ class Settings:
     # Simulated tracked objects (a pallet, a forklift, a cart) so the object layer is visible
     # in the demo; real edges publish to POST /api/v1/objects/{facility}.
     sim_objects: bool = _flag("ORBITAL_SIM_OBJECTS", "1")
+    # Demo Digital Net cell: a rig calibration and camera-seen blocked cells replayed from
+    # testdata/, so those dashboard features are visible without a real rig uploading.
+    sim_rig: bool = _flag("ORBITAL_SIM_RIG", "1")
     # A tracked object that is not re-reported within this many seconds drops off the map.
     object_ttl_s: float = float(os.getenv("ORBITAL_OBJECT_TTL_S", "10") or "10")
 

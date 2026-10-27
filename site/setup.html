@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up the Digital Net — Orbital AI</title>
+<meta name="description" content="Step-by-step guide to installing and deploying the Orbital AI Digital Net camera system: plan, mount, network, calibrate, map and go live.">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+html{scroll-behavior:smooth}
+body{margin:0;background:#EEF0EC;color:#111418;font-family:'IBM Plex Sans',sans-serif;font-size:16px;line-height:1.55}
+a{color:#111418}a:hover{color:#4A4F57}
+.wrap{max-width:1296px;margin:0 auto;padding:0 24px}
+header.top{border-bottom:2px solid #111418}
+header.top .wrap{min-height:76px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 32px}
+.brand{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-family:Archivo,sans-serif;font-weight:900;font-size:22px;letter-spacing:-.03em;line-height:1}
+.nav{display:flex;flex-wrap:wrap;gap:0 28px;flex:1 1 auto;font-size:15px;font-weight:500}
+.nav a{text-decoration:none;padding:12px 0}.nav a[aria-current]{text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:2px}
+.btn{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;font-weight:600;font-size:15px;text-decoration:none}
+.btn-ink{background:#111418;color:#fff}.btn-ink:hover{color:#fff;background:#30353C}
+.btn-blue{background:#1D4ED8;color:#fff;min-height:52px;padding:0 26px}.btn-blue:hover{color:#fff;background:#1E40AF}
+.btn-line{border:1px solid #111418;min-height:52px;padding:0 26px}
+.kicker{margin:0 0 10px;font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.12em;color:#1D4ED8}
+.rule{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;padding-bottom:12px;border-bottom:1px solid #C9CCC6;font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.12em;color:#4A4F57}
+h1{margin:0;font-family:Archivo,sans-serif;font-weight:900;font-size:clamp(40px,5vw,72px);line-height:.98;letter-spacing:-.035em}
+h2{margin:0;font-family:Archivo,sans-serif;font-weight:900;font-size:clamp(28px,3.2vw,44px);line-height:1.02;letter-spacing:-.03em}
+h3{margin:0 0 6px;font-family:Archivo,sans-serif;font-weight:800;font-size:20px;letter-spacing:-.01em}
+.lede{margin:0;font-size:20px;color:#30353C;max-width:640px}
+.hero{padding:56px 0 48px;display:flex;flex-direction:column;gap:28px}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px;align-items:start;padding-bottom:96px}
+.toc{position:sticky;top:24px;border-top:2px solid #111418;padding-top:12px}
+.toc p{margin:0 0 8px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;color:#4A4F57}
+.toc ol{margin:0;padding:0;list-style:none}
+.toc a{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #C9CCC6;text-decoration:none;font-size:14.5px;font-weight:500}
+.toc a span{font-family:'IBM Plex Mono',monospace;color:#1D4ED8;min-width:22px}
+.step{padding:0 0 64px;scroll-margin-top:24px}
+.step-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px;padding-bottom:14px;border-bottom:2px solid #111418;margin-bottom:28px}
+.step-head p{margin:0;color:#30353C;max-width:420px;font-size:16px}
+.two{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.two>*{flex:1 1 300px;min-width:0}
+.layout>*{min-width:0}
+figure{margin:0;background:#fff;border:1px solid #C9CCC6}
+figure svg{display:block;width:100%;height:auto}
+figcaption{border-top:1px solid #C9CCC6;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;color:#4A4F57}
+ul.checks,ol.do{margin:0;padding:0;list-style:none}
+ul.checks li,ol.do li{padding:12px 0;border-bottom:1px solid #C9CCC6;color:#30353C}
+ul.checks li:first-child,ol.do li:first-child{padding-top:0}
+ol.do{counter-reset:do}
+ol.do li{counter-increment:do;display:flex;gap:14px}
+ol.do li::before{content:counter(do,decimal-leading-zero);font-family:'IBM Plex Mono',monospace;font-size:13px;color:#1D4ED8;padding-top:2px;min-width:22px}
+ul.checks li{display:flex;gap:12px}
+ul.checks li::before{content:"";flex:none;width:12px;height:12px;margin-top:6px;border:1.5px solid #111418}
+b,strong{color:#111418;font-weight:600}
+code{font-family:'IBM Plex Mono',monospace;font-size:.88em;background:#E1E3DE;padding:1px 5px}
+pre{margin:0;background:#111418;color:#E1E3DE;padding:16px 18px;overflow-x:auto;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.6}
+pre .c{color:#9EA29B}
+.block{display:flex;flex-direction:column;gap:20px}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #C9CCC6;font-size:14.5px}
+th{text-align:left;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:11.5px;letter-spacing:.1em;color:#4A4F57;padding:10px 14px;border-bottom:1px solid #111418;background:#F6F7F4}
+td{padding:11px 14px;border-bottom:1px solid #E1E3DE;vertical-align:top;color:#30353C}
+td:first-child{color:#111418;font-weight:500}
+.scroll{overflow-x:auto}
+.note{border-left:3px solid #1D4ED8;background:#fff;padding:14px 16px;font-size:15px;color:#30353C}
+.warn{border-left-color:#DC2626}
+.panel{background:#fff;border:1px solid #C9CCC6;font-size:14px}
+.panel .hd{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid #111418;background:#F6F7F4;font-family:Archivo,sans-serif;font-weight:800}
+.tag{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.08em;padding:2px 6px;background:#111418;color:#fff}
+.panel .row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #E1E3DE}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.mono{font-family:'IBM Plex Mono',monospace}
+footer{border-top:2px solid #111418}
+footer .wrap{padding:28px 24px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;font-size:14px;color:#4A4F57}
+footer nav{display:flex;flex-wrap:wrap;gap:0 24px}footer nav a{text-decoration:none;color:#4A4F57;padding:12px 0}
+@media (max-width:900px){.layout{grid-template-columns:1fr}.toc{position:static}}
+</style>
+</head>
+<body>
+
+<header class="top">
+<div class="wrap">
+<a href="/" class="brand">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9.5" fill="none" stroke="#111418" stroke-width="2"/><circle cx="11" cy="11" r="3.5" fill="#1D4ED8"/><rect x="16.5" y="2.5" width="4" height="4" fill="#111418"/></svg>
+<span>Orbital<span style="color:#1D4ED8"> AI</span></span>
+</a>
+<nav class="nav" aria-label="Primary">
+<a href="/#platform">Platform</a>
+<a href="/#digital-net">Digital Net</a>
+<a href="/setup" aria-current="page">Setup guide</a>
+<a href="/#pilot">Pilot</a>
+<a href="/app/">Console</a>
+</nav>
+<a href="/#pilot" class="btn btn-ink">Start a pilot</a>
+</div>
+</header>
+
+<main class="wrap">
+
+<section class="hero" id="top">
+<div class="rule"><span>SETUP GUIDE · DIGITAL NET</span><span>8–16 CAMERAS · ONE EDGE NODE · ONE CELL</span></div>
+<h1>Install the Digital Net, calibrate it, and go live.</h1>
+<p class="lede">How to put Orbital's camera system around a robot work cell: plan the layout, mount and cable the cameras, isolate the network, calibrate against floor markers, map the floor from the cameras, and run your first validated task.</p>
+<div style="display:flex;flex-wrap:wrap;gap:12px">
+<a href="#kit" class="btn btn-blue">Start with the kit list</a>
+<a href="/app/#sec-calibration" class="btn btn-line">See calibration in the console</a>
+</div>
+</section>
+
+<div class="layout">
+<aside class="toc" aria-label="Steps">
+<p>STEPS</p>
+<ol>
+<li><a href="#kit"><span>00</span>Kit list</a></li>
+<li><a href="#plan"><span>01</span>Plan the cell</a></li>
+<li><a href="#mount"><span>02</span>Mount and cable</a></li>
+<li><a href="#network"><span>03</span>Isolate the network</a></li>
+<li><a href="#edge"><span>04</span>Install the edge node</a></li>
+<li><a href="#calibrate"><span>05</span>Calibrate the rig</a></li>
+<li><a href="#map"><span>06</span>Map the floor</a></li>
+<li><a href="#robots"><span>07</span>Tag and connect robots</a></li>
+<li><a href="#golive"><span>08</span>Go live and validate</a></li>
+<li><a href="#troubleshooting"><span>—</span>Troubleshooting</a></li>
+</ol>
+</aside>
+
+<div>
+
+<!-- 00 KIT -->
+<section class="step" id="kit">
+<div class="step-head">
+<div><p class="kicker">00 · BEFORE YOU START</p><h2>Kit list</h2></div>
+<p>One cell covers one robot work area. Order for the cell you are instrumenting; add cameras, not edge nodes, as the area grows.</p>
+</div>
+<div class="scroll">
+<table>
+<thead><tr><th>ITEM</th><th>SPEC</th><th>QTY</th><th>EXAMPLE</th></tr></thead>
+<tbody>
+<tr><td>Industrial PoE cameras</td><td>Global shutter, 60 fps, PoE+, IEEE 1588 (PTP) sync</td><td>8–16</td><td>Basler acA1920-40gc, FLIR BFS-PGE-50S5C</td></tr>
+<tr><td>GPU edge server</td><td>NVIDIA RTX 4000 SFF Ada, 64 GB RAM, dual 10 GbE</td><td>1</td><td>Dell PowerEdge XR4520c</td></tr>
+<tr><td>Managed PoE+ switch</td><td>24-port, PoE+, VLANs, PTP boundary clock</td><td>1</td><td>Cisco Catalyst 1000</td></tr>
+<tr><td>Wi-Fi 6 access points</td><td>802.11ax, VLAN tagging, for the robot network</td><td>2</td><td>Aruba AP-635</td></tr>
+<tr><td>Floor markers</td><td>ArUco 4×4, 15 cm, laminated, IDs 0–10 (more for large floors)</td><td>12+</td><td>Print in-house</td></tr>
+<tr><td>Robot top-plate tags</td><td>ArUco 15 cm, one unique ID per robot</td><td>1 per robot</td><td>Print in-house</td></tr>
+<tr><td>Cable and mounts</td><td>Shielded Cat6A, ceiling or truss camera mounts, cable trays</td><td>~50 m</td><td>Any</td></tr>
+<tr><td>Tape measure / laser</td><td>To place the origin and anchor markers</td><td>1</td><td>Any</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<!-- 01 PLAN -->
+<section class="step" id="plan">
+<div class="step-head">
+<div><p class="kicker">01 · PLAN THE CELL</p><h2>Ring the work area with cameras.</h2></div>
+<p>Orbital places things in 3-D by seeing them from two or more cameras at once, so overlap matters more than coverage.</p>
+</div>
+<div class="two">
+<figure>
+<svg viewBox="0 0 520 400" role="img" aria-label="Top-down plan: eight cameras on a ring around a work area, each aimed at the center, with overlapping fields of view">
+<rect x="0" y="0" width="520" height="400" fill="#fff"/>
+<g stroke="#ECEEEA"><line x1="0" y1="100" x2="520" y2="100"/><line x1="0" y1="200" x2="520" y2="200"/><line x1="0" y1="300" x2="520" y2="300"/><line x1="130" y1="0" x2="130" y2="400"/><line x1="260" y1="0" x2="260" y2="400"/><line x1="390" y1="0" x2="390" y2="400"/></g>
+<rect x="150" y="120" width="220" height="160" fill="#1D4ED8" fill-opacity="0.06" stroke="#1D4ED8" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="260" y="140" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#1D4ED8">WORK AREA</text>
+<g fill="#1D4ED8" opacity="0.08">
+<polygon points="260,30 170,200 350,200"/><polygon points="450,70 250,150 340,290"/><polygon points="490,200 260,110 260,290"/><polygon points="450,330 250,250 340,110"/>
+<polygon points="260,370 170,200 350,200"/><polygon points="70,330 270,250 180,110"/><polygon points="30,200 260,110 260,290"/><polygon points="70,70 270,150 180,290"/>
+</g>
+<g fill="#111418">
+<rect x="252" y="22" width="16" height="16"/><rect x="442" y="62" width="16" height="16"/><rect x="482" y="192" width="16" height="16"/><rect x="442" y="322" width="16" height="16"/>
+<rect x="252" y="362" width="16" height="16"/><rect x="62" y="322" width="16" height="16"/><rect x="22" y="192" width="16" height="16"/><rect x="62" y="62" width="16" height="16"/>
+</g>
+<g font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">
+<text x="276" y="34">DN-1</text><text x="400" y="58">DN-2</text><text x="470" y="186">DN-3</text><text x="400" y="352">DN-4</text>
+<text x="276" y="374">DN-5</text><text x="84" y="352">DN-6</text><text x="10" y="186">DN-7</text><text x="84" y="58">DN-8</text>
+</g>
+<circle cx="260" cy="200" r="16" fill="#1D4ED8"/><rect x="268" y="192" width="14" height="14" fill="#111418"/>
+<text x="260" y="240" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#111418">ROBOT</text>
+</svg>
+<figcaption>TOP VIEW · 8 CAMERAS · EVERY FLOOR POINT SEEN BY 2+</figcaption>
+</figure>
+<div class="block">
+<ul class="checks">
+<li><span><b>Every point in the work area is seen by at least two cameras</b>, from directions at least ~30° apart. One view gives a direction, not a position.</span></li>
+<li><span><b>Neighbouring cameras overlap.</b> Calibration chains cameras together through markers they both see.</span></li>
+<li><span><b>Start with 8 cameras</b> on a ring for a cell up to about 12 × 8 m; go to 12–16 for long aisles, tall racks or heavy occlusion.</span></li>
+<li><span><b>Avoid pointing straight into windows or skylights.</b> Keep lighting steady; global-shutter sensors handle motion, not glare.</span></li>
+<li><span><b>Mark the robot's routes and stations on your sketch.</b> You'll use them for the first golden run in step 08.</span></li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- 02 MOUNT -->
+<section class="step" id="mount">
+<div class="step-head">
+<div><p class="kicker">02 · MOUNT AND CABLE</p><h2>High, angled in, and fixed.</h2></div>
+<p>A camera that moves after calibration is wrong until it is re-calibrated, so rigid mounts are worth the effort.</p>
+</div>
+<div class="two">
+<figure>
+<svg viewBox="0 0 520 330" role="img" aria-label="Side view: a camera mounted 4.5 metres up on the ceiling, angled down toward robot working height, connected by a PoE cable to the switch">
+<rect width="520" height="330" fill="#fff"/>
+<line x1="20" y1="40" x2="500" y2="40" stroke="#111418" stroke-width="3"/>
+<text x="24" y="30" font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">CEILING / TRUSS</text>
+<line x1="20" y1="290" x2="500" y2="290" stroke="#111418" stroke-width="3"/>
+<text x="24" y="310" font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">FLOOR</text>
+<line x1="90" y1="40" x2="90" y2="62" stroke="#111418" stroke-width="3"/>
+<rect x="74" y="60" width="34" height="20" fill="#111418" transform="rotate(30 90 70)"/>
+<polygon points="98,78 250,290 420,290" fill="#1D4ED8" opacity="0.10"/>
+<line x1="98" y1="78" x2="330" y2="248" stroke="#1D4ED8" stroke-width="1.5" stroke-dasharray="5 4"/>
+<circle cx="330" cy="248" r="5" fill="#1D4ED8"/>
+<text x="340" y="244" font-family="IBM Plex Mono, monospace" font-size="10" fill="#1D4ED8">AIM: 0.6 M ABOVE FLOOR</text>
+<rect x="300" y="250" width="56" height="40" fill="#E1E3DE" stroke="#111418"/>
+<rect x="318" y="244" width="20" height="6" fill="#111418"/>
+<text x="328" y="275" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#111418">ROBOT</text>
+<line x1="40" y1="70" x2="40" y2="290" stroke="#111418"/><line x1="34" y1="70" x2="46" y2="70" stroke="#111418"/><line x1="34" y1="290" x2="46" y2="290" stroke="#111418"/>
+<text x="46" y="182" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="#111418" transform="rotate(-90 46 182)">≈ 4.5 M</text>
+<path d="M 90 44 L 470 44 L 470 210" fill="none" stroke="#4A4F57" stroke-width="1.5"/>
+<rect x="440" y="210" width="60" height="30" fill="#111418"/>
+<text x="470" y="229" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#fff">SWITCH</text>
+<text x="300" y="58" font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">CAT6A · POE+ · PTP</text>
+</svg>
+<figcaption>SIDE VIEW · MOUNT ≈ 4.5 M · AIM AT ROBOT WORKING HEIGHT</figcaption>
+</figure>
+<div class="block">
+<ol class="do">
+<li><span><b>Mount each camera about 4.5 m up</b> on the ceiling or a truss, on a rigid bracket. Lower mounts see less floor; higher mounts lose resolution on small markers.</span></li>
+<li><span><b>Aim at robot working height</b> (about 0.6 m above the floor) at the far side of the work area, so the field of view crosses the cell.</span></li>
+<li><span><b>Run shielded Cat6A to the PoE+ switch.</b> One cable carries power, video and the PTP clock.</span></li>
+<li><span><b>Enable PTP (IEEE 1588)</b> on the switch and cameras so every frame is time-stamped on the same clock. Unsynced frames break triangulation on moving robots.</span></li>
+<li><span><b>Write down each camera's position and aim point</b> in metres from your floor origin. That becomes the rig file in step 06.</span></li>
+</ol>
+</div>
+</div>
+</section>
+
+<!-- 03 NETWORK -->
+<section class="step" id="network">
+<div class="step-head">
+<div><p class="kicker">03 · ISOLATE THE NETWORK</p><h2>Three VLANs, one way out.</h2></div>
+<p>Cameras and robots never touch the internet. Only the edge node talks to the Orbital cloud, outbound, over mutual TLS.</p>
+</div>
+<figure style="margin-bottom:28px">
+<svg viewBox="0 0 880 300" role="img" aria-label="Network diagram: cameras on VLAN 10 and robots on VLAN 20 connect only to the edge node on VLAN 30, which has a single outbound mTLS connection to the Orbital cloud">
+<rect width="880" height="300" fill="#fff"/>
+<g font-family="IBM Plex Mono, monospace">
+<rect x="30" y="30" width="230" height="110" fill="#F6F7F4" stroke="#111418"/>
+<text x="46" y="54" font-size="12" font-weight="600" fill="#111418">VLAN 10 · CAMERAS</text>
+<g fill="#111418"><rect x="50" y="76" width="18" height="18"/><rect x="82" y="76" width="18" height="18"/><rect x="114" y="76" width="18" height="18"/><rect x="146" y="76" width="18" height="18"/><rect x="178" y="76" width="18" height="18"/><rect x="210" y="76" width="18" height="18"/></g>
+<text x="46" y="122" font-size="10.5" fill="#4A4F57">no egress · edge only</text>
+<rect x="30" y="170" width="230" height="110" fill="#F6F7F4" stroke="#111418"/>
+<text x="46" y="194" font-size="12" font-weight="600" fill="#111418">VLAN 20 · ROBOTS</text>
+<g fill="#1D4ED8"><circle cx="62" cy="226" r="11"/><circle cx="102" cy="226" r="11"/><circle cx="142" cy="226" r="11"/></g>
+<text x="46" y="264" font-size="10.5" fill="#4A4F57">wi-fi 6 · no internet · edge only</text>
+<rect x="350" y="95" width="200" height="120" fill="#111418"/>
+<text x="450" y="128" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">VLAN 30 · EDGE NODE</text>
+<text x="450" y="152" text-anchor="middle" font-size="10.5" fill="#C9CCC6">aria_edge · CV · safety halt</text>
+<text x="450" y="172" text-anchor="middle" font-size="10.5" fill="#C9CCC6">pose · waypoints · runs</text>
+<text x="450" y="196" text-anchor="middle" font-size="10.5" fill="#C9CCC6">SROS2 enclaves</text>
+<rect x="660" y="105" width="190" height="100" fill="#fff" stroke="#1D4ED8" stroke-width="2"/>
+<text x="755" y="140" text-anchor="middle" font-size="12" font-weight="600" fill="#1D4ED8">ORBITAL CLOUD</text>
+<text x="755" y="164" text-anchor="middle" font-size="10.5" fill="#4A4F57">map · console · runs</text>
+<text x="755" y="182" text-anchor="middle" font-size="10.5" fill="#4A4F57">OEM API · memory</text>
+</g>
+<path d="M 260 85 L 350 135" stroke="#111418" stroke-width="2"/><path d="M 260 225 L 350 175" stroke="#111418" stroke-width="2"/>
+<path d="M 550 155 L 652 155" stroke="#1D4ED8" stroke-width="3"/><polygon points="652,148 664,155 652,162" fill="#1D4ED8"/>
+<text x="606" y="144" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" fill="#1D4ED8">mTLS</text>
+<text x="606" y="176" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">outbound</text>
+</svg>
+<figcaption>NETWORK · CAMERAS AND ROBOTS REACH ONLY THE EDGE · EDGE REACHES ONLY THE CLOUD</figcaption>
+</figure>
+<div class="two">
+<ol class="do">
+<li><span><b>Create VLANs 10, 20 and 30</b> on the managed switch: cameras, robots, edge management.</span></li>
+<li><span><b>Block egress</b> from VLANs 10 and 20, then prove it: from a device on each, a public address must not answer.</span></li>
+<li><span><b>Dual-home or trunk the edge node</b> to all three VLANs.</span></li>
+<li><span><b>Issue mTLS certificates</b> and install the client pair on the edge node. The cloud requires the client certificate.</span></li>
+<li><span><b>Create the SROS2 keystore</b> so only the pose, waypoint and safety-halt nodes can publish to robots.</span></li>
+</ol>
+<div class="block">
+<pre><span class="c"># on a trusted machine: CA, edge client and cloud server certs</span>
+./scripts/gen_mtls_certs.sh
+
+<span class="c"># on the edge node</span>
+export ORBITAL_MTLS_CERT=/etc/aria/edge-client.pem
+export ORBITAL_MTLS_KEY=/etc/aria/edge-client.key
+export ORBITAL_MTLS_CA=/etc/aria/orbital-ca.pem
+
+<span class="c"># ROS 2 Humble+: lock down who can command robots</span>
+ros2 security create_keystore /etc/aria/sros2_keystore
+ros2 security create_enclave /etc/aria/sros2_keystore /aria_safety_halt
+export ROS_SECURITY_ENABLE=true ROS_SECURITY_STRATEGY=Enforce</pre>
+<div class="note warn"><b>Stop rule:</b> if VLAN isolation fails, do not connect real robots (<code>ARIA_UNITREE_HARDWARE=1</code>) on a routable network.</div>
+</div>
+</div>
+</section>
+
+<!-- 04 EDGE -->
+<section class="step" id="edge">
+<div class="step-head">
+<div><p class="kicker">04 · INSTALL THE EDGE NODE</p><h2>Install, point at the cloud, self-check.</h2></div>
+<p>The edge node runs the camera pipeline, the safety halt and the robot adapters on site. The cloud only ever sees what it sends out.</p>
+</div>
+<div class="two">
+<pre><span class="c"># edge node (Ubuntu 22.04 + ROS 2 Humble)</span>
+git clone https://github.com/ugobe007/Orbital_AI.git &amp;&amp; cd Orbital_AI
+pip install -r requirements.txt -r requirements-hw.txt
+sudo apt install ros-humble-rclpy ros-humble-tf2-ros
+
+<span class="c"># who this site is and where it reports</span>
+export ARIA_FACILITY_ID=facility-sf-001
+export ORBITAL_CLOUD_URL=https://orbital-ai.io
+export ARIA_CLOUD_SYNC=1
+
+<span class="c"># self-check: which gates are green, which need the lab</span>
+python3 scripts/check_hardware_gate.py
+python3 scripts/lab_cutover.py --bench</pre>
+<div class="block">
+<ul class="checks">
+<li><span><b>Use your facility ID everywhere.</b> The same ID goes on calibration, map and run uploads, and it names the site in the console.</span></li>
+<li><span><b>Leave <code>ARIA_CV_MODE</code> at <code>sim</code></b> until calibration passes in step 05, then switch to <code>aruco</code> for the live camera path.</span></li>
+<li><span><b><code>check_hardware_gate.py</code> lists what's green</b> in software and which steps still need the floor. Keep its output in your install log.</span></li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- 05 CALIBRATE -->
+<section class="step" id="calibrate">
+<div class="step-head">
+<div><p class="kicker">05 · CALIBRATE THE RIG</p><h2>Tape markers, capture, solve.</h2></div>
+<p>The solver ties every camera to one floor frame and tells you by name which marker or camera disagrees.</p>
+</div>
+<div class="two">
+<figure>
+<svg viewBox="0 0 520 360" role="img" aria-label="Floor marker layout: a four by three grid of markers, with overlapping camera footprints, the origin marker at the bottom left and an anchor marker measured with a tape">
+<rect width="520" height="360" fill="#fff"/>
+<g fill="#1D4ED8" opacity="0.07">
+<rect x="40" y="40" width="200" height="150"/><rect x="170" y="40" width="200" height="150"/><rect x="300" y="40" width="190" height="150"/>
+<rect x="40" y="160" width="200" height="150"/><rect x="170" y="160" width="200" height="150"/><rect x="300" y="160" width="190" height="150"/>
+</g>
+<g fill="none" stroke="#1D4ED8" stroke-dasharray="4 4" opacity="0.55">
+<rect x="40" y="40" width="200" height="150"/><rect x="170" y="40" width="200" height="150"/><rect x="300" y="40" width="190" height="150"/>
+<rect x="40" y="160" width="200" height="150"/><rect x="170" y="160" width="200" height="150"/><rect x="300" y="160" width="190" height="150"/>
+</g>
+<defs>
+<g id="mk"><rect x="-9" y="-9" width="18" height="18" fill="#111418"/><rect x="-5" y="-5" width="5" height="5" fill="#fff"/><rect x="1" y="0" width="4" height="5" fill="#fff"/><rect x="-5" y="1" width="4" height="4" fill="#fff"/></g>
+</defs>
+<g>
+<use href="#mk" x="80" y="80"/><use href="#mk" x="200" y="80"/><use href="#mk" x="320" y="80"/><use href="#mk" x="440" y="80"/>
+<use href="#mk" x="80" y="175"/><use href="#mk" x="200" y="175"/><use href="#mk" x="320" y="175"/><use href="#mk" x="440" y="175"/>
+<use href="#mk" x="80" y="270"/><use href="#mk" x="200" y="270"/><use href="#mk" x="320" y="270"/><use href="#mk" x="440" y="270"/>
+</g>
+<circle cx="80" cy="270" r="17" fill="none" stroke="#1D4ED8" stroke-width="2.5"/>
+<text x="56" y="306" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" fill="#1D4ED8">ORIGIN · ID 0</text>
+<circle cx="440" cy="270" r="17" fill="none" stroke="#111418" stroke-width="2"/>
+<line x1="98" y1="330" x2="422" y2="330" stroke="#111418" stroke-width="1.5"/><line x1="98" y1="322" x2="98" y2="338" stroke="#111418"/><line x1="422" y1="322" x2="422" y2="338" stroke="#111418"/>
+<text x="260" y="350" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#111418">TAPE-MEASURED ANCHOR · e.g. 10.5 M</text>
+<text x="420" y="306" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="600" fill="#111418">ANCHOR</text>
+<text x="248" y="30" font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">DASHED = ONE CAMERA'S VIEW</text>
+</svg>
+<figcaption>FLOOR MARKERS · EVERY CAMERA SEES 2+ · NEIGHBOURS SHARE 1+</figcaption>
+</figure>
+<div class="block">
+<ol class="do">
+<li><span><b>Tape floor markers</b> so every camera sees at least two and neighbouring cameras share at least one.</span></li>
+<li><span><b>Pick an origin marker</b> and tape-measure its floor position, then measure <b>one anchor marker</b> a few metres away. Two known points fix scale and heading.</span></li>
+<li><span><b>Capture each camera</b> (or walk a handheld pass) and export one JSON per view into <code>captures/</code>.</span></li>
+<li><span><b>Solve and upload</b>, then fix what the report names. Re-run until it prints <code>Rig is clean.</code></span></li>
+</ol>
+</div>
+</div>
+<div class="two" style="margin-top:28px">
+<pre>python3 scripts/calibrate_rig.py captures/ \
+  --origin 0 --origin-pose 2.0:2.0 \
+  --anchor 3:12.5:2.0 \
+  --out marker_map.json \
+  --upload "$ORBITAL_CLOUD_URL" --facility "$ARIA_FACILITY_ID"
+
+<span class="c"># exit 0  = every residual under 5 cm (ORBITAL_CALIB_RESIDUAL_M)</span>
+<span class="c"># exit 1  = the report names what to fix</span></pre>
+<div class="panel" role="img" aria-label="Example of the console's Rig Calibration panel flagging marker 9">
+<div class="hd"><span class="tag">RIG</span>Rig Calibration<span class="mono" style="margin-left:auto;font-size:12px;color:#D97706;font-family:'IBM Plex Mono',monospace">needs fixing</span></div>
+<div class="row" style="font-size:13px;color:#30353C">12 markers · 8 captures · RMS <span class="mono">&nbsp;3.4 cm</span></div>
+<div class="row"><span class="dot" style="background:#DC2626"></span><b>Marker 9</b><span style="color:#30353C">likely bumped</span><span class="mono" style="margin-left:auto;font-size:12px">off by 15.0 cm</span></div>
+<div class="row" style="border-bottom:0;font-size:13.5px;color:#30353C">Re-seat marker 9 and re-capture the two cameras that see it.</div>
+</div>
+</div>
+<div class="scroll" style="margin-top:28px">
+<table>
+<thead><tr><th>THE REPORT SAYS</th><th>WHAT IT MEANS</th><th>DO THIS</th></tr></thead>
+<tbody>
+<tr><td>Marker N · likely bumped</td><td>Cameras agree with each other but not on where that marker is</td><td>Re-seat or re-tape the marker, re-capture</td></tr>
+<tr><td>Capture N · camera moved</td><td>A camera's solved pose is far from where you said it was mounted</td><td>Tighten the mount or update its position in the rig file</td></tr>
+<tr><td>Marker N · not linked</td><td>No chain of shared markers connects it to the origin</td><td>Add a capture that sees it and a linked marker</td></tr>
+<tr><td>Marker N · seen once</td><td>Only one view, so nothing to check it against</td><td>Add an overlapping camera or capture</td></tr>
+<tr><td>Capture N · poor fit</td><td>High residual across all of a camera's markers</td><td>Check focus, lens distortion and that it's the right camera ID</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<!-- 06 MAP -->
+<section class="step" id="map">
+<div class="step-head">
+<div><p class="kicker">06 · MAP THE FLOOR</p><h2>Let the cameras draw the map.</h2></div>
+<p>Instead of typing in obstacles, Orbital triangulates what the cameras see and marks the floor cells that are blocked. Robots route around them.</p>
+</div>
+<div class="two">
+<figure>
+<svg viewBox="0 0 520 340" role="img" aria-label="Map from cameras: a pallet in an aisle seen by two cameras becomes grey blocked cells, and a robot's path bends around it">
+<rect width="520" height="340" fill="#fff"/>
+<g stroke="#ECEEEA"><line x1="0" y1="85" x2="520" y2="85"/><line x1="0" y1="170" x2="520" y2="170"/><line x1="0" y1="255" x2="520" y2="255"/><line x1="130" y1="0" x2="130" y2="340"/><line x1="260" y1="0" x2="260" y2="340"/><line x1="390" y1="0" x2="390" y2="340"/></g>
+<rect x="40" y="70" width="440" height="34" fill="#C9CCC6" stroke="#8A8F88"/><text x="260" y="92" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="#111418">RACK C</text>
+<rect x="40" y="236" width="440" height="34" fill="#C9CCC6" stroke="#8A8F88"/><text x="260" y="258" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="#111418">RACK G</text>
+<g fill="#6B7078" fill-opacity="0.45" stroke="#4A4F57" stroke-width="0.8">
+<rect x="236" y="140" width="16" height="16"/><rect x="252" y="140" width="16" height="16"/><rect x="268" y="140" width="16" height="16"/>
+<rect x="236" y="156" width="16" height="16"/><rect x="252" y="156" width="16" height="16"/><rect x="268" y="156" width="16" height="16"/>
+<rect x="236" y="172" width="16" height="16"/><rect x="252" y="172" width="16" height="16"/><rect x="268" y="172" width="16" height="16"/>
+</g>
+<text x="260" y="204" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#111418">PALLET · BLOCKED</text>
+<rect x="12" y="12" width="14" height="14" fill="#111418"/><rect x="494" y="12" width="14" height="14" fill="#111418"/>
+<line x1="26" y1="26" x2="252" y2="156" stroke="#1D4ED8" stroke-dasharray="4 4" opacity="0.6"/>
+<line x1="494" y1="26" x2="268" y2="156" stroke="#1D4ED8" stroke-dasharray="4 4" opacity="0.6"/>
+<path d="M 60 170 L 200 170 L 200 125 L 320 125 L 320 170 L 460 170" fill="none" stroke="#1D4ED8" stroke-width="3"/>
+<line x1="200" y1="170" x2="320" y2="170" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="3 4"/>
+<circle cx="60" cy="170" r="10" fill="#1D4ED8"/>
+<text x="74" y="196" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#111418">ROBOT RE-ROUTES</text>
+</svg>
+<figcaption>TWO CAMERAS AGREE · CELLS BLOCKED · PLANNER ROUTES AROUND</figcaption>
+</figure>
+<div class="block">
+<ol class="do">
+<li><span><b>Write the rig file</b> from step 02: each camera's ID, focal length, resolution, mounted position and aim point, in metres. Check it against the poses calibration solved.</span></li>
+<li><span><b>Park a pallet in an aisle</b> as a test obstacle.</span></li>
+<li><span><b>Run the mapper and upload.</b> It exits 1 if too many points disagree, which almost always means a camera moved: go back to step 05.</span></li>
+<li><span><b>Check the console map:</b> the pallet shows as grey blocked cells, and a robot sent down that aisle routes around it.</span></li>
+</ol>
+<pre><span class="c"># rig.json</span>
+{"cameras": [
+  {"id": "dn-1", "fx": 1100, "width": 1920, "height": 1200,
+   "position": [19.5, 7.5, 4.5], "look_at": [13.5, 7.5, 0.6]},
+  ...
+]}
+
+python3 scripts/map_from_cameras.py rig.json frames.json \
+  --upload "$ORBITAL_CLOUD_URL" --facility "$ARIA_FACILITY_ID"</pre>
+</div>
+</div>
+</section>
+
+<!-- 07 ROBOTS -->
+<section class="step" id="robots">
+<div class="step-head">
+<div><p class="kicker">07 · TAG AND CONNECT ROBOTS</p><h2>Give every robot a tag and a scoped API.</h2></div>
+<p>The tag lets the cameras track each robot independently of what it reports about itself. The API connection lets Orbital correct it.</p>
+</div>
+<div class="two">
+<figure>
+<svg viewBox="0 0 520 300" role="img" aria-label="A robot with a 15 centimetre ArUco tag on its top plate, seen from an overhead camera, and its marker ID mapped to a robot ID">
+<rect width="520" height="300" fill="#fff"/>
+<rect x="150" y="20" width="40" height="24" fill="#111418"/>
+<polygon points="170,44 110,190 260,190" fill="#1D4ED8" opacity="0.08"/>
+<line x1="170" y1="44" x2="185" y2="160" stroke="#1D4ED8" stroke-dasharray="4 4"/>
+<rect x="110" y="170" width="150" height="90" fill="#E1E3DE" stroke="#111418" stroke-width="1.5"/>
+<rect x="110" y="160" width="150" height="12" fill="#111418"/>
+<g transform="translate(160 132)">
+<rect width="50" height="28" fill="#fff" stroke="#111418"/>
+<rect x="11" y="2" width="24" height="24" fill="#111418"/><rect x="15" y="6" width="7" height="7" fill="#fff"/><rect x="24" y="6" width="7" height="7" fill="#111418"/><rect x="15" y="15" width="7" height="7" fill="#111418"/><rect x="24" y="15" width="7" height="7" fill="#fff"/>
+</g>
+<circle cx="140" cy="276" r="12" fill="#111418"/><circle cx="230" cy="276" r="12" fill="#111418"/>
+<text x="185" y="220" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#111418">ROBOT</text>
+<g font-family="IBM Plex Mono, monospace">
+<rect x="310" y="90" width="190" height="96" fill="#F6F7F4" stroke="#C9CCC6"/>
+<text x="324" y="114" font-size="10.5" fill="#4A4F57">MARKER → ROBOT</text>
+<text x="324" y="140" font-size="12.5" font-weight="600" fill="#111418">ID 7  →  rbt-01</text>
+<text x="324" y="162" font-size="12.5" font-weight="600" fill="#111418">ID 8  →  rbt-02</text>
+</g>
+<text x="270" y="150" font-family="IBM Plex Mono, monospace" font-size="10" fill="#4A4F57">15 CM, FLAT</text>
+</svg>
+<figcaption>TOP-PLATE TAG · ONE UNIQUE ID PER ROBOT · NOT REUSED ON THE FLOOR</figcaption>
+</figure>
+<div class="block">
+<ol class="do">
+<li><span><b>Mount a 15 cm ArUco tag flat on each robot's top plate</b>, centred, with an ID not used by any floor marker. Record the marker-to-robot map.</span></li>
+<li><span><b>Put robots on VLAN 20</b> and confirm the edge node reaches them (ROS 2 DDS, gRPC or the OEM's REST API).</span></li>
+<li><span><b>Onboard the fleet in the console</b> with <b>Onboard robot API</b>. Grant only the scopes you want Orbital to use: telemetry, state, velocity, E-Stop, mission, map.</span></li>
+<li><span><b>Switch the edge to live cameras</b> and run the latency bench. Waypoint injection must hold <b>p95 ≤ 100 ms at 10 Hz</b>.</span></li>
+</ol>
+<pre>export ARIA_CV_MODE=aruco
+export ARIA_ARUCO_MARKER_MAP=/etc/aria/marker_map.json
+export ARIA_UNITREE_HARDWARE=1   <span class="c"># per-OEM adapter</span>
+
+python3 -c "
+from fleet_adapters import get_adapter
+from aria_edge.latency_bench import LatencyBench
+a = get_adapter('Unitree', 'rbt-01', use_hardware=True)
+print(LatencyBench(hz=10, samples=30).run(a).as_dict())"</pre>
+</div>
+</div>
+</section>
+
+<!-- 08 GO LIVE -->
+<section class="step" id="golive">
+<div class="step-head">
+<div><p class="kicker">08 · GO LIVE AND VALIDATE</p><h2>Record a golden run. Measure everything against it.</h2></div>
+<p>A deployment is proven by numbers, not by "it works": the same task, robot and floor, with and without Orbital's camera correction.</p>
+</div>
+<div class="two">
+<div class="block">
+<ol class="do">
+<li><span><b>Pick one repeatable task</b> between two marked stations, for example <code>Aisle AB → Dock</code>.</span></li>
+<li><span><b>Run it once cleanly.</b> The first complete run with no safety halts becomes the task's <b>golden run</b> in the console's Validation panel; you can promote a different one.</span></li>
+<li><span><b>Alternate conditions</b>, baseline (robot's own SLAM) then Orbital correction, at least 10 complete runs each.</span></li>
+<li><span><b>Generate the results sheet.</b> It refuses simulator runs and flags thin samples, so a sheet that exits 0 is safe to quote.</span></li>
+<li><span><b>Export the runs as training data</b> once the task is stable.</span></li>
+</ol>
+<pre>python3 scripts/lab_report.py --url "$ORBITAL_CLOUD_URL" \
+  --site "SF lab, rbt-01" --latency bench.json \
+  --calibration marker_map.json --out results.md
+
+python3 scripts/export_dataset.py --url "$ORBITAL_CLOUD_URL" \
+  --task "Aisle AB → Dock" --out dataset/</pre>
+</div>
+<div class="block">
+<p class="kicker" style="margin:0;color:#4A4F57">DAY-ONE SUCCESS</p>
+<ul class="checks">
+<li><span>Camera and robot VLANs cannot reach the public internet</span></li>
+<li><span>Rig calibration exits 0 and the console's Rig Calibration panel reads <b>clean</b></span></li>
+<li><span>A test pallet shows as blocked cells and robots route around it</span></li>
+<li><span>Each robot's tag is tracked on the console map</span></li>
+<li><span>Waypoint injection p95 ≤ 100 ms at 10 Hz</span></li>
+<li><span>A golden run exists for the first task</span></li>
+</ul>
+<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">
+<a href="/app/" class="btn btn-blue">Open the console</a>
+<a href="/#pilot" class="btn btn-line">Scope a pilot with us</a>
+</div>
+</div>
+</div>
+</section>
+
+<!-- TROUBLESHOOTING -->
+<section class="step" id="troubleshooting" style="padding-bottom:0">
+<div class="step-head">
+<div><p class="kicker">TROUBLESHOOTING</p><h2>When something doesn't line up</h2></div>
+<p>Almost every problem traces back to one of three things: a camera moved, a marker moved, or clocks drifted apart.</p>
+</div>
+<div class="scroll">
+<table>
+<thead><tr><th>SYMPTOM</th><th>LIKELY CAUSE</th><th>FIX</th></tr></thead>
+<tbody>
+<tr><td><code>map_from_cameras.py</code> exits 1</td><td>Too many points rejected; it names the worst cameras</td><td>Re-run calibration (step 05); re-tighten or update that camera</td></tr>
+<tr><td>Blocked cells smear behind moving things</td><td>Cameras not PTP-synced</td><td>Check the PTP boundary clock on the switch and each camera</td></tr>
+<tr><td>Robot jumps between two spots on the map</td><td>Tag ID reused by a floor marker, or two robots share an ID</td><td>Give each robot a unique tag ID and update the marker map</td></tr>
+<tr><td>Robots halt often with drift alerts</td><td>Onboard SLAM disagrees with the cameras by more than the halt threshold</td><td>Confirm calibration is clean, then review the robot's route for poor coverage</td></tr>
+<tr><td>Latency p95 over 100 ms</td><td>Wi-Fi contention or edge overload</td><td>Move robots to a dedicated SSID or AP; check edge GPU load</td></tr>
+<tr><td>Console shows no data for the site</td><td>Wrong facility ID or the mTLS handshake fails</td><td>Match <code>ARIA_FACILITY_ID</code> everywhere; check <code>ORBITAL_MTLS_*</code> paths</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+
+<footer>
+<div class="wrap">
+<span style="font-family:Archivo,sans-serif;font-weight:900;font-size:18px;letter-spacing:-.03em;color:#111418">Orbital<span style="color:#1D4ED8"> AI</span></span>
+<nav aria-label="Footer">
+<a href="/#platform">Platform</a>
+<a href="/#digital-net">Digital Net</a>
+<a href="/setup">Setup guide</a>
+<a href="/#pilot">Pilot</a>
+<a href="/app/">Console</a>
+</nav>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:12px">© 2026 ORBITAL AI</span>
+</div>
+</footer>
+</body>
+</html>

@@ -24,6 +24,12 @@ def test_marketing_home_is_static_site():
     assert image.headers["content-type"].startswith("image/")
 
 
+def test_setup_guide_is_served():
+    page = client.get("/setup")
+    assert page.status_code == 200
+    assert 'id="calibrate"' in page.text and "calibrate_rig.py" in page.text
+
+
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
