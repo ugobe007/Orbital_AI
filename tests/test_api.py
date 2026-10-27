@@ -13,10 +13,10 @@ def _a_robot_id() -> str:
 def test_marketing_home_is_static_site():
     page = client.get("/")
     assert page.status_code == 200
-    assert "Has a Missing" in page.text
+    assert "Orbital sees the operation." in page.text
     assert 'id="digital-net"' in page.text
     assert 'id="contact-form"' in page.text
-    for asset in ("orbital-base.css", "site.css", "site.js", "robot-harness.jpg"):
+    for asset in ("site.js", "favicon.svg"):
         assert f"/assets/{asset}" in page.text
         assert client.get(f"/assets/{asset}").status_code == 200
     image = client.get("/orbital-ai-site/hero-warehouse.jpg")
