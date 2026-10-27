@@ -6,7 +6,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from orbital_cloud import simulator
+from orbital_cloud import runs, simulator
 from orbital_cloud.config import settings
 from orbital_cloud.main import app
 from orbital_cloud.models import RunIn
@@ -126,6 +126,24 @@ def test_run_validation():
     one["samples"] = one["samples"][:1]
     assert client.post(f"/api/v1/runs/{FAC}", json=one).status_code == 422
     assert client.post("/api/v1/runs/bad id!", json=_run()).status_code == 422
+
+
+def test_recent_runs_share_a_sample_budget(monkeypatch):
+    monkeypatch.setattr(runs, "_MAX_TOTAL_SAMPLES", 50)
+    ids = [run_store.add(RunIn(**_run(task=f"Leg {i}"))).id for i in range(5)]   # 21 samples each
+    assert [r.id for r in run_store.list(limit=10)] == ids[:-3:-1]
+    big = run_store.add(RunIn(**_run(points=LINE * 3)))                            # alone exceeds it
+    assert [r.id for r in run_store.list(limit=10)] == [big.id]
+
+
+def test_recorder_caps_a_run_left_open(monkeypatch):
+    monkeypatch.setattr(runs, "_MAX_SAMPLES", 10)
+    robot = next(iter(store.robots.values()))
+    recorder.start(robot, "Aisle AB → Dock", now=0.0)
+    for i in range(1, 100):
+        recorder.sample(robot, now=i * 1.0)
+    run = recorder.finish(robot, now=100.0)
+    assert len(run.samples) == 10
 
 
 def test_simulator_records_station_to_station_legs(monkeypatch):
