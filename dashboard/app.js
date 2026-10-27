@@ -36,12 +36,12 @@ const state = {
 
 // Fleet states, ordered for the overview distribution bar + chips.
 const STATUS_META = [
-  { key: "active",   label: "Working",       color: "#00be7d" },
-  { key: "cooldown", label: "Between tasks", color: "#e5484d" },
-  { key: "idle",     label: "Idle",          color: "#ffa01f" },
-  { key: "charging", label: "Charging",      color: "#00a5da" },
-  { key: "halted",   label: "Halted",        color: "#ff3b6b" },
-  { key: "offline",  label: "Offline",       color: "#5b667a" },
+  { key: "active",   label: "Working",       color: "#16A34A" },
+  { key: "cooldown", label: "Between tasks", color: "#DC2626" },
+  { key: "idle",     label: "Idle",          color: "#D97706" },
+  { key: "charging", label: "Charging",      color: "#1D4ED8" },
+  { key: "halted",   label: "Halted",        color: "#BE123C" },
+  { key: "offline",  label: "Offline",       color: "#9AA0A6" },
 ];
 
 // The control surface Orbital exposes to operators. Each capability is gated by an API scope
@@ -71,11 +71,11 @@ function categoryMatches(industry, category) {
 
 function industryAccent(industry) {
   const low = (industry || "").toLowerCase();
-  if (low.includes("humanoid")) return "#00a5da";
-  if (low.includes("clean")) return "#ffa01f";
-  if (low.includes("deliver")) return "#a855f7";
-  if (low.includes("invent")) return "#38bdf8";
-  return "#3dbfe2";
+  if (low.includes("humanoid")) return "#1D4ED8";
+  if (low.includes("clean")) return "#D97706";
+  if (low.includes("deliver")) return "#7C3AED";
+  if (low.includes("invent")) return "#0284C7";
+  return "#1D4ED8";
 }
 
 function capStatusKey(cap, partners, robots) {
@@ -127,19 +127,19 @@ function toast(msg, kind = "info") {
 }
 
 const STATE_COLOR = {
-  active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#828c9b",
+  active: "#16A34A", idle: "#D97706", charging: "#1D4ED8", cooldown: "#DC2626", halted: "#DC2626", offline: "#6B7078",
 };
 const STATE_LABEL = {
   active: "Active", idle: "Idle", charging: "Charging", cooldown: "Task done", halted: "Halted", offline: "Offline",
 };
-const CAP_STATUS_COLOR = { live: "#00be7d", monitor: "#3dbfe2", unlocked: "#828c9b" };
+const CAP_STATUS_COLOR = { live: "#16A34A", monitor: "#1D4ED8", unlocked: "#6B7078" };
 const MODE_LABEL = {
   patrol: "Autonomous patrol", visual_nav: "Visual-nav (SLAM bypass)", manual: "Manual jog",
   charging: "Charging", halted: "Halted", idle: "Idle", cooldown: "Between tasks",
 };
 const MODE_STYLE = {
   patrol: "text-ink-mut", visual_nav: "text-azure", manual: "text-cta",
-  charging: "text-azure", halted: "text-red-400", idle: "text-cta", cooldown: "text-red-400",
+  charging: "text-azure", halted: "text-red-700", idle: "text-cta", cooldown: "text-red-700",
 };
 // Resolve which scopes a vendor's OEM has unlocked (mirrors the cloud scope guard):
 // unmanaged vendors are permissive; suspended OEMs grant nothing.
@@ -150,8 +150,8 @@ function vendorGrants(vendor) {
   const granted = new Set(p.status === "suspended" ? [] : p.granted_scopes);
   return { managed: true, has: (s) => granted.has(s) };
 }
-function driftColor(d) { return d >= 0.5 ? "text-red-400" : d >= 0.1 ? "text-amber-400" : "text-brand"; }
-function batteryColor(p) { return p < 15 ? "bg-red-500" : p < 50 ? "bg-amber-400" : "bg-brand"; }
+function driftColor(d) { return d >= 0.5 ? "text-red-700" : d >= 0.1 ? "text-amber-700" : "text-brand"; }
+function batteryColor(p) { return p < 15 ? "bg-red-500" : p < 50 ? "bg-amber-500" : "bg-brand"; }
 function fmtSecs(s) { if (s == null) return "—"; if (s < 90) return `${Math.round(s)}s`; if (s < 5400) return `${(s/60).toFixed(1)}m`; return `${(s/3600).toFixed(1)}h`; }
 function fmtTime(ts) { return new Date(ts * 1000).toLocaleTimeString(); }
 
@@ -174,8 +174,8 @@ function renderStats() {
   // Four live headline metrics (not static counts — drift + battery are derived live).
   const tiles = [
     ["Fleet", String(m.total), "text-ink"],
-    ["Avg drift Δ", m.avgDrift.toFixed(3) + "m", m.avgDrift >= 0.5 ? "text-red-400" : m.avgDrift >= 0.1 ? "text-amber-400" : "text-brand"],
-    ["Fleet battery", Math.round(m.avgBatt) + "%", m.avgBatt < 25 ? "text-red-400" : m.avgBatt < 50 ? "text-amber-400" : "text-brand"],
+    ["Avg drift Δ", m.avgDrift.toFixed(3) + "m", m.avgDrift >= 0.5 ? "text-red-700" : m.avgDrift >= 0.1 ? "text-amber-700" : "text-brand"],
+    ["Fleet battery", Math.round(m.avgBatt) + "%", m.avgBatt < 25 ? "text-red-700" : m.avgBatt < 50 ? "text-amber-700" : "text-brand"],
     ["Open alerts", String(m.openAlerts), m.openAlerts ? "text-cta" : "text-ink"],
   ];
   const box = $("#stats"); box.innerHTML = "";
@@ -198,10 +198,10 @@ const PHASE_LABEL = {
   idle: "idle",
 };
 const PHASE_COLOR = {
-  en_route_pickup: "#00a5da",
-  working: "#ffa01f",
-  carrying: "#00be7d",
-  idle: "#5b667a",
+  en_route_pickup: "#1D4ED8",
+  working: "#D97706",
+  carrying: "#16A34A",
+  idle: "#9AA0A6",
 };
 
 function renderSequence() {
@@ -216,24 +216,24 @@ function renderSequence() {
   const chips = goals.slice(0, 9).map((a) => {
     const ph = a.phase || "idle";
     const role = a.role === "lead" ? "LEAD" : a.role === "shuttle" ? "SHUTTLE" : "";
-    const roleColor = a.role === "lead" ? "#ffc24d" : "#4ade9a";
+    const roleColor = a.role === "lead" ? "#B45309" : "#16A34A";
     return `<span class="inline-flex items-center gap-1 rounded-md bg-surface-input border border-line px-1.5 py-0.5">
         ${role ? `<span class="mono text-[9px]" style="color:${roleColor}">${role}</span>` : ""}
         <span class="mono text-ink-mut">${esc(a.robot_id)}</span>
         <span class="text-ink-dim">${esc(a.goal)}</span>
-        <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#5b667a"}">${PHASE_LABEL[ph] || ph}</span>
+        <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#9AA0A6"}">${PHASE_LABEL[ph] || ph}</span>
       </span>`;
   }).join("");
   const relays = (s.relay_points || []).map((p) => esc(p.id)).join(" · ");
   const ends = Math.max(0, Math.round(s.ends_in_s ?? 0));
   bar.innerHTML = `
     <div class="flex items-center gap-2 flex-wrap">
-      <span class="tag" style="background:#1b1533;color:#b7a6ff;border-color:#7c5cff">SEQUENCE ${esc(String(s.id ?? ""))}</span>
+      <span class="tag" style="background:#F3F0FF;color:#6D28D9;border-color:#6D28D9">SEQUENCE ${esc(String(s.id ?? ""))}</span>
       <span class="font-semibold text-[13px]">${esc(s.label)}</span>
       <span class="text-[11.5px] text-ink-dim">${esc(s.objective || "")}</span>
-      ${relays ? `<span class="text-[10.5px] mono" style="color:#ffc24d">relays: ${relays}</span>` : ""}
+      ${relays ? `<span class="text-[10.5px] mono" style="color:#B45309">relays: ${relays}</span>` : ""}
       <span class="flex-1"></span>
-      <span class="text-[10.5px] text-ink-dim mono">new sequence in <span style="color:#b7a6ff">${ends}s</span></span>
+      <span class="text-[10.5px] text-ink-dim mono">new sequence in <span style="color:#6D28D9">${ends}s</span></span>
     </div>
     <div class="mt-2 flex items-center gap-1.5 flex-wrap text-[10px]">${chips}</div>`;
 }
@@ -251,7 +251,7 @@ function renderFleetStatus(m) {
       <div class="text-[11px] uppercase tracking-wide text-ink-dim">Fleet status · live</div>
       <div class="text-[10.5px] text-ink-dim mono">${state.statusFilter ? `filtered: ${STATUS_META.find((s)=>s.key===state.statusFilter)?.label || state.statusFilter}` : "click to filter"}</div>
     </div>
-    <div class="flex h-2.5 rounded-full overflow-hidden bg-surface-input mb-3">${segs || '<div class="w-full" style="background:#5b667a"></div>'}</div>
+    <div class="flex h-2.5 rounded-full overflow-hidden bg-surface-input mb-3">${segs || '<div class="w-full" style="background:#9AA0A6"></div>'}</div>
     <div id="status-chips" class="grid grid-cols-3 gap-1.5 flex-1 content-start"></div>`;
   const chips = box.querySelector("#status-chips");
   for (const s of STATUS_META) {
@@ -279,18 +279,18 @@ function renderTicker(m) {
   m = m || fleetMetrics();
   const activeOems = state.oems.filter((o) => o.status === "active").length;
   const items = [
-    { dot: state.connLive ? "#00be7d" : "#e5484d", label: "Link", val: state.connLive ? "LIVE" : "RECONNECTING" },
-    { dot: "#00a5da", label: "Monitoring", val: `${m.total} robots` },
-    { dot: "#00be7d", label: "Working", val: m.counts.active },
-    { dot: "#e5484d", label: "Between tasks", val: m.counts.cooldown },
-    { dot: "#3dbfe2", label: "Visual-nav", val: m.nav },
-    { dot: "#ffa01f", label: "Idle", val: m.counts.idle },
-    { dot: "#ff3b6b", label: "Halted", val: m.counts.halted },
-    { dot: "#ffa01f", label: "Open alerts", val: m.openAlerts },
-    { dot: "#00a5da", label: "Avg drift", val: m.avgDrift.toFixed(3) + "m" },
-    { dot: "#00be7d", label: "Fleet battery", val: Math.round(m.avgBatt) + "%" },
-    { dot: "#7fd6f2", label: "OEM partners", val: `${activeOems}/${state.oems.length}` },
-    { dot: "#828c9b", label: "Facility", val: state.facility?.name || "—" },
+    { dot: state.connLive ? "#16A34A" : "#DC2626", label: "Link", val: state.connLive ? "LIVE" : "RECONNECTING" },
+    { dot: "#1D4ED8", label: "Monitoring", val: `${m.total} robots` },
+    { dot: "#16A34A", label: "Working", val: m.counts.active },
+    { dot: "#DC2626", label: "Between tasks", val: m.counts.cooldown },
+    { dot: "#1D4ED8", label: "Visual-nav", val: m.nav },
+    { dot: "#D97706", label: "Idle", val: m.counts.idle },
+    { dot: "#BE123C", label: "Halted", val: m.counts.halted },
+    { dot: "#D97706", label: "Open alerts", val: m.openAlerts },
+    { dot: "#1D4ED8", label: "Avg drift", val: m.avgDrift.toFixed(3) + "m" },
+    { dot: "#16A34A", label: "Fleet battery", val: Math.round(m.avgBatt) + "%" },
+    { dot: "#1D4ED8", label: "OEM partners", val: `${activeOems}/${state.oems.length}` },
+    { dot: "#6B7078", label: "Facility", val: state.facility?.name || "—" },
   ];
   const one = items.map((i) => `
     <span class="tick">
@@ -335,7 +335,7 @@ function renderFleet() {
   }
   for (const r of list) {
     const label = STATE_LABEL[r.state] || r.state;
-    const stateColor = STATE_COLOR[r.state] || "#828c9b";
+    const stateColor = STATE_COLOR[r.state] || "#6B7078";
     const sel = r.id === state.selectedRobot;
     const accent = industryAccent(r.industry);
     const speed = r.speed_mps ?? 0;
@@ -346,7 +346,7 @@ function renderFleet() {
             <div class="fleet-icon" style="background:${accent}18;border-color:${accent}44;color:${accent}">⬡</div>
             <div class="min-w-0">
               <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
-              <div class="text-[11px] mono mt-0.5" style="color:#3dbfe2">${esc(r.id)} · ${esc(r.industry)}</div>
+              <div class="text-[11px] mono mt-0.5" style="color:#1D4ED8">${esc(r.id)} · ${esc(r.industry)}</div>
             </div>
           </div>
           <span>${inlineStatus(label, stateColor)}</span>
@@ -360,11 +360,11 @@ function renderFleet() {
             <div class="fleet-metric-lbl">Drift Δ</div>
           </div>
           <div class="fleet-metric">
-            <div class="fleet-metric-val" style="color:#3dbfe2">${speed.toFixed(2)} m/s</div>
+            <div class="fleet-metric-val" style="color:#1D4ED8">${speed.toFixed(2)} m/s</div>
             <div class="fleet-metric-lbl">Speed</div>
           </div>
           <div class="fleet-metric">
-            <div class="fleet-metric-val" style="color:#3dbfe2">${Math.round(r.battery_pct)}%</div>
+            <div class="fleet-metric-val" style="color:#1D4ED8">${Math.round(r.battery_pct)}%</div>
             <div class="fleet-metric-lbl">Battery</div>
           </div>
         </div>
@@ -374,7 +374,7 @@ function renderFleet() {
         <div class="mt-3 flex gap-2">
           <button data-act="select" class="flex-1 px-2 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Control</button>
           ${r.state === "halted"
-            ? `<button data-act="resume" class="flex-1 px-2 py-1.5 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[12px] font-semibold">Resume</button>`
+            ? `<button data-act="resume" class="flex-1 px-2 py-1.5 rounded-md bg-brand hover:bg-brand-600 text-[#FFFFFF] text-[12px] font-semibold">Resume</button>`
             : `<button data-act="estop" class="flex-1 px-2 py-1.5 rounded-md text-[12px] font-semibold" style="background:#dc2626;color:#fff">E-Stop</button>`}
           <button data-act="details" class="flex-1 px-2 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
         </div>
@@ -415,7 +415,7 @@ function selectRobot(id) { state.selectedRobot = id; renderMap(); renderControlP
 function scopeTag(scope, ok) {
   return ok
     ? `<span class="mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand/10 text-brand">${scope}</span>`
-    : `<span class="mono text-[9.5px] px-1.5 py-0.5 rounded bg-white/[0.08] text-ink-dim">🔒 ${scope}</span>`;
+    : `<span class="mono text-[9.5px] px-1.5 py-0.5 rounded bg-black/[0.05] text-ink-dim">🔒 ${scope}</span>`;
 }
 function sectionHead(title, scope, ok) {
   return `<div class="flex items-center justify-between mb-2">
@@ -434,7 +434,7 @@ function renderControlPanel() {
     return;
   }
   const label = STATE_LABEL[r.state] || r.state;
-  const stateColor = STATE_COLOR[r.state] || "#828c9b";
+  const stateColor = STATE_COLOR[r.state] || "#6B7078";
   modeTag.innerHTML = `<span class="${MODE_STYLE[r.control_mode] || "text-ink-mut"}">${esc(MODE_LABEL[r.control_mode] || r.control_mode)}</span>`;
   const halted = r.state === "halted";
   const g = vendorGrants(r.vendor);
@@ -460,8 +460,8 @@ function renderControlPanel() {
           : r.state === "idle" ? "Idle — will join the next sequence"
           : "Autonomous patrol");
       const activity = r.current_task || PHASE_LABEL[r.mission_phase] || MODE_LABEL[r.control_mode] || "";
-      const col = PHASE_COLOR[r.mission_phase] || "#5b667a";
-      return `<div class="mt-2 rounded-lg border p-2" style="background:#12101f;border-color:#2a2440">
+      const col = PHASE_COLOR[r.mission_phase] || "#9AA0A6";
+      return `<div class="mt-2 rounded-lg border p-2" style="background:#FAF8FF;border-color:#DDD6FE">
         <div class="text-[9px] uppercase tracking-wide text-ink-dim">What it's doing now</div>
         <div class="text-[12px] font-medium mt-0.5 leading-snug">${esc(missionText)}</div>
         ${activity ? `<div class="text-[10.5px] text-ink-mut mt-0.5"><span style="color:${col}">●</span> ${esc(activity)}</div>` : ""}
@@ -494,7 +494,7 @@ function renderControlPanel() {
       ${sectionHead("Safety", "control.estop", canEstop)}
       <div class="flex gap-1.5">
         ${halted
-          ? `<button id="c-resume" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "Resume" : "Resume 🔒"}</button>`
+          ? `<button id="c-resume" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-brand hover:bg-brand-600 text-[#FFFFFF]" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "Resume" : "Resume 🔒"}</button>`
           : `<button id="c-estop" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-red-600 hover:bg-red-500 text-white" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "E-Stop" : "E-Stop 🔒"}</button>`}
         <button id="c-mission" class="px-2.5 py-1.5 rounded-md ${canMission ? "bg-surface-input hover:bg-line-strong" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px]" ${canMission ? "" : "disabled"} title="mission.dispatch">Task</button>
         <button id="c-details" class="px-2.5 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
@@ -541,7 +541,7 @@ function renderCapabilities() {
     const robots = state.robots.filter((r) => vendorGrants(r.vendor).has(cap.scope)).length;
     const st = capStatusKey(cap, partners, robots);
     const stLabel = st.toUpperCase();
-    const stColor = CAP_STATUS_COLOR[st] || "#828c9b";
+    const stColor = CAP_STATUS_COLOR[st] || "#6B7078";
     const iconColor = st === "live" ? "var(--brand)" : st === "monitor" ? "var(--azure)" : "var(--ink-dim)";
     box.appendChild(el(`
       <div class="card tight">
@@ -563,9 +563,9 @@ function renderCapabilities() {
 }
 
 // ── warehouse map ──────────────────────────────────────────────────────────────
-const ZONE_COLOR = { keepout: "#e5484d", slow: "#ffa01f" };
-const OBJECT_COLOR = { pallet: "#c9a26b", forklift: "#f2c94c", cart: "#56ccf2", person: "#ff7ab6", default: "#b4bcc8" };
-const ROBOT_FILL = { active: "#00be7d", idle: "#ffa01f", charging: "#00a5da", cooldown: "#e5484d", halted: "#e5484d", offline: "#5b667a" };
+const ZONE_COLOR = { keepout: "#DC2626", slow: "#D97706" };
+const OBJECT_COLOR = { pallet: "#A16207", forklift: "#CA8A04", cart: "#0891B2", person: "#DB2777", default: "#6B7078" };
+const ROBOT_FILL = { active: "#16A34A", idle: "#D97706", charging: "#1D4ED8", cooldown: "#DC2626", halted: "#DC2626", offline: "#9AA0A6" };
 
 async function loadMap() {
   try {
@@ -592,39 +592,39 @@ function renderMap() {
   svg.style.aspectRatio = `${W} / ${H}`;
 
   const p = [];
-  p.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#0b0f18" stroke="#1b2230" stroke-width="0.06"/>`);
-  for (let gx = 2; gx < W; gx += 2) p.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#141a26" stroke-width="0.02"/>`);
-  for (let gy = 2; gy < H; gy += 2) p.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#141a26" stroke-width="0.02"/>`);
+  p.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF" stroke="#C9CCC6" stroke-width="0.06"/>`);
+  for (let gx = 2; gx < W; gx += 2) p.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#ECEEEA" stroke-width="0.02"/>`);
+  for (let gy = 2; gy < H; gy += 2) p.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#ECEEEA" stroke-width="0.02"/>`);
 
   if (m.dock) {
     const d = m.dock;
-    p.push(`<rect x="${d.x}" y="${Y(d.y + d.h)}" width="${d.w}" height="${d.h}" rx="0.08" fill="#0b2e3a" stroke="#00a5da" stroke-width="0.03" opacity="0.85"/>`);
-    p.push(`<text x="${d.x + d.w / 2}" y="${Y(d.y + d.h) + d.h / 2 + 0.16}" fill="#3dbfe2" font-size="0.42" text-anchor="middle" opacity="0.95">DOCK</text>`);
+    p.push(`<rect x="${d.x}" y="${Y(d.y + d.h)}" width="${d.w}" height="${d.h}" rx="0.08" fill="#DBE4FB" stroke="#1D4ED8" stroke-width="0.03" opacity="0.85"/>`);
+    p.push(`<text x="${d.x + d.w / 2}" y="${Y(d.y + d.h) + d.h / 2 + 0.16}" fill="#1D4ED8" font-size="0.42" text-anchor="middle" opacity="0.95">DOCK</text>`);
   }
   for (const r of m.racks) {
-    p.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.08" fill="#161c28" stroke="#2f3a4c" stroke-width="0.03"/>`);
-    p.push(`<text x="${r.x + r.w / 2}" y="${Y(r.y + r.h / 2) + 0.14}" fill="#828c9b" font-size="0.42" text-anchor="middle">${esc(r.id)}</text>`);
+    p.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.08" fill="#E1E3DE" stroke="#C9CCC6" stroke-width="0.03"/>`);
+    p.push(`<text x="${r.x + r.w / 2}" y="${Y(r.y + r.h / 2) + 0.14}" fill="#6B7078" font-size="0.42" text-anchor="middle">${esc(r.id)}</text>`);
   }
   for (const c of (m.charge_stations || [])) {
-    p.push(`<circle cx="${c.x}" cy="${Y(c.y)}" r="0.42" fill="#00a5da" opacity="0.16"/>`);
-    p.push(`<text x="${c.x}" y="${Y(c.y) + 0.16}" fill="#3dbfe2" font-size="0.5" text-anchor="middle">⚡</text>`);
+    p.push(`<circle cx="${c.x}" cy="${Y(c.y)}" r="0.42" fill="#1D4ED8" opacity="0.16"/>`);
+    p.push(`<text x="${c.x}" y="${Y(c.y) + 0.16}" fill="#1D4ED8" font-size="0.5" text-anchor="middle">⚡</text>`);
   }
   // Named work stations — the pick/drop points missions shuttle between (labelled so the
   // operator can read "Aisle AB → Dock" straight off the floor).
   for (const s of (m.stations || [])) {
-    p.push(`<rect x="${s.x - 0.34}" y="${Y(s.y) - 0.34}" width="0.68" height="0.68" rx="0.1" fill="#0b2e3a" stroke="#2f6d82" stroke-width="0.035"/>`);
-    p.push(`<text x="${s.x}" y="${Y(s.y) + 0.5}" fill="#5f7486" font-size="0.3" text-anchor="middle">${esc(s.id)}</text>`);
+    p.push(`<rect x="${s.x - 0.34}" y="${Y(s.y) - 0.34}" width="0.68" height="0.68" rx="0.1" fill="#DBE4FB" stroke="#93A8E8" stroke-width="0.035"/>`);
+    p.push(`<text x="${s.x}" y="${Y(s.y) + 0.5}" fill="#4A4F57" font-size="0.3" text-anchor="middle">${esc(s.id)}</text>`);
   }
   // Overhead camera rig — Orbital's ground-truth localization. Drawn as a violet camera glyph
   // with a soft coverage halo so it's never mistaken for a robot or a waypoint.
   for (const cam of (m.cameras || [])) {
     const cov = cam.coverage_m || 4.0;
-    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="#7c5cff" opacity="0.05"/>`);
-    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="none" stroke="#7c5cff" stroke-width="0.02" stroke-dasharray="0.2 0.22" opacity="0.35"/>`);
+    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="#6D28D9" opacity="0.05"/>`);
+    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="none" stroke="#6D28D9" stroke-width="0.02" stroke-dasharray="0.2 0.22" opacity="0.35"/>`);
     p.push(`<g transform="translate(${cam.x},${Y(cam.y)})">`);
-    p.push(`<rect x="-0.26" y="-0.19" width="0.52" height="0.38" rx="0.08" fill="#1b1533" stroke="#7c5cff" stroke-width="0.045"/>`);
-    p.push(`<circle cx="0" cy="0" r="0.11" fill="none" stroke="#b7a6ff" stroke-width="0.05"/>`);
-    p.push(`<rect x="0.2" y="-0.1" width="0.14" height="0.2" rx="0.04" fill="#7c5cff"/>`);
+    p.push(`<rect x="-0.26" y="-0.19" width="0.52" height="0.38" rx="0.08" fill="#F3F0FF" stroke="#6D28D9" stroke-width="0.045"/>`);
+    p.push(`<circle cx="0" cy="0" r="0.11" fill="none" stroke="#6D28D9" stroke-width="0.05"/>`);
+    p.push(`<rect x="0.2" y="-0.1" width="0.14" height="0.2" rx="0.04" fill="#6D28D9"/>`);
     p.push(`</g>`);
   }
 
@@ -653,15 +653,15 @@ function renderMap() {
     const line = (samples, color, dash, width) => samples && samples.length > 1
       ? p.push(`<polyline points="${samples.map((s) => `${s.x},${Y(s.y)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ""} stroke-linejoin="round" opacity="0.95"/>`)
       : null;
-    line(ov.golden?.samples, "#ffc24d", "0.3 0.15", 0.14);
-    line(ov.run.samples, "#3dbfe2", null, 0.07);
+    line(ov.golden?.samples, "#B45309", "0.3 0.15", 0.14);
+    line(ov.run.samples, "#1D4ED8", null, 0.07);
     const end = ov.run.samples[ov.run.samples.length - 1];
-    p.push(`<text x="${end.x}" y="${Y(end.y) - 0.45}" fill="#3dbfe2" font-size="0.32" font-weight="600" text-anchor="middle">${esc(ov.run.task_key)}</text>`);
+    p.push(`<text x="${end.x}" y="${Y(end.y) - 0.45}" fill="#1D4ED8" font-size="0.32" font-weight="600" text-anchor="middle">${esc(ov.run.task_key)}</text>`);
   }
 
   // Floor cells the cameras see as blocked; the planner routes every robot around these.
   for (const [x0, y0, x1, y1] of state.cameraCells) {
-    p.push(`<rect x="${x0}" y="${Y(y1)}" width="${x1 - x0}" height="${y1 - y0}" fill="#9aa4b2" fill-opacity="0.32" stroke="#c3cad5" stroke-opacity="0.5" stroke-width="0.02"/>`);
+    p.push(`<rect x="${x0}" y="${Y(y1)}" width="${x1 - x0}" height="${y1 - y0}" fill="#6B7078" fill-opacity="0.32" stroke="#4A4F57" stroke-opacity="0.5" stroke-width="0.02"/>`);
   }
 
   // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
@@ -697,15 +697,15 @@ function renderMap() {
   const slowR = m.people_safety?.slow_radius_m ?? 2.0;
   for (const w of state.workers) {
     const x = w.pose.x, y = Y(w.pose.y), off = w.status !== "on_shift";
-    p.push(`<circle cx="${x}" cy="${y}" r="${slowR}" fill="#f472b6" opacity="${off ? 0.03 : 0.06}"/>`);
-    p.push(`<path d="M ${x} ${y - 0.3} L ${x + 0.26} ${y} L ${x} ${y + 0.3} L ${x - 0.26} ${y} Z" fill="${off ? "#6b4a5c" : "#f472b6"}" stroke="#0b0f18" stroke-width="0.05"/>`);
-    p.push(`<text x="${x}" y="${y + 0.62}" fill="#f9a8d4" font-size="0.3" text-anchor="middle" opacity="${off ? 0.6 : 0.95}">${esc(workerName(w))}</text>`);
+    p.push(`<circle cx="${x}" cy="${y}" r="${slowR}" fill="#DB2777" opacity="${off ? 0.03 : 0.06}"/>`);
+    p.push(`<path d="M ${x} ${y - 0.3} L ${x + 0.26} ${y} L ${x} ${y + 0.3} L ${x - 0.26} ${y} Z" fill="${off ? "#C4B5BD" : "#DB2777"}" stroke="#FFFFFF" stroke-width="0.05"/>`);
+    p.push(`<text x="${x}" y="${y + 0.62}" fill="#DB2777" font-size="0.3" text-anchor="middle" opacity="${off ? 0.6 : 0.95}">${esc(workerName(w))}</text>`);
   }
 
   // Lead-published relay waypoints (shared shuttle network).
   for (const rp of (state.sequence?.relay_points || [])) {
-    p.push(`<circle cx="${rp.x}" cy="${Y(rp.y)}" r="0.38" fill="none" stroke="#ffc24d" stroke-width="0.05" stroke-dasharray="0.12 0.1" opacity="0.85"/>`);
-    p.push(`<text x="${rp.x}" y="${Y(rp.y) - 0.48}" fill="#ffc24d" font-size="0.32" text-anchor="middle">${esc(rp.id)}</text>`);
+    p.push(`<circle cx="${rp.x}" cy="${Y(rp.y)}" r="0.38" fill="none" stroke="#B45309" stroke-width="0.05" stroke-dasharray="0.12 0.1" opacity="0.85"/>`);
+    p.push(`<text x="${rp.x}" y="${Y(rp.y) - 0.48}" fill="#B45309" font-size="0.32" text-anchor="middle">${esc(rp.id)}</text>`);
   }
 
   const byId = Object.fromEntries(state.robots.map((r) => [r.id, r]));
@@ -716,42 +716,42 @@ function renderMap() {
     const partner = r.handoff_partner ? byId[r.handoff_partner] : null;
     if (partner) {
       const pe = partner.pose_external;
-      p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${pe.x}" y2="${Y(pe.y)}" stroke="#ffa01f" stroke-width="0.05" stroke-dasharray="0.2 0.16" opacity="0.85"/>`);
-      p.push(`<circle cx="${pe.x}" cy="${Y(pe.y)}" r="0.16" fill="#ffa01f" opacity="0.9"/>`);
+      p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${pe.x}" y2="${Y(pe.y)}" stroke="#D97706" stroke-width="0.05" stroke-dasharray="0.2 0.16" opacity="0.85"/>`);
+      p.push(`<circle cx="${pe.x}" cy="${Y(pe.y)}" r="0.16" fill="#D97706" opacity="0.9"/>`);
     }
     if (r.waypoints && r.waypoints.length) {
       // Draw the camera-planned route the robot actually follows (bends around racks),
       // falling back to a straight line to the waypoints if no route is published.
       const line = (r.path && r.path.length) ? r.path : r.waypoints;
       const pts = [`${ex.x},${Y(ex.y)}`, ...line.map((w) => `${w.x},${Y(w.y)}`)].join(" ");
-      p.push(`<polyline points="${pts}" fill="none" stroke="#00a5da" stroke-width="0.05" stroke-dasharray="0.25 0.18" opacity="0.9"/>`);
+      p.push(`<polyline points="${pts}" fill="none" stroke="#1D4ED8" stroke-width="0.05" stroke-dasharray="0.25 0.18" opacity="0.9"/>`);
       r.waypoints.forEach((w, i) => {
         const last = i === r.waypoints.length - 1;
-        p.push(`<circle cx="${w.x}" cy="${Y(w.y)}" r="${last ? 0.24 : 0.16}" fill="${last ? "#00a5da" : "#0b0f18"}" stroke="#00a5da" stroke-width="0.05"/>`);
+        p.push(`<circle cx="${w.x}" cy="${Y(w.y)}" r="${last ? 0.24 : 0.16}" fill="${last ? "#1D4ED8" : "#FFFFFF"}" stroke="#1D4ED8" stroke-width="0.05"/>`);
       });
     }
     // manual jog heading indicator
     if (r.control_mode === "manual") {
-      p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.42" fill="none" stroke="#ffa01f" stroke-width="0.05" stroke-dasharray="0.12 0.1"/>`);
+      p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.42" fill="none" stroke="#D97706" stroke-width="0.05" stroke-dasharray="0.12 0.1"/>`);
     }
     if (r.drift_delta_m > 0.05) {
-      p.push(`<line x1="${ins.x}" y1="${Y(ins.y)}" x2="${ex.x}" y2="${Y(ex.y)}" stroke="#4a5568" stroke-width="0.03" stroke-dasharray="0.12 0.12" opacity="0.85"/>`);
-      p.push(`<circle cx="${ins.x}" cy="${Y(ins.y)}" r="0.16" fill="none" stroke="#828c9b" stroke-width="0.045" opacity="0.85"/>`);
+      p.push(`<line x1="${ins.x}" y1="${Y(ins.y)}" x2="${ex.x}" y2="${Y(ex.y)}" stroke="#9AA0A6" stroke-width="0.03" stroke-dasharray="0.12 0.12" opacity="0.85"/>`);
+      p.push(`<circle cx="${ins.x}" cy="${Y(ins.y)}" r="0.16" fill="none" stroke="#6B7078" stroke-width="0.045" opacity="0.85"/>`);
     }
-    if (selected) p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.46" fill="none" stroke="#00a5da" stroke-width="0.07"/>`);
+    if (selected) p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.46" fill="none" stroke="#1D4ED8" stroke-width="0.07"/>`);
     const fill = ROBOT_FILL[r.state] || ROBOT_FILL.offline;
     const isLead = r.fleet_role === "lead";
     const halo = r.state === "active" ? `<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.4" fill="${fill}" opacity="0.16" class="robot-pulse"/>` : "";
     p.push(`<g data-robot="${esc(r.id)}" style="cursor:pointer">`);
     p.push(halo);
     if (isLead) {
-      p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.34" fill="none" stroke="#ffc24d" stroke-width="0.06"/>`);
+      p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.34" fill="none" stroke="#B45309" stroke-width="0.06"/>`);
     }
-    p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.24" fill="${fill}" stroke="#0b0f18" stroke-width="0.06"/>`);
+    p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.24" fill="${fill}" stroke="#FFFFFF" stroke-width="0.06"/>`);
     const hx = ex.x + Math.cos(ex.theta) * 0.4, hy = ex.y + Math.sin(ex.theta) * 0.4;
-    p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${hx}" y2="${Y(hy)}" stroke="#e6eaef" stroke-width="0.05"/>`);
+    p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${hx}" y2="${Y(hy)}" stroke="#111418" stroke-width="0.05"/>`);
     const label = isLead ? `${r.id}★` : r.id;
-    p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="${isLead ? "#ffc24d" : "#aab4c1"}" font-size="0.36" font-weight="600">${esc(label)}</text>`);
+    p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="${isLead ? "#B45309" : "#4A4F57"}" font-size="0.36" font-weight="600">${esc(label)}</text>`);
     p.push(`</g>`);
   }
   svg.innerHTML = p.join("");
@@ -858,7 +858,7 @@ function renderZoneBar() {
     const vendors = z.vendors && z.vendors.length ? ` · ${z.vendors.join(", ")}` : "";
     const chip = el(`<span class="flex items-center gap-1.5 text-[11px] pl-2 pr-1 py-0.5 rounded-full bg-surface-raised border border-line">
       <span class="inline-block w-2 h-2 rounded-sm" style="background:${color}"></span>${esc(z.name)}<span class="text-ink-dim">${esc(vendors)}</span>
-      <button class="px-1 text-ink-dim hover:text-red-400" title="Remove zone" aria-label="Remove zone ${esc(z.name)}">×</button></span>`);
+      <button class="px-1 text-ink-dim hover:text-red-700" title="Remove zone" aria-label="Remove zone ${esc(z.name)}">×</button></span>`);
     chip.querySelector("button").onclick = () => deleteZone(z.id);
     bar.appendChild(chip);
   }
@@ -911,11 +911,11 @@ function renderLogic() {
   $("#logic-orch").textContent = o ? `orchestrator ${orchLine}` : "";
   const cards = [
     ["1 · Control hierarchy",
-     "Each tick resolves one command source per robot in priority order: <span class='text-brand'>visual-nav waypoints</span> → <span class='text-amber-400'>manual jog</span> → <span class='text-ink-mut'>autonomous patrol</span>. Setting one supersedes the others."],
+     "Each tick resolves one command source per robot in priority order: <span class='text-brand'>visual-nav waypoints</span> → <span class='text-amber-700'>manual jog</span> → <span class='text-ink-mut'>autonomous patrol</span>. Setting one supersedes the others."],
     ["2 · Drift &amp; ARIA correction",
      "Overhead cameras give the <span class='text-brand'>ground-truth pose</span>; the robot's onboard SLAM <span class='text-ink-mut'>self-report</span> accumulates odometric drift. ARIA decays that drift back toward zero every tick — the dashed link on the map is the live gap."],
     ["3 · Safety halt",
-     "When drift crosses the halt threshold, ARIA fires an <span class='text-red-400'>auto E-Stop</span> + alert. Sim-triggered halts re-converge and auto-recover; a manual E-Stop waits for an operator Resume."],
+     "When drift crosses the halt threshold, ARIA fires an <span class='text-red-700'>auto E-Stop</span> + alert. Sim-triggered halts re-converge and auto-recover; a manual E-Stop waits for an operator Resume."],
     ["4 · Orchestrator",
      `A supervisory loop scans the fleet on a fixed cadence and takes safety-first actions — proactive charge dispatch on low battery, auto E-Stop on critical anomalies. <span class="text-ink-mut mono">${esc(orchLine)}</span>`],
   ];
@@ -934,8 +934,8 @@ async function loadOrchestrator() {
 }
 
 // ── validation: golden runs (Sprint K) ──────────────────────────────────────
-const VERDICT_COLOR = { pass: "#00be7d", golden: "#ffc24d", slow: "#ffa01f", deviated: "#e5484d",
-  unstable: "#ff3b6b", failed: "#e5484d", aborted: "#5b667a", no_golden: "#828c9b" };
+const VERDICT_COLOR = { pass: "#16A34A", golden: "#B45309", slow: "#D97706", deviated: "#DC2626",
+  unstable: "#BE123C", failed: "#DC2626", aborted: "#9AA0A6", no_golden: "#6B7078" };
 const VERDICT_LABEL = { pass: "pass", golden: "★ golden", slow: "slow", deviated: "deviated",
   unstable: "unstable", failed: "failed", aborted: "pre-empted", no_golden: "no golden yet" };
 async function loadRuns() {
@@ -964,7 +964,7 @@ function renderRuns() {
   for (const r of state.runs) counts[r.score.verdict] = (counts[r.score.verdict] || 0) + 1;
   const chips = $("#run-verdicts");
   if (chips) chips.innerHTML = Object.entries(counts).map(([v, n]) =>
-    `<span class="text-[10px] px-1.5 py-0.5 rounded-full mono" style="color:${VERDICT_COLOR[v] || "#828c9b"};background:${VERDICT_COLOR[v] || "#828c9b"}1f">${n} ${esc(VERDICT_LABEL[v] || v)}</span>`).join("");
+    `<span class="text-[10px] px-1.5 py-0.5 rounded-full mono" style="color:${VERDICT_COLOR[v] || "#6B7078"};background:${VERDICT_COLOR[v] || "#6B7078"}1f">${n} ${esc(VERDICT_LABEL[v] || v)}</span>`).join("");
   if (!state.runs.length) {
     body.innerHTML = `<tr><td colspan="8" class="px-4 py-5 text-[12px] text-ink-dim">No runs recorded yet. Every station-to-station leg is recorded; the first clean run of a task becomes its golden run.</td></tr>`;
     return;
@@ -972,7 +972,7 @@ function renderRuns() {
   const selected = state.runOverlay?.run.id;
   body.innerHTML = "";
   for (const r of state.runs) {
-    const s = r.score, color = VERDICT_COLOR[s.verdict] || "#828c9b";
+    const s = r.score, color = VERDICT_COLOR[s.verdict] || "#6B7078";
     const cycle = s.golden_cycle_time_s != null ? `${s.cycle_time_s.toFixed(1)} s <span class="text-ink-dim">/ ${s.golden_cycle_time_s.toFixed(1)}</span>` : `${s.cycle_time_s.toFixed(1)} s`;
     const dev = s.max_dev_m != null ? `${(s.max_dev_m * 100).toFixed(0)} cm` : "—";
     const canGolden = !r.golden && r.outcome === "complete";
@@ -996,8 +996,8 @@ function renderRuns() {
 }
 
 // ── rig calibration (Sprint H) ────────────────────────────────────────────────
-const CALIB_COLOR = { ok: "#00be7d", likely_error: "#e5484d", single_view: "#ffa01f", unanchored: "#828c9b",
-  moved: "#e5484d", high_residual: "#ffa01f" };
+const CALIB_COLOR = { ok: "#16A34A", likely_error: "#DC2626", single_view: "#D97706", unanchored: "#6B7078",
+  moved: "#DC2626", high_residual: "#D97706" };
 const CALIB_LABEL = { ok: "ok", likely_error: "likely bumped", single_view: "seen once", unanchored: "not linked",
   moved: "camera moved", high_residual: "poor fit" };
 async function loadCalibration() {
@@ -1032,7 +1032,7 @@ function renderCalibration() {
   const mapped = c.markers.filter((m) => m.pose && m.status !== "unanchored").length;
   const rows = flagged.map((f) => `
     <div class="flex items-center gap-2 px-3 py-1.5">
-      <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${CALIB_COLOR[f.status] || "#828c9b"}"></span>
+      <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${CALIB_COLOR[f.status] || "#6B7078"}"></span>
       <span class="text-[11.5px] text-ink truncate">${esc(f.label)}</span>
       <span class="text-[10.5px] text-ink-mut">${esc(CALIB_LABEL[f.status] || f.status)}</span>
       <span class="text-[10px] text-ink-dim mono ml-auto shrink-0">${esc(f.detail)}</span>
@@ -1049,8 +1049,8 @@ function renderCalibration() {
 }
 
 // ── alerts ────────────────────────────────────────────────────────────────────
-const SEV_STYLE = { critical: "text-red-400", warning: "text-amber-400", info: "text-sky-300" };
-const SEV_DOT = { critical: "#ff3b6b", warning: "#ffa01f", info: "#3dbfe2" };
+const SEV_STYLE = { critical: "text-red-700", warning: "text-amber-700", info: "text-sky-700" };
+const SEV_DOT = { critical: "#BE123C", warning: "#D97706", info: "#1D4ED8" };
 async function ackAlert(id) {
   const a = state.alerts.find((x) => x.id === id);
   if (!a || a.acknowledged) return;
@@ -1074,7 +1074,7 @@ function renderAlerts() {
   // Unacknowledged first, then most-recent acknowledged — dense single-line rows.
   const ordered = [...state.alerts].sort((a, b) => (a.acknowledged - b.acknowledged) || (b.ts - a.ts));
   for (const a of ordered.slice(0, 60)) {
-    const dot = SEV_DOT[a.severity] || "#828c9b";
+    const dot = SEV_DOT[a.severity] || "#6B7078";
     const detail = a.message || a.type;
     const row = el(`
       <div class="group flex items-center gap-2 px-3 py-1.5 ${a.acknowledged ? "opacity-40" : "cursor-pointer hover:bg-surface-raised/60"}" title="${esc(a.type)} · ${esc(a.message || "")}">
@@ -1139,7 +1139,7 @@ function renderActions() {
           <button data-verb="accept" class="text-[11px] ${blocked ? "text-ink-dim cursor-not-allowed" : "text-brand hover:underline"}" ${blocked ? "disabled" : ""}
             title="${esc(blocked ? a.blocked_reason : "")}">${blocked ? "🔒 " : ""}${acceptLabel}</button>
           <button data-verb="dismiss" class="text-[11px] text-ink-dim hover:underline">Dismiss</button>
-          ${blocked ? `<span class="text-[10px] text-amber-400 truncate">${esc(a.blocked_reason)}</span>` : ""}
+          ${blocked ? `<span class="text-[10px] text-amber-700 truncate">${esc(a.blocked_reason)}</span>` : ""}
         </div>
       </div>`);
     row.querySelectorAll("button[data-verb]").forEach((b) => {
@@ -1157,14 +1157,14 @@ async function loadBenchmark() {
     const tb = $("#benchmark"); tb.innerHTML = "";
     for (const v of rows) {
       const env = v.env_degradation_score ?? 0;
-      const envColor = env >= 0.5 ? "#e5484d" : env >= 0.48 ? "#ffa01f" : "#00be7d";
+      const envColor = env >= 0.5 ? "#DC2626" : env >= 0.48 ? "#D97706" : "#16A34A";
       tb.appendChild(el(`
         <tr>
           <td class="font-medium">${esc(v.vendor)}</td>
           <td class="mono text-ink-mut">${v.robots}</td>
           <td class="mono text-ink-mut">${Number(v.samples).toLocaleString()}</td>
-          <td class="mono" style="color:#3dbfe2">${v.mean_drift_m.toFixed(3)}</td>
-          <td class="mono" style="color:#3dbfe2">${v.p95_drift_m.toFixed(3)}</td>
+          <td class="mono" style="color:#1D4ED8">${v.mean_drift_m.toFixed(3)}</td>
+          <td class="mono" style="color:#1D4ED8">${v.p95_drift_m.toFixed(3)}</td>
           <td class="mono text-ink-mut">${fmtSecs(v.mtbd_seconds)}</td>
           <td class="mono text-ink-mut">${v.mean_recovery_latency_seconds == null ? "—" : v.mean_recovery_latency_seconds.toFixed(2) + "s"}</td>
           <td>
@@ -1183,7 +1183,7 @@ const ALL_SCOPES = [
   "telemetry.read", "state.read", "control.velocity", "control.estop",
   "control.teleop", "mission.dispatch", "camera.read", "map.read",
 ];
-const OEM_STATUS_COLOR = { active: "#00be7d", pending: "#ffa01f", suspended: "#e5484d" };
+const OEM_STATUS_COLOR = { active: "#16A34A", pending: "#D97706", suspended: "#DC2626" };
 async function loadOEMs() {
   try {
     const oems = await getJSON("/api/dashboard/oems");
@@ -1197,10 +1197,10 @@ async function loadOEMs() {
       return;
     }
     for (const o of oems) {
-      const statusColor = OEM_STATUS_COLOR[o.status] || "#828c9b";
+      const statusColor = OEM_STATUS_COLOR[o.status] || "#6B7078";
       const readiness = [
-        o.control_ready ? `<span style="color:#ffa01f">control</span>` : `<span class="text-ink-dim">control</span>`,
-        o.monitor_ready ? `<span style="color:#3dbfe2">monitor</span>` : `<span class="text-ink-dim">monitor</span>`,
+        o.control_ready ? `<span style="color:#D97706">control</span>` : `<span class="text-ink-dim">control</span>`,
+        o.monitor_ready ? `<span style="color:#1D4ED8">monitor</span>` : `<span class="text-ink-dim">monitor</span>`,
       ].join(" · ");
       const row = el(`
         <tr>
@@ -1208,7 +1208,7 @@ async function loadOEMs() {
           <td class="text-ink-mut">${esc(o.vendor)}</td>
           <td><span class="transport-tag">${esc(o.transport)}</span></td>
           <td>${inlineStatus(o.status, statusColor)}</td>
-          <td class="mono font-semibold" style="color:#00be7d">${o.granted_scopes.length} / ${o.ceiling_scopes.length}</td>
+          <td class="mono font-semibold" style="color:#16A34A">${o.granted_scopes.length} / ${o.ceiling_scopes.length}</td>
           <td class="text-[12px]">${readiness}</td>
           <td class="text-right"><button class="sb-btn text-[11px]">Manage</button></td>
         </tr>`);
@@ -1252,19 +1252,19 @@ async function openOEM(oemId) {
       </div>` : ""}
       <div class="mt-5 flex gap-2 justify-between items-center">
         <div class="flex gap-2">
-          <button id="oem-suspend" class="px-3 py-2 rounded-md text-[13px] ${suspended ? "bg-brand hover:bg-brand-600 text-[#052e1f]" : "bg-surface-input hover:bg-line-strong text-red-400"}">${suspended ? "Reactivate" : "Suspend access"}</button>
-          <button id="oem-remove" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px] text-ink-dim hover:text-red-400" title="Off-board this partner">Remove</button>
+          <button id="oem-suspend" class="px-3 py-2 rounded-md text-[13px] ${suspended ? "bg-brand hover:bg-brand-600 text-[#FFFFFF]" : "bg-surface-input hover:bg-line-strong text-red-700"}">${suspended ? "Reactivate" : "Suspend access"}</button>
+          <button id="oem-remove" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px] text-ink-dim hover:text-red-700" title="Off-board this partner">Remove</button>
         </div>
         <div class="flex gap-2">
           <button id="oem-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>
-          <button id="oem-save" class="px-3 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#1a1204] text-[13px] font-semibold">Save scopes</button>
+          <button id="oem-save" class="px-3 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#FFFFFF] text-[13px] font-semibold">Save scopes</button>
         </div>
       </div>
     </div>`;
   card.querySelector("#oem-cancel").onclick = closeModals;
   card.querySelector("#oem-remove").onclick = async () => {
     const btn = card.querySelector("#oem-remove");
-    if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Click again to confirm"; btn.classList.add("text-red-400"); return; }
+    if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Click again to confirm"; btn.classList.add("text-red-700"); return; }
     await reqJSON("DELETE", `/api/dashboard/oems/${oemId}`);
     closeModals(); loadOEMs(); loadFleetSoon();
     toast(`${o.company_name} off-boarded`);
@@ -1294,7 +1294,7 @@ async function openRobot(id) {
   try {
     const r = await getJSON(`/api/dashboard/robot/${id}`);
     const label = STATE_LABEL[r.state] || r.state;
-    const stateColor = STATE_COLOR[r.state] || "#828c9b";
+    const stateColor = STATE_COLOR[r.state] || "#6B7078";
     const card = $("#modal-robot .modal-card");
     card.innerHTML = `
       <div class="p-5">
@@ -1346,14 +1346,14 @@ function actionButton(r) {
       class="${base} bg-surface-input text-ink-dim cursor-not-allowed">${resume ? "Resume" : "E-Stop"} 🔒</button>`;
   }
   return resume
-    ? `<button id="modal-action" class="${base} bg-brand hover:bg-brand-600 !text-[#052e1f]">Resume</button>`
+    ? `<button id="modal-action" class="${base} bg-brand hover:bg-brand-600 !text-[#FFFFFF]">Resume</button>`
     : `<button id="modal-action" class="${base} bg-red-600 hover:bg-red-500">E-Stop</button>`;
 }
 
 function controlNote(c) {
   if (!c || !c.managed) return "";
   const chip = (ok, label) =>
-    `<span class="px-2 py-0.5 rounded-full text-[10.5px] ${ok ? "bg-brand/15 text-brand" : "bg-red-500/15 text-red-400"}">${ok ? "✓" : "✕"} ${label}</span>`;
+    `<span class="px-2 py-0.5 rounded-full text-[10.5px] ${ok ? "bg-brand/15 text-brand" : "bg-red-500/15 text-red-700"}">${ok ? "✓" : "✕"} ${label}</span>`;
   return `<div class="mt-4 flex items-center gap-2 flex-wrap">
       <span class="text-[12px] text-ink-mut">OEM grants:</span>
       ${chip(c.estop, "E-Stop")} ${chip(c.velocity, "Velocity")} ${chip(c.mission, "Mission")}
@@ -1389,7 +1389,7 @@ function vitalsBlock(s) {
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[13px]">${cells.join("")}</div>
     </div>`;
 }
-function tempColor(t, warn, hot) { if (t == null) return "text-ink"; return t >= hot ? "text-red-400" : t >= warn ? "text-amber-400" : "text-brand"; }
+function tempColor(t, warn, hot) { if (t == null) return "text-ink"; return t >= hot ? "text-red-700" : t >= warn ? "text-amber-700" : "text-brand"; }
 function batteryTempColor(t) { return tempColor(t, 45, 55); }
 function metric(label, val, cls = "text-ink") {
   return `<div class="bg-surface-raised border border-line rounded-lg px-3 py-2"><div class="text-[11px] text-ink-dim">${label}</div><div class="font-semibold mono ${cls} mt-0.5">${val}</div></div>`;
@@ -1409,7 +1409,7 @@ function openDispatch(presetId) {
       <input id="d-desc" class="w-full bg-surface-input border border-line rounded-md px-3 py-2 text-[13px]" placeholder="e.g. Restock aisle 4" />
       <div class="mt-5 flex gap-2 justify-end">
         <button id="d-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>
-        <button id="d-submit" class="px-3 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#1a1204] text-[13px] font-semibold">Dispatch</button>
+        <button id="d-submit" class="px-3 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#FFFFFF] text-[13px] font-semibold">Dispatch</button>
       </div>
     </div>`;
   card.querySelector("#d-cancel").onclick = closeModals;
@@ -1441,7 +1441,7 @@ function renderAuth() {
     out.onclick = async () => { await postJSON("/api/auth/logout"); toast("Signed out — view only"); loadAuth(); };
     box.appendChild(out);
   } else {
-    const btn = el(`<button class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid var(--line); color:#e6eaef">Sign in</button>`);
+    const btn = el(`<button class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid #111418; color:#111418; background:#FFFFFF">Sign in</button>`);
     btn.onclick = openSignIn;
     box.append(el(`<span class="hidden md:inline text-[11px] text-ink-dim">view only</span>`), btn);
   }
@@ -1453,15 +1453,15 @@ function openSignIn() {
     <form class="p-5" autocomplete="on">
       <div class="text-[16px] font-bold">Sign in to the console</div>
       <p class="text-[12px] text-ink-dim mt-1">Use your operator or admin access key. Without one the console is view only.</p>
-      ${available ? "" : `<p class="text-[12px] mt-3 px-3 py-2 rounded-md bg-amber-500/10 text-amber-300">Sign-in is not configured on this deployment yet. An admin must set <span class="mono">ORBITAL_RBAC_TOKENS</span>.</p>`}
+      ${available ? "" : `<p class="text-[12px] mt-3 px-3 py-2 rounded-md bg-amber-500/10 text-amber-700">Sign-in is not configured on this deployment yet. An admin must set <span class="mono">ORBITAL_RBAC_TOKENS</span>.</p>`}
       <label class="block text-[13px] mt-4 mb-1 text-ink-mut" for="si-name">Your name <span class="text-ink-dim">(shown in the audit log)</span></label>
       <input id="si-name" name="username" autocomplete="username" maxlength="40" class="w-full bg-surface-input border border-line rounded-md px-3 py-2 text-[13px]" placeholder="e.g. Ugo" />
       <label class="block text-[13px] mt-3 mb-1 text-ink-mut" for="si-key">Access key</label>
       <input id="si-key" name="password" type="password" autocomplete="current-password" required class="w-full bg-surface-input border border-line rounded-md px-3 py-2 text-[13px]" />
-      <p id="si-error" class="text-[12px] text-red-400 mt-2 min-h-[1em]"></p>
+      <p id="si-error" class="text-[12px] text-red-700 mt-2 min-h-[1em]"></p>
       <div class="mt-3 flex gap-2 justify-end">
         <button type="button" id="si-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>
-        <button type="submit" class="px-3 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[13px] font-semibold">Sign in</button>
+        <button type="submit" class="px-3 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#FFFFFF] text-[13px] font-semibold">Sign in</button>
       </div>
     </form>`;
   card.querySelector("#si-cancel").onclick = closeModals;
@@ -1714,8 +1714,8 @@ function renderWizard() {
     ? `<button id="wz-back" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Back</button>`
     : `<button id="wz-cancel" class="px-3 py-2 rounded-md bg-surface-input hover:bg-line-strong text-[13px]">Cancel</button>`;
   const nextBtn = wz.step < 4
-    ? `<button id="wz-next" class="px-4 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#1a1204] text-[13px] font-semibold">Continue</button>`
-    : `<button id="wz-create" class="px-4 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[13px] font-semibold">Create partner</button>`;
+    ? `<button id="wz-next" class="px-4 py-2 rounded-md bg-cta hover:bg-cta-600 text-[#FFFFFF] text-[13px] font-semibold">Continue</button>`
+    : `<button id="wz-create" class="px-4 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#FFFFFF] text-[13px] font-semibold">Create partner</button>`;
 
   $("#modal-wizard .modal-card").innerHTML = `
     <div class="p-5">
@@ -1818,13 +1818,13 @@ function renderWizardDone() {
   $("#modal-wizard .modal-card").innerHTML = `
     <div class="p-5">
       <div class="flex items-center gap-2.5">
-        <span class="w-9 h-9 rounded-full flex items-center justify-center glow-green" style="background:rgba(0,190,125,0.12);border:1px solid rgba(0,190,125,0.5);color:#00be7d">✓</span>
+        <span class="w-9 h-9 rounded-full flex items-center justify-center glow-green" style="background:rgba(22,163,74,0.12);border:1px solid rgba(22,163,74,0.5);color:#16A34A">✓</span>
         <div>
           <div class="text-[16px] font-bold">${esc(profile.company_name)} onboarded</div>
           <div class="text-[11px] text-ink-dim">${esc(profile.oem_id)} · ${esc(profile.vendor)} · ${esc(profile.transport)} · ${readiness}</div>
         </div>
       </div>
-      <div class="mt-4 rounded-lg border p-3" style="background:rgba(255,160,31,0.06);border-color:rgba(255,160,31,0.35)">
+      <div class="mt-4 rounded-lg border p-3" style="background:rgba(217,119,6,0.06);border-color:rgba(217,119,6,0.35)">
         <div class="text-[11px] text-cta font-semibold uppercase tracking-wide mb-1">⚠ API key — shown once</div>
         <div class="text-[11px] text-ink-mut mb-2">Give this to the partner. Orbital stores only a hash; it can't be recovered.</div>
         <div class="flex items-center gap-2">
@@ -1839,7 +1839,7 @@ function renderWizardDone() {
         </div>
       </div>
       <div class="mt-5 flex justify-end gap-2">
-        <button id="wz-done" class="px-4 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#052e1f] text-[13px] font-semibold">Done</button>
+        <button id="wz-done" class="px-4 py-2 rounded-md bg-brand hover:bg-brand-600 text-[#FFFFFF] text-[13px] font-semibold">Done</button>
       </div>
     </div>`;
   const copy = $("#modal-wizard #wz-copy");
