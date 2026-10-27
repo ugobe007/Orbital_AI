@@ -41,7 +41,7 @@ const STATUS_META = [
   { key: "idle",     label: "Idle",          color: "#D97706" },
   { key: "charging", label: "Charging",      color: "#1D4ED8" },
   { key: "halted",   label: "Halted",        color: "#BE123C" },
-  { key: "offline",  label: "Offline",       color: "#9AA0A6" },
+  { key: "offline",  label: "Offline",       color: "#80858C" },
 ];
 
 // The control surface Orbital exposes to operators. Each capability is gated by an API scope
@@ -127,12 +127,12 @@ function toast(msg, kind = "info") {
 }
 
 const STATE_COLOR = {
-  active: "#16A34A", idle: "#D97706", charging: "#1D4ED8", cooldown: "#DC2626", halted: "#DC2626", offline: "#6B7078",
+  active: "#16A34A", idle: "#D97706", charging: "#1D4ED8", cooldown: "#DC2626", halted: "#DC2626", offline: "#4A4F57",
 };
 const STATE_LABEL = {
   active: "Active", idle: "Idle", charging: "Charging", cooldown: "Task done", halted: "Halted", offline: "Offline",
 };
-const CAP_STATUS_COLOR = { live: "#16A34A", monitor: "#1D4ED8", unlocked: "#6B7078" };
+const CAP_STATUS_COLOR = { live: "#16A34A", monitor: "#1D4ED8", unlocked: "#4A4F57" };
 const MODE_LABEL = {
   patrol: "Autonomous patrol", visual_nav: "Visual-nav (SLAM bypass)", manual: "Manual jog",
   charging: "Charging", halted: "Halted", idle: "Idle", cooldown: "Between tasks",
@@ -201,7 +201,7 @@ const PHASE_COLOR = {
   en_route_pickup: "#1D4ED8",
   working: "#D97706",
   carrying: "#16A34A",
-  idle: "#9AA0A6",
+  idle: "#80858C",
 };
 
 function renderSequence() {
@@ -221,7 +221,7 @@ function renderSequence() {
         ${role ? `<span class="mono text-[9px]" style="color:${roleColor}">${role}</span>` : ""}
         <span class="mono text-ink-mut">${esc(a.robot_id)}</span>
         <span class="text-ink-dim">${esc(a.goal)}</span>
-        <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#9AA0A6"}">${PHASE_LABEL[ph] || ph}</span>
+        <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#80858C"}">${PHASE_LABEL[ph] || ph}</span>
       </span>`;
   }).join("");
   const relays = (s.relay_points || []).map((p) => esc(p.id)).join(" · ");
@@ -251,7 +251,7 @@ function renderFleetStatus(m) {
       <div class="text-[11px] uppercase tracking-wide text-ink-dim">Fleet status · live</div>
       <div class="text-[10.5px] text-ink-dim mono">${state.statusFilter ? `filtered: ${STATUS_META.find((s)=>s.key===state.statusFilter)?.label || state.statusFilter}` : "click to filter"}</div>
     </div>
-    <div class="flex h-2.5 rounded-full overflow-hidden bg-surface-input mb-3">${segs || '<div class="w-full" style="background:#9AA0A6"></div>'}</div>
+    <div class="flex h-2.5 rounded-full overflow-hidden bg-surface-input mb-3">${segs || '<div class="w-full" style="background:#80858C"></div>'}</div>
     <div id="status-chips" class="grid grid-cols-3 gap-1.5 flex-1 content-start"></div>`;
   const chips = box.querySelector("#status-chips");
   for (const s of STATUS_META) {
@@ -290,7 +290,7 @@ function renderTicker(m) {
     { dot: "#1D4ED8", label: "Avg drift", val: m.avgDrift.toFixed(3) + "m" },
     { dot: "#16A34A", label: "Fleet battery", val: Math.round(m.avgBatt) + "%" },
     { dot: "#1D4ED8", label: "OEM partners", val: `${activeOems}/${state.oems.length}` },
-    { dot: "#6B7078", label: "Facility", val: state.facility?.name || "—" },
+    { dot: "#4A4F57", label: "Facility", val: state.facility?.name || "—" },
   ];
   const one = items.map((i) => `
     <span class="tick">
@@ -335,7 +335,7 @@ function renderFleet() {
   }
   for (const r of list) {
     const label = STATE_LABEL[r.state] || r.state;
-    const stateColor = STATE_COLOR[r.state] || "#6B7078";
+    const stateColor = STATE_COLOR[r.state] || "#4A4F57";
     const sel = r.id === state.selectedRobot;
     const accent = industryAccent(r.industry);
     const speed = r.speed_mps ?? 0;
@@ -434,7 +434,7 @@ function renderControlPanel() {
     return;
   }
   const label = STATE_LABEL[r.state] || r.state;
-  const stateColor = STATE_COLOR[r.state] || "#6B7078";
+  const stateColor = STATE_COLOR[r.state] || "#4A4F57";
   modeTag.innerHTML = `<span class="${MODE_STYLE[r.control_mode] || "text-ink-mut"}">${esc(MODE_LABEL[r.control_mode] || r.control_mode)}</span>`;
   const halted = r.state === "halted";
   const g = vendorGrants(r.vendor);
@@ -460,7 +460,7 @@ function renderControlPanel() {
           : r.state === "idle" ? "Idle — will join the next sequence"
           : "Autonomous patrol");
       const activity = r.current_task || PHASE_LABEL[r.mission_phase] || MODE_LABEL[r.control_mode] || "";
-      const col = PHASE_COLOR[r.mission_phase] || "#9AA0A6";
+      const col = PHASE_COLOR[r.mission_phase] || "#80858C";
       return `<div class="mt-2 rounded-lg border p-2" style="background:#FAF8FF;border-color:#DDD6FE">
         <div class="text-[9px] uppercase tracking-wide text-ink-dim">What it's doing now</div>
         <div class="text-[12px] font-medium mt-0.5 leading-snug">${esc(missionText)}</div>
@@ -541,7 +541,7 @@ function renderCapabilities() {
     const robots = state.robots.filter((r) => vendorGrants(r.vendor).has(cap.scope)).length;
     const st = capStatusKey(cap, partners, robots);
     const stLabel = st.toUpperCase();
-    const stColor = CAP_STATUS_COLOR[st] || "#6B7078";
+    const stColor = CAP_STATUS_COLOR[st] || "#4A4F57";
     const iconColor = st === "live" ? "var(--brand)" : st === "monitor" ? "var(--azure)" : "var(--ink-dim)";
     box.appendChild(el(`
       <div class="card tight">
@@ -564,8 +564,8 @@ function renderCapabilities() {
 
 // ── warehouse map ──────────────────────────────────────────────────────────────
 const ZONE_COLOR = { keepout: "#DC2626", slow: "#D97706" };
-const OBJECT_COLOR = { pallet: "#A16207", forklift: "#CA8A04", cart: "#0891B2", person: "#DB2777", default: "#6B7078" };
-const ROBOT_FILL = { active: "#16A34A", idle: "#D97706", charging: "#1D4ED8", cooldown: "#DC2626", halted: "#DC2626", offline: "#9AA0A6" };
+const OBJECT_COLOR = { pallet: "#A16207", forklift: "#CA8A04", cart: "#0891B2", person: "#DB2777", default: "#4A4F57" };
+const ROBOT_FILL = { active: "#16A34A", idle: "#D97706", charging: "#1D4ED8", cooldown: "#DC2626", halted: "#DC2626", offline: "#80858C" };
 
 async function loadMap() {
   try {
@@ -592,9 +592,9 @@ function renderMap() {
   svg.style.aspectRatio = `${W} / ${H}`;
 
   const p = [];
-  p.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF" stroke="#C9CCC6" stroke-width="0.06"/>`);
-  for (let gx = 2; gx < W; gx += 2) p.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#ECEEEA" stroke-width="0.02"/>`);
-  for (let gy = 2; gy < H; gy += 2) p.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#ECEEEA" stroke-width="0.02"/>`);
+  p.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF" stroke="#111418" stroke-width="0.06"/>`);
+  for (let gx = 2; gx < W; gx += 2) p.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#D5D8D2" stroke-width="0.025"/>`);
+  for (let gy = 2; gy < H; gy += 2) p.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#D5D8D2" stroke-width="0.025"/>`);
 
   if (m.dock) {
     const d = m.dock;
@@ -602,8 +602,8 @@ function renderMap() {
     p.push(`<text x="${d.x + d.w / 2}" y="${Y(d.y + d.h) + d.h / 2 + 0.16}" fill="#1D4ED8" font-size="0.42" text-anchor="middle" opacity="0.95">DOCK</text>`);
   }
   for (const r of m.racks) {
-    p.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.08" fill="#E1E3DE" stroke="#C9CCC6" stroke-width="0.03"/>`);
-    p.push(`<text x="${r.x + r.w / 2}" y="${Y(r.y + r.h / 2) + 0.14}" fill="#6B7078" font-size="0.42" text-anchor="middle">${esc(r.id)}</text>`);
+    p.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.08" fill="#C9CCC6" stroke="#8A8F88" stroke-width="0.035"/>`);
+    p.push(`<text x="${r.x + r.w / 2}" y="${Y(r.y + r.h / 2) + 0.14}" fill="#111418" font-size="0.42" font-weight="600" text-anchor="middle">${esc(r.id)}</text>`);
   }
   for (const c of (m.charge_stations || [])) {
     p.push(`<circle cx="${c.x}" cy="${Y(c.y)}" r="0.42" fill="#1D4ED8" opacity="0.16"/>`);
@@ -612,15 +612,15 @@ function renderMap() {
   // Named work stations — the pick/drop points missions shuttle between (labelled so the
   // operator can read "Aisle AB → Dock" straight off the floor).
   for (const s of (m.stations || [])) {
-    p.push(`<rect x="${s.x - 0.34}" y="${Y(s.y) - 0.34}" width="0.68" height="0.68" rx="0.1" fill="#DBE4FB" stroke="#93A8E8" stroke-width="0.035"/>`);
-    p.push(`<text x="${s.x}" y="${Y(s.y) + 0.5}" fill="#4A4F57" font-size="0.3" text-anchor="middle">${esc(s.id)}</text>`);
+    p.push(`<rect x="${s.x - 0.34}" y="${Y(s.y) - 0.34}" width="0.68" height="0.68" rx="0.1" fill="#DBE4FB" stroke="#1D4ED8" stroke-width="0.04"/>`);
+    p.push(`<text x="${s.x}" y="${Y(s.y) + 0.5}" fill="#111418" font-size="0.3" font-weight="500" text-anchor="middle">${esc(s.id)}</text>`);
   }
   // Overhead camera rig — Orbital's ground-truth localization. Drawn as a violet camera glyph
   // with a soft coverage halo so it's never mistaken for a robot or a waypoint.
   for (const cam of (m.cameras || [])) {
     const cov = cam.coverage_m || 4.0;
-    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="#6D28D9" opacity="0.05"/>`);
-    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="none" stroke="#6D28D9" stroke-width="0.02" stroke-dasharray="0.2 0.22" opacity="0.35"/>`);
+    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="#6D28D9" opacity="0.04"/>`);
+    p.push(`<circle cx="${cam.x}" cy="${Y(cam.y)}" r="${cov}" fill="none" stroke="#6D28D9" stroke-width="0.02" stroke-dasharray="0.2 0.22" opacity="0.6"/>`);
     p.push(`<g transform="translate(${cam.x},${Y(cam.y)})">`);
     p.push(`<rect x="-0.26" y="-0.19" width="0.52" height="0.38" rx="0.08" fill="#F3F0FF" stroke="#6D28D9" stroke-width="0.045"/>`);
     p.push(`<circle cx="0" cy="0" r="0.11" fill="none" stroke="#6D28D9" stroke-width="0.05"/>`);
@@ -633,7 +633,7 @@ function renderMap() {
   for (const z of state.zones) {
     const color = ZONE_COLOR[z.type] || ZONE_COLOR.keepout;
     const pts = z.polygon.map(([x, y]) => `${x},${Y(y)}`).join(" ");
-    p.push(`<polygon points="${pts}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-width="0.05" stroke-dasharray="0.22 0.14"/>`);
+    p.push(`<polygon points="${pts}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="0.06" stroke-dasharray="0.22 0.14"/>`);
     const cx = z.polygon.reduce((a, q) => a + q[0], 0) / z.polygon.length;
     const cy = z.polygon.reduce((a, q) => a + q[1], 0) / z.polygon.length;
     const label = z.type === "slow" ? `${z.name} · ≤${z.speed_cap_mps} m/s` : z.name;
@@ -661,7 +661,7 @@ function renderMap() {
 
   // Floor cells the cameras see as blocked; the planner routes every robot around these.
   for (const [x0, y0, x1, y1] of state.cameraCells) {
-    p.push(`<rect x="${x0}" y="${Y(y1)}" width="${x1 - x0}" height="${y1 - y0}" fill="#6B7078" fill-opacity="0.32" stroke="#4A4F57" stroke-opacity="0.5" stroke-width="0.02"/>`);
+    p.push(`<rect x="${x0}" y="${Y(y1)}" width="${x1 - x0}" height="${y1 - y0}" fill="#4A4F57" fill-opacity="0.32" stroke="#4A4F57" stroke-opacity="0.5" stroke-width="0.02"/>`);
   }
 
   // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
@@ -735,8 +735,8 @@ function renderMap() {
       p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.42" fill="none" stroke="#D97706" stroke-width="0.05" stroke-dasharray="0.12 0.1"/>`);
     }
     if (r.drift_delta_m > 0.05) {
-      p.push(`<line x1="${ins.x}" y1="${Y(ins.y)}" x2="${ex.x}" y2="${Y(ex.y)}" stroke="#9AA0A6" stroke-width="0.03" stroke-dasharray="0.12 0.12" opacity="0.85"/>`);
-      p.push(`<circle cx="${ins.x}" cy="${Y(ins.y)}" r="0.16" fill="none" stroke="#6B7078" stroke-width="0.045" opacity="0.85"/>`);
+      p.push(`<line x1="${ins.x}" y1="${Y(ins.y)}" x2="${ex.x}" y2="${Y(ex.y)}" stroke="#80858C" stroke-width="0.03" stroke-dasharray="0.12 0.12" opacity="0.85"/>`);
+      p.push(`<circle cx="${ins.x}" cy="${Y(ins.y)}" r="0.16" fill="none" stroke="#4A4F57" stroke-width="0.045" opacity="0.85"/>`);
     }
     if (selected) p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.46" fill="none" stroke="#1D4ED8" stroke-width="0.07"/>`);
     const fill = ROBOT_FILL[r.state] || ROBOT_FILL.offline;
@@ -751,7 +751,7 @@ function renderMap() {
     const hx = ex.x + Math.cos(ex.theta) * 0.4, hy = ex.y + Math.sin(ex.theta) * 0.4;
     p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${hx}" y2="${Y(hy)}" stroke="#111418" stroke-width="0.05"/>`);
     const label = isLead ? `${r.id}★` : r.id;
-    p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="${isLead ? "#B45309" : "#4A4F57"}" font-size="0.36" font-weight="600">${esc(label)}</text>`);
+    p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="${isLead ? "#B45309" : "#111418"}" font-size="0.36" font-weight="600" stroke="#FFFFFF" stroke-width="0.08" paint-order="stroke">${esc(label)}</text>`);
     p.push(`</g>`);
   }
   svg.innerHTML = p.join("");
@@ -935,7 +935,7 @@ async function loadOrchestrator() {
 
 // ── validation: golden runs (Sprint K) ──────────────────────────────────────
 const VERDICT_COLOR = { pass: "#16A34A", golden: "#B45309", slow: "#D97706", deviated: "#DC2626",
-  unstable: "#BE123C", failed: "#DC2626", aborted: "#9AA0A6", no_golden: "#6B7078" };
+  unstable: "#BE123C", failed: "#DC2626", aborted: "#80858C", no_golden: "#4A4F57" };
 const VERDICT_LABEL = { pass: "pass", golden: "★ golden", slow: "slow", deviated: "deviated",
   unstable: "unstable", failed: "failed", aborted: "pre-empted", no_golden: "no golden yet" };
 async function loadRuns() {
@@ -964,7 +964,7 @@ function renderRuns() {
   for (const r of state.runs) counts[r.score.verdict] = (counts[r.score.verdict] || 0) + 1;
   const chips = $("#run-verdicts");
   if (chips) chips.innerHTML = Object.entries(counts).map(([v, n]) =>
-    `<span class="text-[10px] px-1.5 py-0.5 rounded-full mono" style="color:${VERDICT_COLOR[v] || "#6B7078"};background:${VERDICT_COLOR[v] || "#6B7078"}1f">${n} ${esc(VERDICT_LABEL[v] || v)}</span>`).join("");
+    `<span class="text-[10px] px-1.5 py-0.5 rounded-full mono" style="color:${VERDICT_COLOR[v] || "#4A4F57"};background:${VERDICT_COLOR[v] || "#4A4F57"}1f">${n} ${esc(VERDICT_LABEL[v] || v)}</span>`).join("");
   if (!state.runs.length) {
     body.innerHTML = `<tr><td colspan="8" class="px-4 py-5 text-[12px] text-ink-dim">No runs recorded yet. Every station-to-station leg is recorded; the first clean run of a task becomes its golden run.</td></tr>`;
     return;
@@ -972,7 +972,7 @@ function renderRuns() {
   const selected = state.runOverlay?.run.id;
   body.innerHTML = "";
   for (const r of state.runs) {
-    const s = r.score, color = VERDICT_COLOR[s.verdict] || "#6B7078";
+    const s = r.score, color = VERDICT_COLOR[s.verdict] || "#4A4F57";
     const cycle = s.golden_cycle_time_s != null ? `${s.cycle_time_s.toFixed(1)} s <span class="text-ink-dim">/ ${s.golden_cycle_time_s.toFixed(1)}</span>` : `${s.cycle_time_s.toFixed(1)} s`;
     const dev = s.max_dev_m != null ? `${(s.max_dev_m * 100).toFixed(0)} cm` : "—";
     const canGolden = !r.golden && r.outcome === "complete";
@@ -996,7 +996,7 @@ function renderRuns() {
 }
 
 // ── rig calibration (Sprint H) ────────────────────────────────────────────────
-const CALIB_COLOR = { ok: "#16A34A", likely_error: "#DC2626", single_view: "#D97706", unanchored: "#6B7078",
+const CALIB_COLOR = { ok: "#16A34A", likely_error: "#DC2626", single_view: "#D97706", unanchored: "#4A4F57",
   moved: "#DC2626", high_residual: "#D97706" };
 const CALIB_LABEL = { ok: "ok", likely_error: "likely bumped", single_view: "seen once", unanchored: "not linked",
   moved: "camera moved", high_residual: "poor fit" };
@@ -1032,7 +1032,7 @@ function renderCalibration() {
   const mapped = c.markers.filter((m) => m.pose && m.status !== "unanchored").length;
   const rows = flagged.map((f) => `
     <div class="flex items-center gap-2 px-3 py-1.5">
-      <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${CALIB_COLOR[f.status] || "#6B7078"}"></span>
+      <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${CALIB_COLOR[f.status] || "#4A4F57"}"></span>
       <span class="text-[11.5px] text-ink truncate">${esc(f.label)}</span>
       <span class="text-[10.5px] text-ink-mut">${esc(CALIB_LABEL[f.status] || f.status)}</span>
       <span class="text-[10px] text-ink-dim mono ml-auto shrink-0">${esc(f.detail)}</span>
@@ -1074,7 +1074,7 @@ function renderAlerts() {
   // Unacknowledged first, then most-recent acknowledged — dense single-line rows.
   const ordered = [...state.alerts].sort((a, b) => (a.acknowledged - b.acknowledged) || (b.ts - a.ts));
   for (const a of ordered.slice(0, 60)) {
-    const dot = SEV_DOT[a.severity] || "#6B7078";
+    const dot = SEV_DOT[a.severity] || "#4A4F57";
     const detail = a.message || a.type;
     const row = el(`
       <div class="group flex items-center gap-2 px-3 py-1.5 ${a.acknowledged ? "opacity-40" : "cursor-pointer hover:bg-surface-raised/60"}" title="${esc(a.type)} · ${esc(a.message || "")}">
@@ -1197,7 +1197,7 @@ async function loadOEMs() {
       return;
     }
     for (const o of oems) {
-      const statusColor = OEM_STATUS_COLOR[o.status] || "#6B7078";
+      const statusColor = OEM_STATUS_COLOR[o.status] || "#4A4F57";
       const readiness = [
         o.control_ready ? `<span style="color:#D97706">control</span>` : `<span class="text-ink-dim">control</span>`,
         o.monitor_ready ? `<span style="color:#1D4ED8">monitor</span>` : `<span class="text-ink-dim">monitor</span>`,
@@ -1294,7 +1294,7 @@ async function openRobot(id) {
   try {
     const r = await getJSON(`/api/dashboard/robot/${id}`);
     const label = STATE_LABEL[r.state] || r.state;
-    const stateColor = STATE_COLOR[r.state] || "#6B7078";
+    const stateColor = STATE_COLOR[r.state] || "#4A4F57";
     const card = $("#modal-robot .modal-card");
     card.innerHTML = `
       <div class="p-5">
