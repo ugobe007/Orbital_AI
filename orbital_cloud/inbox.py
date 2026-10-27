@@ -121,33 +121,35 @@ async def inbox_mark_read(msg_id: str, request: Request) -> JSONResponse:
 
 _INBOX_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Orbital AI · Inbox</title><link rel="icon" href="/orbital-logo.png" />
+<title>Orbital AI · Inbox</title><link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
 <style>
-  :root{--line:#242c3a;--azure:#00a5da;--brand:#00be7d;}
+  :root{--ground:#EEF0EC;--ink:#111418;--line:#C9CCC6;--accent:#1D4ED8;--mut:#4A4F57;}
   *{box-sizing:border-box}
-  body{margin:0;background:#0a0d14;color:#e6eaef;font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,sans-serif}
-  header{position:sticky;top:0;background:rgba(10,13,20,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:12px}
-  header img{width:28px;height:28px;object-fit:contain}
-  .title{font-weight:600}.title .a{color:var(--azure);font-weight:300}
-  .wrap{max-width:1000px;margin:0 auto;padding:20px}
-  .bar{display:flex;gap:10px;align-items:center;margin-bottom:16px}
-  input{background:#0c0f17;border:1px solid var(--line);color:#e6eaef;border-radius:8px;padding:9px 12px;font-size:14px;flex:1;outline:none}
-  button{background:#0e2230;border:1px solid rgba(0,165,218,.6);color:#bfeaff;border-radius:8px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer}
-  .msg{border:1px solid var(--line);border-radius:12px;background:#0c0f17;padding:16px;margin-bottom:12px}
-  .msg.unread{border-color:rgba(0,165,218,.5)}
-  .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
-  .subj{font-weight:600;font-size:15px}
-  .meta{font-size:12px;color:#828c9b;font-family:'JetBrains Mono',ui-monospace,monospace}
-  .tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:#aab4c1}
-  .tag.inbound{color:#7fd6f2;border-color:rgba(0,165,218,.4)}
-  .tag.form{color:#00be7d;border-color:rgba(0,190,125,.4)}
-  .from{font-size:13px;color:#aab4c1;margin-top:4px}
-  .body{margin-top:10px;white-space:pre-wrap;font-size:13.5px;color:#cfd6df;line-height:1.55}
-  .empty{color:#828c9b;text-align:center;padding:60px 0}
-  .err{color:#ff7a7a;font-size:13px;margin-bottom:12px}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif}
+  header{position:sticky;top:0;background:var(--ground);border-bottom:2px solid var(--ink);padding:16px 24px;display:flex;align-items:center;gap:10px}
+  .title{font-family:Archivo,sans-serif;font-weight:900;font-size:20px;letter-spacing:-.03em}.title .a{color:var(--accent)}
+  .title .s{font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:12px;letter-spacing:.12em;color:var(--mut);margin-left:10px}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px}
+  .bar{display:flex;gap:10px;align-items:center;margin-bottom:20px}
+  input{background:#fff;border:1px solid var(--line);color:var(--ink);padding:0 12px;min-height:44px;font:inherit;font-size:15px;flex:1;border-radius:0}
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  button{background:var(--accent);border:0;color:#fff;min-height:44px;padding:0 18px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;border-radius:0}
+  .msg{border:1px solid var(--line);background:#fff;padding:18px;margin-bottom:12px}
+  .msg.unread{border-left:3px solid var(--accent)}
+  .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+  .subj{font-weight:600;font-size:16px}
+  .meta{font-size:12px;color:var(--mut);font-family:'IBM Plex Mono',ui-monospace,monospace}
+  .tag{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;background:var(--ink);color:#fff}
+  .tag.inbound{background:var(--accent)}
+  .tag.form{background:#15803D}
+  .from{font-size:13px;color:var(--mut);margin-top:4px}
+  .body{margin-top:10px;white-space:pre-wrap;font-size:14px;color:#30353C;line-height:1.55}
+  .empty{color:var(--mut);text-align:center;padding:60px 0}
+  .err{color:#B91C1C;font-size:14px;margin-bottom:12px}
 </style></head>
 <body>
-<header><img src="/orbital-logo.png" alt="" /><div class="title">Orbital<span class="a"> AI</span> · Inbox</div></header>
+<header><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9.5" fill="none" stroke="#111418" stroke-width="2"/><circle cx="11" cy="11" r="3.5" fill="#1D4ED8"/><rect x="16.5" y="2.5" width="4" height="4" fill="#111418"/></svg><div class="title">Orbital<span class="a"> AI</span><span class="s">INBOX</span></div></header>
 <div class="wrap">
   <div class="bar">
     <input id="tok" type="password" placeholder="Admin token" />
