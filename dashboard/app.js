@@ -1014,7 +1014,8 @@ function renderCalibration() {
   if (!c) {
     if (badge) { badge.textContent = "none"; badge.style.color = ""; }
     box.innerHTML = `<div class="px-4 py-4 text-[12px] text-ink-dim leading-relaxed">No calibration uploaded yet. Capture the floor markers, then run
-      <span class="mono text-ink-mut">scripts/calibrate_rig.py captures.json --upload ${esc(location.origin)}</span>.</div>`;
+      <span class="mono text-ink-mut">scripts/calibrate_rig.py captures.json --upload ${esc(location.origin)}</span>.
+      <a href="/setup#calibrate" class="text-azure underline">Setup guide</a></div>`;
     return;
   }
   if (badge) {
@@ -1441,7 +1442,7 @@ function renderAuth() {
     out.onclick = async () => { await postJSON("/api/auth/logout"); toast("Signed out — view only"); loadAuth(); };
     box.appendChild(out);
   } else {
-    const btn = el(`<button class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid #111418; color:#111418; background:#FFFFFF">Sign in</button>`);
+    const btn = el(`<button id="btn-sign-in" class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid #111418; color:#111418; background:#FFFFFF">Sign in</button>`);
     btn.onclick = openSignIn;
     box.append(el(`<span class="hidden md:inline text-[11px] text-ink-dim">view only</span>`), btn);
   }

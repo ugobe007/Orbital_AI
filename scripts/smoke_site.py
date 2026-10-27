@@ -17,6 +17,9 @@ TW_CSS = ROOT / "dashboard" / "tw.css"
 ASSETS = ROOT / "site" / "assets"
 PHOTOS = ROOT / "dashboard" / "orbital-ai-site"
 
+SETUP = ROOT / "site" / "setup.html"
+SETUP_ANCHORS = ("kit", "plan", "mount", "network", "edge", "calibrate", "map", "robots", "golive",
+                 "troubleshooting")
 REQUIRED_ASSETS = ("site.js", "favicon.svg")
 REQUIRED_ANCHORS = ("platform", "digital-net", "pilot")
 FORM_FIELDS = ("name", "email", "topic", "website", "message", "company_url")
@@ -63,6 +66,15 @@ def main() -> None:
         path = PHOTOS / name
         if not path.is_file() or path.stat().st_size < 1000:
             fail(f"missing or empty dashboard/orbital-ai-site/{name}")
+
+    if not SETUP.is_file():
+        fail(f"missing {SETUP.relative_to(ROOT)}")
+    setup = SETUP.read_text(encoding="utf-8")
+    if 'href="/setup"' not in html:
+        fail("marketing page must link the setup guide")
+    for anchor in SETUP_ANCHORS:
+        if f'id="{anchor}"' not in setup or f'href="#{anchor}"' not in setup:
+            fail(f"setup guide needs step #{anchor} and a table-of-contents link to it")
 
     if "cdn.tailwindcss.com" in html or "cdn.tailwindcss.com" in dash:
         fail("Tailwind CDN is forbidden — use built /tw.css")

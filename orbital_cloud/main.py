@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, contact, inbox, orchestrator, simulator
+from . import __version__, contact, demo_rig, inbox, orchestrator, simulator
 from .config import settings
 from .events import hub
 from .models import APIScope, ControlTransport
@@ -38,21 +38,24 @@ _DEMO_OEMS = [
 
 _sim_task: asyncio.Task | None = None
 _orch_task: asyncio.Task | None = None
+_rig_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _sim_task, _orch_task
+    global _sim_task, _orch_task, _rig_task
     if settings.seed_oems:
         oem_store.seed_demo(_DEMO_OEMS)
     if settings.simulator_enabled:
         _sim_task = asyncio.create_task(simulator.run())
+        if settings.sim_rig:
+            _rig_task = asyncio.create_task(demo_rig.run())
     if settings.orchestrator_enabled:
         _orch_task = asyncio.create_task(orchestrator.run())
     try:
         yield
     finally:
-        for task in (_sim_task, _orch_task):
+        for task in (_sim_task, _orch_task, _rig_task):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -123,6 +126,13 @@ async def marketing_home():
     if _SITE_INDEX.is_file():
         return FileResponse(str(_SITE_INDEX))
     return FileResponse(str(_DASHBOARD_INDEX))
+
+
+@app.get("/setup", include_in_schema=False)
+@app.get("/setup/", include_in_schema=False)
+async def setup_guide():
+    """Install and deployment guide for the Digital Net camera system."""
+    return FileResponse(str(_SITE_DIR / "setup.html"))
 
 
 @app.get("/app", include_in_schema=False)
