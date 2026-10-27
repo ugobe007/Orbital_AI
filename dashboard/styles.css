@@ -152,7 +152,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ── Live monitoring ticker ─────────────────────────────────────────────────── */
 .ticker {
-  position: sticky; top: 58px; z-index: 15;
+  position: sticky; top: var(--header-h, 58px); z-index: 15;
   background: var(--ink); color: #FFFFFF;
   overflow: hidden; white-space: nowrap;
   height: 30px; display: flex; align-items: center;

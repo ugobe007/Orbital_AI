@@ -138,8 +138,8 @@ const MODE_LABEL = {
   charging: "Charging", halted: "Halted", idle: "Idle", cooldown: "Between tasks",
 };
 const MODE_STYLE = {
-  patrol: "text-ink-mut", visual_nav: "text-azure", manual: "text-cta",
-  charging: "text-azure", halted: "text-red-700", idle: "text-cta", cooldown: "text-red-700",
+  patrol: "text-ink-mut", visual_nav: "text-azure", manual: "text-amber-700",
+  charging: "text-azure", halted: "text-red-700", idle: "text-amber-700", cooldown: "text-red-700",
 };
 // Resolve which scopes a vendor's OEM has unlocked (mirrors the cloud scope guard):
 // unmanaged vendors are permissive; suspended OEMs grant nothing.
@@ -176,7 +176,7 @@ function renderStats() {
     ["Fleet", String(m.total), "text-ink"],
     ["Avg drift Δ", m.avgDrift.toFixed(3) + "m", m.avgDrift >= 0.5 ? "text-red-700" : m.avgDrift >= 0.1 ? "text-amber-700" : "text-brand"],
     ["Fleet battery", Math.round(m.avgBatt) + "%", m.avgBatt < 25 ? "text-red-700" : m.avgBatt < 50 ? "text-amber-700" : "text-brand"],
-    ["Open alerts", String(m.openAlerts), m.openAlerts ? "text-cta" : "text-ink"],
+    ["Open alerts", String(m.openAlerts), m.openAlerts ? "text-amber-700" : "text-ink"],
   ];
   const box = $("#stats"); box.innerHTML = "";
   for (const [label, val, cls] of tiles) {
@@ -1954,6 +1954,13 @@ async function init() {
       window.parent.postMessage({ type: "orbital-embed-ready" }, window.location.origin);
     } catch (_) { /* ignore */ }
   }
+}
+
+const _header = document.querySelector("body > header.sticky");
+if (_header) {
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty("--header-h", _header.offsetHeight + "px");
+  }).observe(_header);
 }
 
 init().catch((e) => {
