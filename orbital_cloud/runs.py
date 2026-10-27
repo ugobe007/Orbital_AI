@@ -27,8 +27,11 @@ from .models import Run, RunIn, RunOutcome, RunSample, RunScore, RunSummary
 
 MAX_DEV_M = float(os.getenv("ORBITAL_GOLDEN_MAX_DEV_M", "0.5") or "0.5")
 SLOW_RATIO = float(os.getenv("ORBITAL_GOLDEN_SLOW_RATIO", "1.25") or "1.25")
-_MAX_RUNS = 500
-_MAX_SAMPLES = 5000
+_MAX_RUNS = int(os.getenv("ORBITAL_RUNS_MAX", "200") or "200")
+# A RunSample costs ~1 KB in memory; the cloud runs on a 256 MB machine, so recent runs share
+# one sample budget and a single run (e.g. a robot latched by an E-Stop mid-leg) is capped.
+_MAX_SAMPLES = int(os.getenv("ORBITAL_RUN_MAX_SAMPLES", "1500") or "1500")
+_MAX_TOTAL_SAMPLES = int(os.getenv("ORBITAL_RUNS_MAX_TOTAL_SAMPLES", "40000") or "40000")
 _SAMPLE_EVERY_S = 0.2
 
 
@@ -117,6 +120,7 @@ class RunStore:
         self._lock = threading.RLock()
         self._runs: "OrderedDict[str, Run]" = OrderedDict()
         self._golden: dict[str, Run] = {}
+        self._sample_count = 0
         self.version = 0
         self._load_golden()
 
@@ -134,8 +138,11 @@ class RunStore:
                   facility_id=facility_id or settings.facility_id)
         with self._lock:
             self._runs[run.id] = run
-            while len(self._runs) > _MAX_RUNS:
-                self._runs.popitem(last=False)
+            self._sample_count += len(run.samples)
+            while len(self._runs) > 1 and (len(self._runs) > _MAX_RUNS
+                                           or self._sample_count > _MAX_TOTAL_SAMPLES):
+                _, old = self._runs.popitem(last=False)
+                self._sample_count -= len(old.samples)
             key = golden_key(run.vendor, run.task_key)
             if (auto_golden and key not in self._golden and run.outcome == RunOutcome.COMPLETE
                     and recoveries(run.samples) == 0):
@@ -203,6 +210,7 @@ class RunStore:
     def clear(self) -> None:
         with self._lock:
             self._runs.clear()
+            self._sample_count = 0
             for key in list(self._golden):
                 persistence.delete_golden_run(key)
             self._golden.clear()
