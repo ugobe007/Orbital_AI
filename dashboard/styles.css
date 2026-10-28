@@ -433,3 +433,73 @@ body.embed-mode #map {
 body.embed-preview #map {
   min-height: 280px;
 }
+
+/* ── Map overlays: robot review card, live commentary, speech bubbles ─────────── */
+.map-stage { position: relative; }
+.map-bubbles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.map-bubble {
+  position: absolute; transform: translate(-50%, calc(-100% - 16px));
+  max-width: 230px; padding: 6px 9px; background: var(--ink); color: #FFFFFF;
+  font-size: 11.5px; line-height: 1.35; box-shadow: 0 6px 18px rgba(17,20,24,0.18);
+  animation: bubble-in 180ms ease-out; transition: left 0.45s linear, top 0.45s linear;
+}
+.map-bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
+  border: 6px solid transparent; border-bottom: 0; border-top-color: var(--ink);
+}
+.map-bubble.safety { background: var(--red); }
+.map-bubble.safety::after { border-top-color: var(--red); }
+.map-bubble .who { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.06em; opacity: 0.8; display: block; }
+@keyframes bubble-in { from { opacity: 0; transform: translate(-50%, calc(-100% - 8px)); } to { opacity: 1; } }
+
+.robot-card {
+  position: absolute; z-index: 5; width: 272px; background: #FFFFFF;
+  border: 1px solid var(--ink); box-shadow: 0 12px 32px rgba(17,20,24,0.20);
+  font-size: 12px; animation: bubble-in 160ms ease-out;
+}
+.robot-card[hidden] { display: none; }
+.robot-card-head { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px 8px; border-bottom: 1px solid var(--line-soft); }
+.robot-card-title { font-family: Archivo, sans-serif; font-weight: 700; font-size: 14px; line-height: 1.2; }
+.robot-card-sub { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--azure); margin-top: 2px; }
+.robot-card-close { margin-left: auto; color: var(--ink-dim); font-size: 16px; line-height: 1; padding: 2px 4px; }
+.robot-card-close:hover { color: var(--ink); }
+.robot-card-now { padding: 8px 12px; background: var(--raised); border-bottom: 1px solid var(--line-soft); }
+.robot-card-label { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+.robot-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line-soft); }
+.robot-card-stats > div { padding: 7px 12px; }
+.robot-card-stats > div + div { border-left: 1px solid var(--line-soft); }
+.robot-card-stat { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.robot-card-actions { display: flex; gap: 6px; padding: 10px 12px 6px; }
+.robot-card-actions button { padding: 8px 10px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--ink); }
+.robot-card-primary { flex: 1; color: #FFFFFF; }
+.robot-card-primary.stop { background: var(--red); border-color: var(--red) !important; }
+.robot-card-primary.start { background: var(--brand); border-color: var(--brand) !important; }
+.robot-card-primary:disabled { background: var(--input); color: var(--ink-dim); border-color: var(--line) !important; cursor: not-allowed; }
+.robot-card-secondary { background: #FFFFFF; color: var(--ink); }
+.robot-card-secondary:hover { background: var(--raised); }
+.robot-card-note { padding: 0 12px 10px; font-size: 10.5px; color: var(--ink-dim); line-height: 1.4; }
+
+.commentary {
+  position: absolute; left: 10px; bottom: 10px; z-index: 4; width: min(340px, 46%);
+  background: rgba(255,255,255,0.96); border: 1px solid var(--ink); box-shadow: 0 8px 24px rgba(17,20,24,0.14);
+}
+.commentary-head { display: flex; align-items: center; padding: 6px 10px; background: var(--ink); color: #FFFFFF; }
+.commentary-live { display: inline-flex; align-items: center; gap: 7px; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.1em; }
+.commentary-dot { width: 7px; height: 7px; border-radius: 9999px; background: #EF4444; animation: pulse 1.6s ease-in-out infinite; }
+.commentary-toggle { margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.06em; color: #D5D8D2; }
+.commentary-toggle:hover { color: #FFFFFF; }
+.commentary-feed { max-height: 168px; overflow-y: auto; }
+.commentary.collapsed .commentary-feed { display: none; }
+.commentary-item { display: flex; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--line-soft); font-size: 11.5px; line-height: 1.38; cursor: pointer; animation: bubble-in 200ms ease-out; }
+.commentary-item:first-child { border-top: 0; }
+.commentary-item:hover { background: var(--raised); }
+.commentary-item .t { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--ink-dim); flex: none; padding-top: 1px; }
+.commentary-item .bar { width: 3px; flex: none; background: var(--azure); }
+.commentary-item.safety .bar { background: var(--red); }
+.commentary-item.good .bar { background: var(--brand); }
+.commentary-item.info .bar { background: #6D28D9; }
+.commentary-item b { font-weight: 600; }
+@media (max-width: 640px) {
+  .commentary { position: static; width: auto; margin-top: 8px; }
+  .robot-card { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; }
+}

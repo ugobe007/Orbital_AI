@@ -32,6 +32,13 @@ const state = {
   cameraCells: [],      // floor cells the Digital Net sees as blocked: [x0, y0, x1, y1] (m)
   auth: null,           // /api/auth/me: who is signed in to this console
   calibration: null,    // latest rig-calibration report for this facility (Sprint H)
+  cardRobot: null,      // robot whose review card is open on the map
+  cardBusy: null,       // robot id with a stop/start request in flight
+  demoStops: {},        // robot id → ms epoch a visitor's demo stop self-releases
+  commentary: [],       // live narration, newest first: { kind, html, robotId, ts }
+  lastNarrated: {},     // robot id → ms of its last narration line (throttle)
+  driftNarrated: {},    // robot id → true once its drift excursion has been narrated
+  bubble: null,         // { robotId, text, kind, until } speech bubble on the map
 };
 
 // Fleet states, ordered for the overview distribution bar + chips.
@@ -113,7 +120,12 @@ function blockedMsg(e) {
   return `Blocked: ${e.detail}`;
 }
 async function control(path, body, okMsg) {
-  try { await postJSON(path, body); if (okMsg) toast(okMsg); }
+  try {
+    const out = await postJSON(path, body);
+    const id = /\/robot\/([^/]+)\//.exec(path)?.[1];
+    if (id && out?.auto_resume_s) state.demoStops[id] = Date.now() + out.auto_resume_s * 1000;
+    if (okMsg) toast(okMsg);
+  }
   catch (e) {
     if (e.status === 403) toast(blockedMsg(e), "warn");
     else toast(`Failed: ${e.detail}`, "warn");
@@ -756,6 +768,7 @@ function renderMap() {
   }
   svg.innerHTML = p.join("");
   renderMapSelection();
+  renderBubble();
 }
 
 function renderMapSelection() {
@@ -767,8 +780,251 @@ function renderMapSelection() {
   const nav = r && r.waypoints && r.waypoints.length;
   box.appendChild(el(`<span class="text-[11px] px-2 py-0.5 rounded-full bg-brand/15 text-brand">${esc(state.selectedRobot)}${nav ? " · en route" : ""}</span>`));
   const desel = el(`<button class="text-[11px] px-2 py-0.5 rounded-md bg-surface-input hover:bg-line-strong">Deselect</button>`);
-  desel.onclick = () => { state.selectedRobot = null; renderMap(); renderControlPanel(); renderFleet(); };
+  desel.onclick = () => { state.selectedRobot = null; closeRobotCard(); renderMap(); renderControlPanel(); renderFleet(); };
   box.appendChild(desel);
+}
+
+// ── robot review card (click a robot on the map) ────────────────────────────────
+// Built once per open and patched in place on each fleet tick, so the buttons never get
+// swapped out from under a click.
+function mapFraction(r) {
+  const m = state.map;
+  if (!m || !r) return null;
+  return { fx: r.pose_external.x / m.width_m, fy: 1 - r.pose_external.y / m.height_m };
+}
+function isOperator() {
+  const a = state.auth;
+  return !a || !a.sign_in_available || ["operator", "admin"].includes(a.role);
+}
+function robotDoing(r) {
+  if (r.state === "halted") return HALT_REASON[r.error_code] || "Safety stop engaged — waiting to be started again";
+  if (r.state === "charging") return `Docked and charging (${Math.round(r.battery_pct)}%)`;
+  if (r.state === "cooldown") return "Just delivered — short pause before the next task";
+  if (r.control_mode === "visual_nav") return "Driving to an operator waypoint, steered by the overhead cameras";
+  if (r.control_mode === "manual") return "Under manual control by an operator";
+  return r.mission || r.current_task || (r.state === "idle" ? "Idle — joins the next sequence" : "Autonomous patrol");
+}
+const HALT_REASON = {
+  E_STOP: "Stopped by an operator E-Stop — latched until someone starts it",
+  DEMO_STOP: "Stopped from the demo — starts again on its own in two minutes",
+  HUMAN_STOP: "Paused: a person is inside its stop radius — resumes when they step away",
+  DRIFT_HALT: "Halted: its own position estimate drifted too far from the camera view",
+  AUTO_ESTOP: "Auto-halted by Orbital — re-converging its position before resuming",
+};
+
+function openRobotCard(id) {
+  const r = robotById(id);
+  const card = $("#robot-card"), stage = $("#map-stage");
+  if (!r || !card || !stage) return;
+  state.cardRobot = id;
+  card.hidden = false;
+  card.innerHTML = `
+    <div class="robot-card-head">
+      <div class="min-w-0">
+        <div class="robot-card-title" data-f="title"></div>
+        <div class="robot-card-sub" data-f="sub"></div>
+      </div>
+      <span data-f="status"></span>
+      <button class="robot-card-close" data-act="close" aria-label="Close">×</button>
+    </div>
+    <div class="robot-card-now">
+      <div class="robot-card-label">What it's doing now</div>
+      <div class="text-[12.5px] font-medium mt-0.5 leading-snug" data-f="doing"></div>
+      <div class="text-[11px] text-ink-mut mt-0.5" data-f="task"></div>
+    </div>
+    <div class="robot-card-stats">
+      <div><div class="robot-card-label">Battery</div><div class="robot-card-stat" data-f="batt"></div></div>
+      <div><div class="robot-card-label">Speed</div><div class="robot-card-stat" data-f="speed"></div></div>
+      <div><div class="robot-card-label">Drift Δ</div><div class="robot-card-stat" data-f="drift"></div></div>
+    </div>
+    <div class="robot-card-actions">
+      <button class="robot-card-primary" data-act="toggle"></button>
+      <button class="robot-card-secondary" data-act="details">Details</button>
+    </div>
+    <div class="robot-card-note" data-f="note"></div>`;
+  card.querySelector('[data-act="close"]').onclick = (e) => { e.stopPropagation(); closeRobotCard(); };
+  card.querySelector('[data-act="details"]').onclick = () => openRobot(id);
+  card.querySelector('[data-act="toggle"]').onclick = () => {
+    const cur = robotById(id);
+    if (cur) quickControl(cur, cur.state === "halted" ? "resume" : "estop");
+  };
+  card.addEventListener("click", (e) => e.stopPropagation());
+
+  // Anchor beside the robot where it was clicked; it stays put so the buttons don't drift.
+  const f = mapFraction(r), w = stage.clientWidth, h = stage.clientHeight;
+  const px = f.fx * w, py = f.fy * h;
+  const cw = 272, ch = card.offsetHeight || 260;
+  const left = px > w / 2 ? Math.max(8, px - cw - 22) : Math.min(w - cw - 8, px + 22);
+  const top = Math.max(8, Math.min(h - ch - 8, py - ch / 2));
+  card.style.left = `${left}px`; card.style.top = `${top}px`;
+  updateRobotCard();
+  renderBubble();
+}
+function closeRobotCard() {
+  state.cardRobot = null;
+  const card = $("#robot-card");
+  if (card) { card.hidden = true; card.innerHTML = ""; }
+}
+function updateRobotCard() {
+  const card = $("#robot-card");
+  const r = robotById(state.cardRobot);
+  if (!card || card.hidden) return;
+  if (!r) { closeRobotCard(); return; }
+  const set = (k, html) => { const n = card.querySelector(`[data-f="${k}"]`); if (n && n.innerHTML !== html) n.innerHTML = html; };
+  set("title", `${esc(r.vendor)} ${esc(r.model)}`);
+  set("sub", `${esc(r.id)} · ${esc(r.industry)}${r.fleet_role === "lead" ? " · lead" : ""}`);
+  set("status", inlineStatus(STATE_LABEL[r.state] || r.state, STATE_COLOR[r.state] || "#4A4F57"));
+  set("doing", esc(robotDoing(r)));
+  set("task", r.state !== "halted" && r.current_task && r.current_task !== r.mission ? `<span style="color:${PHASE_COLOR[r.mission_phase] || "#80858C"}">●</span> ${esc(r.current_task)}` : "");
+  set("batt", `${Math.round(r.battery_pct)}%`);
+  set("speed", r.state === "active" ? `${(r.speed_mps ?? 0).toFixed(2)}` : "0.00");
+  set("drift", `<span class="${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(2)}m</span>`);
+
+  const halted = r.state === "halted";
+  const scopeOk = vendorGrants(r.vendor).has("control.estop");
+  const allowed = scopeOk && (r.simulated || isOperator());
+  const btn = card.querySelector('[data-act="toggle"]');
+  const label = halted ? "▶ Start" : "■ Stop";
+  if (btn.textContent !== label) btn.textContent = label;
+  btn.className = `robot-card-primary ${halted ? "start" : "stop"}`;
+  btn.disabled = !allowed || state.cardBusy === r.id;
+
+  let note;
+  if (!scopeOk) note = `${esc(r.vendor)} hasn't granted <span class="mono">control.estop</span> to Orbital, so stop and start are locked.`;
+  else if (!allowed) note = "This is a real robot. Sign in as an operator to stop or start it.";
+  else if (r.error_code === "DEMO_STOP") {
+    const left = Math.max(0, Math.round(((state.demoStops[r.id] || 0) - Date.now()) / 1000));
+    note = left ? `Simulated robot · starts again on its own in <span class="mono">${left}s</span> so the demo keeps running.` : "Simulated robot · starting again shortly.";
+  } else if (r.simulated && !isOperator()) note = "Simulated robot · anyone can stop or start it in this demo. Real robots require an operator sign-in.";
+  else note = "Every stop and start is written to the control audit log.";
+  set("note", note);
+}
+async function quickControl(r, action) {
+  state.cardBusy = r.id; updateRobotCard();
+  try {
+    const out = await postJSON(`/api/dashboard/robot/${r.id}/${action}`);
+    if (out.auto_resume_s) state.demoStops[r.id] = Date.now() + out.auto_resume_s * 1000;
+    if (action === "resume") delete state.demoStops[r.id];
+    toast(action === "estop" ? `${r.model} (${r.id}) stopped` : `${r.model} (${r.id}) started`);
+  } catch (e) {
+    toast(e.status === 403 ? blockedMsg(e) : `Failed: ${e.detail}`, "warn");
+  } finally {
+    state.cardBusy = null; updateRobotCard();
+  }
+}
+
+// ── live commentary: plain-language narration diffed from fleet snapshots ──────
+const COMMENTARY_MAX = 40;
+function who(r) { return `<b>${esc(r.model)}</b> <span class="mono text-[10.5px] text-ink-dim">${esc(r.id)}</span>`; }
+function destOf(task) {
+  const m = /(?:→|to|at)\s+(.+)$/.exec(task || "");
+  return m ? m[1] : null;
+}
+function addCommentary(kind, html, robotId, bubbleText) {
+  const now = Date.now();
+  if (robotId && kind !== "safety") {
+    // Routine movement is throttled per robot and fleet-wide so safety events stay readable.
+    if (now - (state.lastNarrated[robotId] || 0) < 6000) return;
+    if (kind === "move" && now - (state.lastNarrated._move || 0) < 3000) return;
+    if (kind === "move") state.lastNarrated._move = now;
+  }
+  if (robotId) state.lastNarrated[robotId] = now;
+  state.commentary.unshift({ kind, html, robotId, ts: now });
+  state.commentary = state.commentary.slice(0, COMMENTARY_MAX);
+  renderCommentary();
+  if (robotId && bubbleText) {
+    state.bubble = { robotId, text: bubbleText, kind, until: now + 4500 };
+    renderBubble();
+  }
+}
+function narrate(prevList, list) {
+  const prev = Object.fromEntries((prevList || []).map((r) => [r.id, r]));
+  const byId = Object.fromEntries(list.map((r) => [r.id, r]));
+  for (const r of list) {
+    const p = prev[r.id];
+    if (!p) continue;
+    if (r.state !== p.state) {
+      if (r.state === "halted") {
+        const why = {
+          E_STOP: ["safety", `${who(r)} was E-Stopped by an operator.`, "E-Stopped by an operator"],
+          DEMO_STOP: ["safety", `${who(r)} was stopped from the demo. It starts again on its own in two minutes.`, "Stopped — back in 2 min"],
+          HUMAN_STOP: ["safety", `${who(r)} paused: a person stepped inside its stop radius.`, "Person nearby — pausing"],
+          DRIFT_HALT: ["safety", `${who(r)} halted: the cameras saw it drift off its own map.`, "Drift too high — halting"],
+          AUTO_ESTOP: ["safety", `Orbital auto-halted ${who(r)} to re-converge its position.`, "Auto-halted by Orbital"],
+        }[r.error_code] || ["safety", `${who(r)} halted.`, "Halted"];
+        addCommentary(why[0], why[1], r.id, why[2]);
+      } else if (p.state === "halted") {
+        addCommentary("good", `${who(r)} is moving again${p.error_code === "HUMAN_STOP" ? " — the path is clear" : ""}.`, r.id, "Back in motion");
+      } else if (r.state === "charging") {
+        addCommentary("info", `${who(r)} is docking to recharge at ${Math.round(r.battery_pct)}%.`, r.id, "Heading to charge");
+      } else if (r.state === "cooldown") {
+        const partner = r.handoff_partner && byId[r.handoff_partner];
+        addCommentary("good", partner ? `${who(r)} handed its load off to ${who(partner)}.` : `${who(r)} delivered its load.`, r.id, partner ? `Handed off to ${partner.id}` : "Delivered");
+      }
+      continue;
+    }
+    if (r.control_mode !== p.control_mode) {
+      if (r.control_mode === "visual_nav") { addCommentary("move", `${who(r)} is now steered by the overhead cameras, bypassing its own SLAM.`, r.id, "Camera-guided now"); continue; }
+      if (r.control_mode === "manual") { addCommentary("move", `An operator took manual control of ${who(r)}.`, r.id, "Manual control"); continue; }
+    }
+    if (r.drift_delta_m < 0.05) delete state.driftNarrated[r.id];
+    if (r.drift_delta_m >= 0.15 && !state.driftNarrated[r.id]) {
+      state.driftNarrated[r.id] = true;
+      addCommentary("safety", `Cameras see ${who(r)} ${r.drift_delta_m.toFixed(2)} m from where it thinks it is. Orbital is correcting it.`, r.id, `Drift ${r.drift_delta_m.toFixed(2)} m — correcting`);
+      continue;
+    }
+    if (r.state === "active" && r.mission_phase !== p.mission_phase) {
+      const dest = destOf(r.current_task);
+      if (r.mission_phase === "en_route_pickup") addCommentary("move", `${who(r)} is heading to ${esc(dest || "its next pickup")}.`, r.id, `Heading to ${dest || "pickup"}`);
+      else if (r.mission_phase === "working") addCommentary("move", r.fleet_role === "lead" ? `${who(r)} reached ${esc(dest || "its relay point")} and is holding it for the shuttles.` : `${who(r)} reached ${esc(dest || "the pickup")} and is loading.`, r.id, r.fleet_role === "lead" ? "Holding relay point" : "Loading");
+      else if (r.mission_phase === "carrying") addCommentary("move", `${who(r)} picked up its load and is carrying it to ${esc(dest || "the drop-off")}.`, r.id, `Carrying to ${dest || "drop-off"}`);
+    }
+  }
+}
+function narrateSequence(prevSeq, seq) {
+  if (!seq || !seq.label || (prevSeq && prevSeq.id === seq.id)) return;
+  addCommentary("info", `New mission sequence: <b>${esc(seq.label)}</b>. ${esc(seq.objective || "")}`);
+}
+function renderCommentary() {
+  const feed = $("#commentary-feed");
+  if (!feed) return;
+  feed.innerHTML = state.commentary.map((c, i) => `
+    <li class="commentary-item ${c.kind}" data-i="${i}">
+      <span class="bar"></span>
+      <span class="t">${new Date(c.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
+      <span>${c.html}</span>
+    </li>`).join("");
+  feed.querySelectorAll(".commentary-item").forEach((li) => {
+    const c = state.commentary[+li.dataset.i];
+    if (c?.robotId) li.onclick = () => { selectRobot(c.robotId); openRobotCard(c.robotId); };
+  });
+}
+function renderBubble() {
+  const box = $("#map-bubbles");
+  if (!box) return;
+  const b = state.bubble;
+  const r = b && b.until > Date.now() && b.robotId !== state.cardRobot ? robotById(b.robotId) : null;
+  const f = mapFraction(r);
+  if (!r || !f) { box.innerHTML = ""; return; }
+  let node = box.firstElementChild;
+  if (!node || node.dataset.key !== `${b.robotId}:${b.until}`) {
+    box.innerHTML = `<div class="map-bubble ${b.kind === "safety" ? "safety" : ""}" data-key="${b.robotId}:${b.until}"><span class="who">${esc(r.model.toUpperCase())} · ${esc(r.id)}</span>${esc(b.text)}</div>`;
+    node = box.firstElementChild;
+  }
+  node.style.left = `${(f.fx * 100).toFixed(2)}%`;
+  node.style.top = `${(f.fy * 100).toFixed(2)}%`;
+}
+function wireCommentary() {
+  const t = $("#commentary-toggle"), box = $("#commentary");
+  if (!t || !box) return;
+  t.onclick = () => {
+    const collapsed = box.classList.toggle("collapsed");
+    t.textContent = collapsed ? "Show" : "Hide";
+    t.setAttribute("aria-expanded", String(!collapsed));
+  };
+  const n = state.robots.length;
+  addCommentary("info", `Watching ${n} robots from ${new Set(state.robots.map((r) => r.vendor)).size} makers on one floor, tracked by overhead cameras. Click any robot to review it, or stop and start it.`);
+  setInterval(() => { renderBubble(); if (state.cardRobot && state.demoStops[state.cardRobot]) updateRobotCard(); }, 1000);
 }
 
 async function setWaypoint(id, x, y, append) {
@@ -890,7 +1146,12 @@ function wireMap() {
       return;
     }
     const hit = e.target.closest("[data-robot]");
-    if (hit) { selectRobot(hit.getAttribute("data-robot")); return; }
+    if (hit) {
+      const id = hit.getAttribute("data-robot");
+      selectRobot(id); openRobotCard(id);
+      return;
+    }
+    if (state.cardRobot) { closeRobotCard(); renderBubble(); return; }
     if (state.selectedRobot) {
       const p = clickToWorld(e, svg);
       setWaypoint(state.selectedRobot, +p.x.toFixed(2), +p.y.toFixed(2), e.shiftKey);
@@ -1502,7 +1763,12 @@ function connectWS() {
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "fleet") { state.robots = msg.robots; if (msg.workers) state.workers = msg.workers; if (msg.sequence) state.sequence = msg.sequence; onFleetUpdate(); }
+    if (msg.type === "fleet") {
+      const prevRobots = state.robots, prevSeq = state.sequence;
+      state.robots = msg.robots; if (msg.workers) state.workers = msg.workers; if (msg.sequence) state.sequence = msg.sequence;
+      if (!EMBED) { narrateSequence(prevSeq, state.sequence); narrate(prevRobots, state.robots); }
+      onFleetUpdate();
+    }
     else if (msg.type === "workers") { state.workers = msg.workers; renderMap(); }
     else if (msg.type === "alert") {
       state.alerts.unshift(msg.alert); state.alerts = state.alerts.slice(0, 200);
@@ -1892,6 +2158,7 @@ function onFleetUpdate() {
     renderMap();
     renderControlPanel();
     renderCapabilities();
+    updateRobotCard();
   }
 }
 
@@ -1933,6 +2200,7 @@ async function init() {
 
   wireMap();
   await loadMap();
+  if (!EMBED) wireCommentary();
 
   if (!EMBED) {
     state.alerts = await getJSON("/api/dashboard/alerts");
