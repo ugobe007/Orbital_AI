@@ -32,13 +32,10 @@ const state = {
   cameraCells: [],      // floor cells the Digital Net sees as blocked: [x0, y0, x1, y1] (m)
   auth: null,           // /api/auth/me: who is signed in to this console
   calibration: null,    // latest rig-calibration report for this facility (Sprint H)
-  cardRobot: null,      // robot whose review card is open on the map
-  cardBusy: null,       // robot id with a stop/start request in flight
+  busy: null,           // robot id with a stop/start request in flight
   demoStops: {},        // robot id → ms epoch a visitor's demo stop self-releases
-  commentary: [],       // live narration, newest first: { kind, html, robotId, ts }
-  lastNarrated: {},     // robot id → ms of its last narration line (throttle)
-  driftNarrated: {},    // robot id → true once its drift excursion has been narrated
-  bubble: null,         // { robotId, text, kind, until } speech bubble on the map
+  view: "live",         // live | fleet | runs | partners
+  driveOpen: false,     // manual drive section expanded in the robot panel
 };
 
 // Fleet states, ordered for the overview distribution bar + chips.
@@ -51,18 +48,6 @@ const STATUS_META = [
   { key: "offline",  label: "Offline",       color: "#80858C" },
 ];
 
-// The control surface Orbital exposes to operators. Each capability is gated by an API scope
-// the OEM must unlock — this is the contract 3rd-party robot vendors integrate against.
-const CAPABILITIES = [
-  { scope: "telemetry.read", label: "Telemetry", glyph: "📡", kind: "monitor", desc: "Live sensor + drift stream" },
-  { scope: "state.read", label: "State", glyph: "❤", kind: "monitor", desc: "Battery, mode, health" },
-  { scope: "map.read", label: "Spatial map", glyph: "▦", kind: "monitor", desc: "Facility floor + localization" },
-  { scope: "camera.read", label: "Camera", glyph: "◉", kind: "monitor", desc: "Overhead + onboard feeds" },
-  { scope: "control.velocity", label: "Drive", glyph: "→", kind: "control", desc: "Speed, direction & visual waypoints" },
-  { scope: "control.estop", label: "Safety stop", glyph: "■", kind: "control", desc: "Emergency stop / resume" },
-  { scope: "control.teleop", label: "Teleop", glyph: "✥", kind: "control", desc: "Direct remote operation" },
-  { scope: "mission.dispatch", label: "Mission", glyph: "◆", kind: "control", desc: "Assign tasks & routes" },
-];
 
 const FLEET_CATEGORIES = ["All", "Humanoids", "Cleaning", "Delivery", "Inventory"];
 
@@ -76,22 +61,7 @@ function categoryMatches(industry, category) {
   return industry === category;
 }
 
-function industryAccent(industry) {
-  const low = (industry || "").toLowerCase();
-  if (low.includes("humanoid")) return "#1D4ED8";
-  if (low.includes("clean")) return "#D97706";
-  if (low.includes("deliver")) return "#7C3AED";
-  if (low.includes("invent")) return "#0284C7";
-  return "#1D4ED8";
-}
 
-function capStatusKey(cap, partners, robots) {
-  if (partners === 0) return "unlocked";
-  if (cap.kind === "control" && robots > 0) return "live";
-  if (cap.kind === "monitor") return "monitor";
-  if (cap.kind === "control" && partners > 0) return "live";
-  return "unlocked";
-}
 
 function inlineStatus(label, color) {
   return `<span class="sb-inline" style="color:${color}"><span class="sb-inline-dot"></span>${esc(label)}</span>`;
@@ -144,7 +114,6 @@ const STATE_COLOR = {
 const STATE_LABEL = {
   active: "Active", idle: "Idle", charging: "Charging", cooldown: "Task done", halted: "Halted", offline: "Offline",
 };
-const CAP_STATUS_COLOR = { live: "#16A34A", monitor: "#1D4ED8", unlocked: "#4A4F57" };
 const MODE_LABEL = {
   patrol: "Autonomous patrol", visual_nav: "Visual-nav (SLAM bypass)", manual: "Manual jog",
   charging: "Charging", halted: "Halted", idle: "Idle", cooldown: "Between tasks",
@@ -163,43 +132,55 @@ function vendorGrants(vendor) {
   return { managed: true, has: (s) => granted.has(s) };
 }
 function driftColor(d) { return d >= 0.5 ? "text-red-700" : d >= 0.1 ? "text-amber-700" : "text-brand"; }
-function batteryColor(p) { return p < 15 ? "bg-red-500" : p < 50 ? "bg-amber-500" : "bg-brand"; }
 function fmtSecs(s) { if (s == null) return "—"; if (s < 90) return `${Math.round(s)}s`; if (s < 5400) return `${(s/60).toFixed(1)}m`; return `${(s/3600).toFixed(1)}h`; }
 function fmtTime(ts) { return new Date(ts * 1000).toLocaleTimeString(); }
 
-// ── overview: live metrics + interactive status distribution ───────────────────
+// ── status strip: one row of live fleet numbers under the top bar ──────────────
 function fleetMetrics() {
   const rb = state.robots;
   const total = rb.length;
   const counts = {};
   for (const s of STATUS_META) counts[s.key] = 0;
   for (const r of rb) counts[r.state] = (counts[r.state] || 0) + 1;
-  const nav = rb.filter((r) => r.control_mode === "visual_nav").length;
-  const openAlerts = state.alerts.filter((a) => !a.acknowledged).length;
+  const openAlerts = alertGroups().length;
   const avgDrift = total ? rb.reduce((s, r) => s + (r.drift_delta_m || 0), 0) / total : 0;
   const avgBatt = total ? rb.reduce((s, r) => s + (r.battery_pct || 0), 0) / total : 0;
-  return { total, counts, nav, openAlerts, avgDrift, avgBatt };
+  return { total, counts, openAlerts, avgDrift, avgBatt };
 }
 
 function renderStats() {
+  const box = $("#stats");
+  if (!box) return;
   const m = fleetMetrics();
-  // Four live headline metrics (not static counts — drift + battery are derived live).
-  const tiles = [
-    ["Fleet", String(m.total), "text-ink"],
-    ["Avg drift Δ", m.avgDrift.toFixed(3) + "m", m.avgDrift >= 0.5 ? "text-red-700" : m.avgDrift >= 0.1 ? "text-amber-700" : "text-brand"],
-    ["Fleet battery", Math.round(m.avgBatt) + "%", m.avgBatt < 25 ? "text-red-700" : m.avgBatt < 50 ? "text-amber-700" : "text-brand"],
-    ["Open alerts", String(m.openAlerts), m.openAlerts ? "text-cta" : "text-ink"],
-  ];
-  const box = $("#stats"); box.innerHTML = "";
-  for (const [label, val, cls] of tiles) {
-    box.appendChild(el(`
-      <div class="rounded-lg bg-surface-raised border border-line px-2.5 py-2">
-        <div class="text-[10px] text-ink-dim leading-tight">${label}</div>
-        <div class="text-[17px] font-semibold mono ${cls} mt-0.5 leading-none">${val}</div>
-      </div>`));
+  if (!box.dataset.built) {
+    box.dataset.built = "1";
+    box.innerHTML = `
+      <span class="stat"><span class="stat-val" data-k="total"></span>robots</span>
+      ${STATUS_META.map((s) => `<button class="stat" data-filter="${s.key}" title="Show ${s.label.toLowerCase()} robots in the fleet list">
+        <span class="dot" style="background:${s.color}"></span>${s.label}<span class="stat-val" data-k="${s.key}"></span></button>`).join("")}
+      <span class="stat-gap"></span>
+      <span class="stat">Avg drift<span class="stat-val" data-k="drift"></span></span>
+      <span class="stat">Battery<span class="stat-val" data-k="batt"></span></span>
+      <button class="stat" data-go="alerts">Needs attention<span class="stat-val" data-k="alerts"></span></button>`;
+    box.querySelectorAll("[data-filter]").forEach((b) => {
+      b.onclick = () => {
+        const k = b.dataset.filter;
+        state.statusFilter = state.statusFilter === k ? null : k;
+        renderStats(); renderFleet();
+        if (state.statusFilter) showView("fleet");
+      };
+    });
+    box.querySelector('[data-go="alerts"]').onclick = () => { showView("live"); $("#sec-alerts")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); };
   }
-  renderFleetStatus(m);
-  renderTicker(m);
+  const setK = (k, v, zero) => { const n = box.querySelector(`[data-k="${k}"]`); if (n) { if (n.textContent !== v) n.textContent = v; n.classList.toggle("zero", !!zero); } };
+  setK("total", String(m.total));
+  for (const s of STATUS_META) {
+    setK(s.key, String(m.counts[s.key]), !m.counts[s.key]);
+    box.querySelector(`[data-filter="${s.key}"]`)?.classList.toggle("on", state.statusFilter === s.key);
+  }
+  setK("drift", `${m.avgDrift.toFixed(3)} m`);
+  setK("batt", `${Math.round(m.avgBatt)}%`);
+  setK("alerts", String(m.openAlerts), !m.openAlerts);
 }
 
 // Human labels for the mission leg each robot is on.
@@ -220,184 +201,83 @@ function renderSequence() {
   const bar = $("#sequence-bar");
   if (!bar) return;
   const s = state.sequence;
-  if (!s || !s.label) {
-    bar.innerHTML = `<div class="text-[11px] text-ink-dim">Waiting for the fleet to pick up its first sequence…</div>`;
-    return;
-  }
-  const goals = (s.assignments || []).filter((a) => a.goal);
-  const chips = goals.slice(0, 9).map((a) => {
-    const ph = a.phase || "idle";
-    const role = a.role === "lead" ? "LEAD" : a.role === "shuttle" ? "SHUTTLE" : "";
-    const roleColor = a.role === "lead" ? "#B45309" : "#16A34A";
-    return `<span class="inline-flex items-center gap-1 rounded-md bg-surface-input border border-line px-1.5 py-0.5">
-        ${role ? `<span class="mono text-[9px]" style="color:${roleColor}">${role}</span>` : ""}
-        <span class="mono text-ink-mut">${esc(a.robot_id)}</span>
-        <span class="text-ink-dim">${esc(a.goal)}</span>
-        <span class="mono text-[9px]" style="color:${PHASE_COLOR[ph] || "#80858C"}">${PHASE_LABEL[ph] || ph}</span>
-      </span>`;
-  }).join("");
-  const relays = (s.relay_points || []).map((p) => esc(p.id)).join(" · ");
-  const ends = Math.max(0, Math.round(s.ends_in_s ?? 0));
-  bar.innerHTML = `
-    <div class="flex items-center gap-2 flex-wrap">
-      <span class="tag" style="background:#F3F0FF;color:#6D28D9;border-color:#6D28D9">SEQUENCE ${esc(String(s.id ?? ""))}</span>
-      <span class="font-semibold text-[13px]">${esc(s.label)}</span>
-      <span class="text-[11.5px] text-ink-dim">${esc(s.objective || "")}</span>
-      ${relays ? `<span class="text-[10.5px] mono" style="color:#B45309">relays: ${relays}</span>` : ""}
-      <span class="flex-1"></span>
-      <span class="text-[10.5px] text-ink-dim mono">new sequence in <span style="color:#6D28D9">${ends}s</span></span>
-    </div>
-    <div class="mt-2 flex items-center gap-1.5 flex-wrap text-[10px]">${chips}</div>`;
+  const html = !s || !s.label
+    ? `<span class="seq-objective">Waiting for the fleet to pick up its first job…</span>`
+    : `<span class="seq-kicker">NOW</span>
+       <span class="seq-label">${esc(s.label)}</span>
+       <span class="seq-objective" title="${esc(s.objective || "")}">${esc(s.objective || "")}</span>
+       <span class="seq-timer">next job in ${Math.max(0, Math.round(s.ends_in_s ?? 0))}s</span>`;
+  if (bar.innerHTML !== html) bar.innerHTML = html;
 }
 
-function renderFleetStatus(m) {
-  const box = $("#fleet-status");
-  if (!box) return;
-  const total = m.total || 1;
-  const segs = STATUS_META
-    .filter((s) => m.counts[s.key] > 0)
-    .map((s) => `<div class="status-seg" title="${s.label}: ${m.counts[s.key]}" style="width:${(m.counts[s.key] / total) * 100}%;background:${s.color};${state.statusFilter && state.statusFilter !== s.key ? "opacity:.3" : ""}"></div>`)
-    .join("");
-  box.innerHTML = `
-    <div class="flex items-center justify-between mb-2">
-      <div class="text-[11px] uppercase tracking-wide text-ink-dim">Fleet status · live</div>
-      <div class="text-[10.5px] text-ink-dim mono">${state.statusFilter ? `filtered: ${STATUS_META.find((s)=>s.key===state.statusFilter)?.label || state.statusFilter}` : "click to filter"}</div>
-    </div>
-    <div class="flex h-2.5 rounded-full overflow-hidden bg-surface-input mb-3">${segs || '<div class="w-full" style="background:#80858C"></div>'}</div>
-    <div id="status-chips" class="grid grid-cols-3 gap-1.5 flex-1 content-start"></div>`;
-  const chips = box.querySelector("#status-chips");
-  for (const s of STATUS_META) {
-    const on = state.statusFilter === s.key;
-    const chip = el(`
-      <div class="status-chip ${on ? "on" : ""}">
-        <span class="tick-dot" style="color:${s.color};background:${s.color}"></span>
-        <span class="text-[11px] text-ink-mut flex-1 truncate">${s.label}</span>
-        <span class="text-[12px] font-semibold mono ${m.counts[s.key] ? "text-ink" : "text-ink-dim"}">${m.counts[s.key]}</span>
-      </div>`);
-    chip.onclick = () => {
-      if (EMBED) return;
-      state.statusFilter = on ? null : s.key;
-      renderStats(); renderFleet();
-      document.getElementById("sec-fleet")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-    chips.appendChild(chip);
-  }
-}
-
-// ── live monitoring ticker ─────────────────────────────────────────────────────
-function renderTicker(m) {
-  const track = $("#ticker-track");
-  if (!track) return;
-  m = m || fleetMetrics();
-  const activeOems = state.oems.filter((o) => o.status === "active").length;
-  const items = [
-    { dot: state.connLive ? "#16A34A" : "#DC2626", label: "Link", val: state.connLive ? "LIVE" : "RECONNECTING" },
-    { dot: "#1D4ED8", label: "Monitoring", val: `${m.total} robots` },
-    { dot: "#16A34A", label: "Working", val: m.counts.active },
-    { dot: "#DC2626", label: "Between tasks", val: m.counts.cooldown },
-    { dot: "#1D4ED8", label: "Visual-nav", val: m.nav },
-    { dot: "#D97706", label: "Idle", val: m.counts.idle },
-    { dot: "#BE123C", label: "Halted", val: m.counts.halted },
-    { dot: "#D97706", label: "Open alerts", val: m.openAlerts },
-    { dot: "#1D4ED8", label: "Avg drift", val: m.avgDrift.toFixed(3) + "m" },
-    { dot: "#16A34A", label: "Fleet battery", val: Math.round(m.avgBatt) + "%" },
-    { dot: "#1D4ED8", label: "OEM partners", val: `${activeOems}/${state.oems.length}` },
-    { dot: "#4A4F57", label: "Facility", val: state.facility?.name || "—" },
-  ];
-  const one = items.map((i) => `
-    <span class="tick">
-      <span class="tick-dot" style="color:${i.dot};background:${i.dot}"></span>
-      <span class="tick-label">${esc(i.label)}</span>
-      <span class="tick-val">${esc(i.val)}</span>
-    </span>`).join("");
-  track.innerHTML = one + one; // duplicate for a seamless -50% loop
-}
-
-// ── tabs ─────────────────────────────────────────────────────────────────────
+// ── fleet table ──────────────────────────────────────────────────────────────
 function renderTabs() {
-  $("#tabs").innerHTML = "";
+  const box = $("#tabs");
+  if (!box) return;
+  box.innerHTML = "";
   for (const t of FLEET_CATEGORIES) {
-    const on = t === state.activeTab;
-    const btn = el(`<button type="button" class="seg-tab ${on ? "on" : ""}">${esc(t)}</button>`);
+    const btn = el(`<button type="button" class="seg-tab ${t === state.activeTab ? "on" : ""}">${esc(t)}</button>`);
     btn.onclick = () => { state.activeTab = t; renderTabs(); renderFleet(); };
-    $("#tabs").appendChild(btn);
+    box.appendChild(btn);
   }
 }
 
-// ── fleet ─────────────────────────────────────────────────────────────────────
-function renderFleetHeader() {
-  const k = document.getElementById("fleet-kicker");
-  const c = document.getElementById("fleet-count");
-  const n = state.robots.length;
-  if (k) k.textContent = `FLT-${String(n).padStart(2, "0")}`;
-  if (c) c.textContent = `${n} robots · filter by category`;
+function toggleButtonState(btn, r) {
+  const halted = r.state === "halted";
+  const access = stopStartAccess(r);
+  const label = halted ? "Start" : "Stop";
+  if (btn.textContent !== label) btn.textContent = label;
+  const cls = `${btn.dataset.base} ${halted ? "start" : "stop"}`;
+  if (btn.className !== cls) btn.className = cls;
+  btn.disabled = !access.ok || state.busy === r.id;
+  btn.title = access.why;
 }
 
 function renderFleet() {
-  renderFleetHeader();
+  const tb = $("#fleet");
+  if (!tb) return;
   let list = state.robots.filter((r) => categoryMatches(r.industry, state.activeTab));
   if (state.statusFilter) list = list.filter((r) => r.state === state.statusFilter);
+  const count = $("#fleet-count");
+  if (count) count.textContent = `${list.length} of ${state.robots.length} robots`;
   renderFleetFilter();
-  const grid = $("#fleet");
-  grid.innerHTML = "";
-  if (!list.length) {
-    const label = state.statusFilter ? ` (${STATUS_META.find((s) => s.key === state.statusFilter)?.label || state.statusFilter})` : "";
-    grid.appendChild(el(`<div class="text-ink-dim text-[13px]">No robots in this category${label}.</div>`));
-    return;
+
+  const key = list.map((r) => r.id).join(",");
+  if (tb.dataset.key !== key) {
+    tb.dataset.key = key;
+    tb.innerHTML = list.length ? "" : `<tr><td colspan="6" class="text-ink-dim">No robots match this filter.</td></tr>`;
+    for (const r of list) {
+      const row = el(`<tr data-id="${esc(r.id)}">
+        <td><div class="font-semibold" data-c="name"></div><div class="mono text-[11px] text-azure" data-c="sub"></div></td>
+        <td data-c="status"></td>
+        <td class="doing" data-c="doing"></td>
+        <td data-c="batt"></td>
+        <td class="mono" data-c="drift"></td>
+        <td><div class="row-actions">
+          <button class="row-btn" data-base="row-btn" data-act="toggle"></button>
+          <button class="row-btn" data-act="view">On floor</button>
+          <button class="row-btn" data-act="details">Details</button>
+        </div></td>
+      </tr>`);
+      const id = r.id;
+      row.querySelector('[data-act="toggle"]').onclick = () => { const cur = robotById(id); if (cur) quickControl(cur, cur.state === "halted" ? "resume" : "estop"); };
+      row.querySelector('[data-act="view"]').onclick = () => { selectRobot(id); showView("live"); };
+      row.querySelector('[data-act="details"]').onclick = () => openRobot(id);
+      tb.appendChild(row);
+    }
   }
   for (const r of list) {
-    const label = STATE_LABEL[r.state] || r.state;
-    const stateColor = STATE_COLOR[r.state] || "#4A4F57";
-    const sel = r.id === state.selectedRobot;
-    const accent = industryAccent(r.industry);
-    const speed = r.speed_mps ?? 0;
-    const card = el(`
-      <div class="card fleet-card ${sel ? "selected" : ""}">
-        <div class="flex items-start justify-between gap-2">
-          <div class="flex gap-2.5 min-w-0">
-            <div class="fleet-icon" style="background:${accent}18;border-color:${accent}44;color:${accent}">⬡</div>
-            <div class="min-w-0">
-              <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
-              <div class="text-[11px] mono mt-0.5" style="color:#1D4ED8">${esc(r.id)} · ${esc(r.industry)}</div>
-            </div>
-          </div>
-          <span>${inlineStatus(label, stateColor)}</span>
-        </div>
-        <div class="mt-2 flex items-center gap-1.5 text-[11px] ${MODE_STYLE[r.control_mode] || "text-ink-mut"}">
-          <span class="w-1.5 h-1.5 rounded-full bg-current"></span>${esc(MODE_LABEL[r.control_mode] || r.control_mode)}
-        </div>
-        <div class="fleet-metrics">
-          <div class="fleet-metric">
-            <div class="fleet-metric-val ${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(3)}m</div>
-            <div class="fleet-metric-lbl">Drift Δ</div>
-          </div>
-          <div class="fleet-metric">
-            <div class="fleet-metric-val" style="color:#1D4ED8">${speed.toFixed(2)} m/s</div>
-            <div class="fleet-metric-lbl">Speed</div>
-          </div>
-          <div class="fleet-metric">
-            <div class="fleet-metric-val" style="color:#1D4ED8">${Math.round(r.battery_pct)}%</div>
-            <div class="fleet-metric-lbl">Battery</div>
-          </div>
-        </div>
-        <div class="mt-2.5 h-1 rounded-full bg-surface-input overflow-hidden">
-          <div class="h-full ${batteryColor(r.battery_pct)}" style="width:${Math.max(2, r.battery_pct)}%"></div>
-        </div>
-        <div class="mt-3 flex gap-2">
-          <button data-act="select" class="flex-1 px-2 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Control</button>
-          ${r.state === "halted"
-            ? `<button data-act="resume" class="flex-1 px-2 py-1.5 rounded-md bg-brand hover:bg-brand-600 text-[#FFFFFF] text-[12px] font-semibold">Resume</button>`
-            : `<button data-act="estop" class="flex-1 px-2 py-1.5 rounded-md text-[12px] font-semibold" style="background:#dc2626;color:#fff">E-Stop</button>`}
-          <button data-act="details" class="flex-1 px-2 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
-        </div>
-      </div>`);
-    card.querySelector('[data-act="select"]').onclick = () => selectRobot(r.id);
-    card.querySelector('[data-act="details"]').onclick = () => openRobot(r.id);
-    const estopBtn = card.querySelector('[data-act="estop"]');
-    if (estopBtn) estopBtn.onclick = (e) => { e.stopPropagation(); control(`/api/dashboard/robot/${r.id}/estop`); };
-    const resumeBtn = card.querySelector('[data-act="resume"]');
-    if (resumeBtn) resumeBtn.onclick = (e) => { e.stopPropagation(); control(`/api/dashboard/robot/${r.id}/resume`); };
-    grid.appendChild(card);
+    const row = tb.querySelector(`tr[data-id="${CSS.escape(r.id)}"]`);
+    if (!row) continue;
+    row.classList.toggle("selected", r.id === state.selectedRobot);
+    patch(row, '[data-c="name"]', `${esc(r.vendor)} ${esc(r.model)}`);
+    patch(row, '[data-c="sub"]', `${esc(r.id)} · ${esc(r.industry)}`);
+    patch(row, '[data-c="status"]', inlineStatus(STATE_LABEL[r.state] || r.state, STATE_COLOR[r.state] || "#4A4F57"));
+    patch(row, '[data-c="doing"]', esc(robotDoing(r)));
+    const bc = r.battery_pct < 15 ? "#DC2626" : r.battery_pct < 50 ? "#D97706" : "#16A34A";
+    patch(row, '[data-c="batt"]', `<div class="batt"><div class="batt-bar"><span style="width:${Math.max(2, r.battery_pct)}%;background:${bc}"></span></div>${Math.round(r.battery_pct)}%</div>`);
+    patch(row, '[data-c="drift"]', `<span class="${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(3)} m</span>`);
+    toggleButtonState(row.querySelector('[data-act="toggle"]'), r);
   }
 }
 
@@ -407,15 +287,12 @@ function renderFleetFilter() {
   box.innerHTML = "";
   if (!state.statusFilter) return;
   const s = STATUS_META.find((x) => x.key === state.statusFilter);
-  const chip = el(`<button class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-input hover:bg-line-strong text-[11.5px]">
-      <span class="tick-dot" style="color:${s?.color};background:${s?.color}"></span>
-      ${esc(s?.label || state.statusFilter)}<span class="text-ink-dim ml-1">✕ clear</span>
-    </button>`);
+  const chip = el(`<button class="pick on">${esc(s?.label || state.statusFilter)} ✕</button>`);
   chip.onclick = () => { state.statusFilter = null; renderStats(); renderFleet(); };
   box.appendChild(chip);
 }
 
-// ── control panel (selected robot) ──────────────────────────────────────────────
+// ── robot panel (selected robot) ──────────────────────────────────────────────
 const DIRS = [
   ["↖", 135], ["↑", 90], ["↗", 45],
   ["←", 180], ["stop", null], ["→", 0],
@@ -423,154 +300,150 @@ const DIRS = [
 ];
 function selectRobot(id) { state.selectedRobot = id; renderMap(); renderControlPanel(); renderFleet(); }
 
-// A scope pill: green "unlocked" or dim "locked · scope" — makes the OEM control contract explicit.
-function scopeTag(scope, ok) {
-  return ok
-    ? `<span class="mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand/10 text-brand">${scope}</span>`
-    : `<span class="mono text-[9.5px] px-1.5 py-0.5 rounded bg-black/[0.05] text-ink-dim">🔒 ${scope}</span>`;
-}
-function sectionHead(title, scope, ok) {
-  return `<div class="flex items-center justify-between mb-2">
-      <span class="text-[11px] uppercase tracking-wide text-ink-mut">${title}</span>${scopeTag(scope, ok)}
-    </div>`;
+function renderRobotPicker() {
+  const box = $("#robot-picker");
+  if (!box) return;
+  const key = state.robots.map((r) => r.id).join(",");
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.innerHTML = "";
+    for (const r of state.robots) {
+      const b = el(`<button class="pick" role="option" data-id="${esc(r.id)}" title="${esc(r.vendor)} ${esc(r.model)}"><span class="dot"></span>${esc(r.model)}</button>`);
+      b.onclick = () => selectRobot(r.id);
+      box.appendChild(b);
+    }
+  }
+  for (const r of state.robots) {
+    const b = box.querySelector(`[data-id="${CSS.escape(r.id)}"]`);
+    if (!b) continue;
+    const on = r.id === state.selectedRobot;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", String(on));
+    const dot = b.querySelector(".dot");
+    const c = STATE_COLOR[r.state] || "#4A4F57";
+    if (dot.style.background !== c) dot.style.background = c;
+  }
 }
 
 function renderControlPanel() {
   if (EMBED) return;
+  renderRobotPicker();
   const box = $("#control-panel");
   const modeTag = $("#control-mode");
+  if (!box) return;
   const r = robotById(state.selectedRobot);
   if (!r) {
-    modeTag.textContent = "";
-    box.innerHTML = `<div class="text-[13px] text-ink-dim py-6 text-center">Select a robot on the map or a fleet card to drive it.</div>`;
+    box.dataset.key = "";
+    if (modeTag) modeTag.textContent = "";
+    box.innerHTML = `<div class="att-empty">Pick a robot above or click one on the floor.</div>`;
     return;
   }
-  const label = STATE_LABEL[r.state] || r.state;
-  const stateColor = STATE_COLOR[r.state] || "#4A4F57";
-  modeTag.innerHTML = `<span class="${MODE_STYLE[r.control_mode] || "text-ink-mut"}">${esc(MODE_LABEL[r.control_mode] || r.control_mode)}</span>`;
-  const halted = r.state === "halted";
   const g = vendorGrants(r.vendor);
-  const canVel = g.has("control.velocity");
-  const canEstop = g.has("control.estop");
-  const canMission = g.has("mission.dispatch");
-  const dim = (ok) => ok ? "" : "opacity-40 pointer-events-none";
-
-  box.innerHTML = `
-    <div class="flex items-center justify-between gap-2">
-      <div class="min-w-0">
-        <div class="font-semibold text-[13px] truncate">${esc(r.vendor)} ${esc(r.model)}</div>
-        <div class="text-[10.5px] text-ink-dim">${esc(r.id)} · ${g.managed ? esc(r.vendor) + " OEM" : "unmanaged (open)"}</div>
-      </div>
-      ${inlineStatus(label, stateColor)}
-    </div>
-
-    ${(() => {
-      // Always explain what this robot is doing right now (mission if it has one, else its state).
-      const missionText = r.mission
-        || (r.state === "charging" ? "Charging at the dock"
-          : r.state === "halted" ? "Safety stop engaged — awaiting resume"
-          : r.state === "idle" ? "Idle — will join the next sequence"
-          : "Autonomous patrol");
-      const activity = r.current_task || PHASE_LABEL[r.mission_phase] || MODE_LABEL[r.control_mode] || "";
-      const col = PHASE_COLOR[r.mission_phase] || "#80858C";
-      return `<div class="mt-2 rounded-lg border p-2" style="background:#FAF8FF;border-color:#DDD6FE">
-        <div class="text-[9px] uppercase tracking-wide text-ink-dim">What it's doing now</div>
-        <div class="text-[12px] font-medium mt-0.5 leading-snug">${esc(missionText)}</div>
-        ${activity ? `<div class="text-[10.5px] text-ink-mut mt-0.5"><span style="color:${col}">●</span> ${esc(activity)}</div>` : ""}
+  const canVel = g.has("control.velocity") && isOperator();
+  const key = `${r.id}|${canVel}|${isOperator()}`;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.innerHTML = `
+      <div class="rp">
+        <div class="flex items-start gap-2">
+          <div class="min-w-0 flex-1">
+            <div class="rp-title" data-c="title"></div>
+            <div class="rp-sub" data-c="sub"></div>
+          </div>
+          <span data-c="status"></span>
+        </div>
+        <div class="rp-now" data-c="nowbox">
+          <div class="rp-label">Doing now</div>
+          <div class="text-[13px] font-medium mt-0.5 leading-snug" data-c="doing"></div>
+          <div class="text-[11.5px] text-ink-mut mt-0.5" data-c="task"></div>
+        </div>
+        <div class="rp-stats">
+          <div><div class="rp-label">Battery</div><div class="rp-stat" data-c="batt"></div></div>
+          <div><div class="rp-label">Speed</div><div class="rp-stat" data-c="speed"></div></div>
+          <div><div class="rp-label">Drift</div><div class="rp-stat" data-c="drift"></div></div>
+        </div>
+        <div class="rp-actions">
+          <button class="rp-primary" data-base="rp-primary" data-act="toggle"></button>
+          <button data-act="task" ${isOperator() && g.has("mission.dispatch") ? "" : "disabled"} title="${isOperator() ? "" : "Sign in as an operator to dispatch tasks"}">Task</button>
+          <button data-act="details">Details</button>
+        </div>
+        <div class="rp-note" data-c="note"></div>
+        <details class="rp-drive" ${state.driveOpen ? "open" : ""}>
+          <summary>Manual drive</summary>
+          <div class="rp-drive-body">
+            ${canVel ? `
+              <div class="flex items-center justify-between text-[11.5px] text-ink-mut mb-1">
+                <span>Speed</span><span class="mono" data-c="speedval"></span>
+              </div>
+              <input data-c="slider" type="range" class="speed w-full" min="0.05" max="${MAX_SPEED}" step="0.05" value="${r.speed_mps ?? 0.6}" />
+              <div class="text-[11.5px] text-ink-mut mt-2 mb-1">Jog in a direction (overrides its route)</div>
+              <div class="dpad max-w-[132px] mx-auto"></div>
+              <div class="text-[11.5px] text-ink-mut mt-2" data-c="wp"></div>`
+            : `<div class="text-[11.5px] text-ink-dim leading-snug">${isOperator()
+                ? `${esc(r.vendor)} hasn't granted drive control to Orbital.`
+                : "Sign in as an operator to drive robots, set waypoints, or change speed."}</div>`}
+          </div>
+        </details>
       </div>`;
-    })()}
-
-    <div class="mt-2.5 rounded-lg bg-surface-raised border border-line p-2.5 ${dim(canVel)}">
-      ${sectionHead("Drive", "control.velocity", canVel)}
-      <div class="flex items-center justify-between text-[10.5px] text-ink-mut mb-1">
-        <span>Speed</span><span class="mono" id="speed-val">${(r.speed_mps ?? 0).toFixed(2)} m/s</span>
-      </div>
-      <input id="speed" type="range" class="speed" min="0.05" max="${MAX_SPEED}" step="0.05" value="${r.speed_mps ?? 0.6}" ${canVel ? "" : "disabled"} />
-      <div class="flex justify-between text-[9.5px] text-ink-dim mono mt-0.5 mb-2"><span>0.05</span><span>${MAX_SPEED.toFixed(1)} m/s</span></div>
-      <div class="text-[10.5px] text-ink-mut mb-1">Manual jog — heading</div>
-      <div class="dpad max-w-[132px] mx-auto"></div>
-      <div class="text-[9.5px] text-ink-dim text-center mt-1.5">overrides patrol · clears waypoints</div>
-    </div>
-
-    <div class="mt-2 rounded-lg bg-surface-raised border border-line p-2.5 ${dim(canVel)}">
-      ${sectionHead("Navigate — visual waypoints", "control.velocity", canVel)}
-      ${r.waypoints && r.waypoints.length
-        ? `<div class="flex items-center justify-between">
-             <span class="text-[11.5px] text-brand">en route · ${r.waypoints.length} pt${r.waypoints.length > 1 ? "s" : ""}</span>
-             <button id="wp-clear" class="text-[11.5px] px-2 py-0.5 rounded-md bg-surface-input hover:bg-line-strong">Clear</button>
-           </div>`
-        : `<div class="text-[11px] text-ink-dim leading-snug">Click the map to set a waypoint · shift-click to chain. Orbital drives it by camera, bypassing SLAM.</div>`}
-    </div>
-
-    <div class="mt-2 rounded-lg bg-surface-raised border border-line p-2.5">
-      ${sectionHead("Safety", "control.estop", canEstop)}
-      <div class="flex gap-1.5">
-        ${halted
-          ? `<button id="c-resume" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-brand hover:bg-brand-600 text-[#FFFFFF]" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "Resume" : "Resume 🔒"}</button>`
-          : `<button id="c-estop" class="flex-1 px-2.5 py-1.5 rounded-md ${canEstop ? "bg-red-600 hover:bg-red-500 text-white" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px] font-semibold" ${canEstop ? "" : "disabled"}>${canEstop ? "E-Stop" : "E-Stop 🔒"}</button>`}
-        <button id="c-mission" class="px-2.5 py-1.5 rounded-md ${canMission ? "bg-surface-input hover:bg-line-strong" : "bg-surface-input text-ink-dim cursor-not-allowed"} text-[12px]" ${canMission ? "" : "disabled"} title="mission.dispatch">Task</button>
-        <button id="c-details" class="px-2.5 py-1.5 rounded-md bg-surface-input hover:bg-line-strong text-[12px]">Info</button>
-      </div>
-    </div>`;
-
-  const slider = box.querySelector("#speed");
-  const label2 = box.querySelector("#speed-val");
-  if (slider) {
-    slider.addEventListener("input", () => { label2.textContent = `${(+slider.value).toFixed(2)} m/s`; });
-    slider.addEventListener("change", () => control(`/api/dashboard/robot/${r.id}/speed`, { speed_mps: +slider.value }));
-  }
-  const pad = box.querySelector(".dpad");
-  for (const [glyph, heading] of DIRS) {
-    if (heading === null) {
-      const stop = el(`<button class="stop" title="Stop jog">■</button>`);
-      stop.onclick = () => control(`/api/dashboard/robot/${r.id}/drive/stop`);
-      pad.appendChild(stop);
-    } else {
-      const b = el(`<button title="${heading}°">${glyph}</button>`);
-      b.onclick = () => control(`/api/dashboard/robot/${r.id}/drive`, { heading_deg: heading, speed_mps: slider ? +slider.value : (r.speed_mps ?? 0.6) });
-      pad.appendChild(b);
+    const id = r.id;
+    box.querySelector('[data-act="toggle"]').onclick = () => { const cur = robotById(id); if (cur) quickControl(cur, cur.state === "halted" ? "resume" : "estop"); };
+    box.querySelector('[data-act="task"]').onclick = () => openDispatch(id);
+    box.querySelector('[data-act="details"]').onclick = () => openRobot(id);
+    box.querySelector(".rp-drive").addEventListener("toggle", (e) => { state.driveOpen = e.target.open; });
+    const slider = box.querySelector('[data-c="slider"]');
+    if (slider) {
+      slider.addEventListener("input", () => { box.querySelector('[data-c="speedval"]').textContent = `${(+slider.value).toFixed(2)} m/s`; });
+      slider.addEventListener("change", () => control(`/api/dashboard/robot/${id}/speed`, { speed_mps: +slider.value }));
+      const pad = box.querySelector(".dpad");
+      for (const [glyph, heading] of DIRS) {
+        const b = heading === null ? el(`<button class="stop" title="Stop jog">■</button>`) : el(`<button title="${heading}°">${glyph}</button>`);
+        b.onclick = heading === null
+          ? () => control(`/api/dashboard/robot/${id}/drive/stop`)
+          : () => control(`/api/dashboard/robot/${id}/drive`, { heading_deg: heading, speed_mps: +slider.value });
+        pad.appendChild(b);
+      }
     }
   }
-  const wpClear = box.querySelector("#wp-clear");
-  if (wpClear) wpClear.onclick = () => control(`/api/dashboard/robot/${r.id}/navigate/clear`);
-  const estop = box.querySelector("#c-estop");
-  if (estop && !estop.disabled) estop.onclick = () => control(`/api/dashboard/robot/${r.id}/estop`);
-  const resume = box.querySelector("#c-resume");
-  if (resume && !resume.disabled) resume.onclick = () => control(`/api/dashboard/robot/${r.id}/resume`);
-  const mission = box.querySelector("#c-mission");
-  if (mission && !mission.disabled) mission.onclick = () => openDispatch(r.id);
-  box.querySelector("#c-details").onclick = () => openRobot(r.id);
-}
 
-// ── control capabilities catalog (OEM/operator control contract) ────────────────
-function renderCapabilities() {
-  const box = $("#capabilities");
-  if (!box) return;
-  const activeOems = state.oems.filter((o) => o.status === "active");
-  box.innerHTML = "";
-  for (const cap of CAPABILITIES) {
-    const partners = activeOems.filter((o) => (o.granted_scopes || []).includes(cap.scope)).length;
-    const robots = state.robots.filter((r) => vendorGrants(r.vendor).has(cap.scope)).length;
-    const st = capStatusKey(cap, partners, robots);
-    const stLabel = st.toUpperCase();
-    const stColor = CAP_STATUS_COLOR[st] || "#4A4F57";
-    const iconColor = st === "live" ? "var(--brand)" : st === "monitor" ? "var(--azure)" : "var(--ink-dim)";
-    box.appendChild(el(`
-      <div class="card tight">
-        <div class="card-body">
-          <div class="flex justify-between items-start mb-2">
-            <span class="fleet-icon" style="width:28px;height:28px;background:${iconColor}10;border-color:${iconColor}44;color:${iconColor}">${cap.glyph}</span>
-            ${inlineStatus(stLabel, stColor)}
-          </div>
-          <div class="text-[13px] font-semibold">${cap.label}</div>
-          <div class="mono text-[10px] text-ink-dim mt-0.5">${cap.scope}</div>
-          <div class="text-[11.5px] text-ink-mut mt-2 leading-snug">${cap.desc}</div>
-          <div class="flex justify-between mt-2 pt-2 border-t border-line text-[10.5px] text-ink-dim mono">
-            <span>${partners} partner${partners === 1 ? "" : "s"}</span>
-            <span style="color:${robots > 0 ? "var(--azure-light)" : "inherit"}">${robots} robot${robots === 1 ? "" : "s"}</span>
-          </div>
-        </div>
-      </div>`));
+  if (modeTag) modeTag.textContent = MODE_LABEL[r.control_mode] || r.control_mode || "";
+  patch(box, '[data-c="title"]', `${esc(r.vendor)} ${esc(r.model)}`);
+  patch(box, '[data-c="sub"]', `${esc(r.id)} · ${esc(r.industry)}${r.fleet_role === "lead" ? " · lead" : ""}${r.simulated ? " · simulated" : ""}`);
+  patch(box, '[data-c="status"]', inlineStatus(STATE_LABEL[r.state] || r.state, STATE_COLOR[r.state] || "#4A4F57"));
+  box.querySelector('[data-c="nowbox"]').classList.toggle("halted", r.state === "halted");
+  patch(box, '[data-c="doing"]', esc(robotDoing(r)));
+  patch(box, '[data-c="task"]', r.state !== "halted" && r.current_task && r.current_task !== r.mission
+    ? `<span style="color:${PHASE_COLOR[r.mission_phase] || "#80858C"}">●</span> ${esc(r.current_task)}` : "");
+  patch(box, '[data-c="batt"]', `${Math.round(r.battery_pct)}%`);
+  patch(box, '[data-c="speed"]', `${r.state === "active" ? (r.speed_mps ?? 0).toFixed(2) : "0.00"}`);
+  patch(box, '[data-c="drift"]', `<span class="${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(2)} m</span>`);
+  toggleButtonState(box.querySelector('[data-act="toggle"]'), r);
+
+  const access = stopStartAccess(r);
+  let note;
+  if (!access.ok) note = esc(access.why);
+  else if (r.error_code === "DEMO_STOP") {
+    const left = Math.max(0, Math.round(((state.demoStops[r.id] || 0) - Date.now()) / 1000));
+    note = left ? `Starts again on its own in <span class="mono">${left}s</span> so the demo keeps running.` : "Starting again shortly.";
+  } else if (r.simulated && !isOperator()) note = "Simulated robot: anyone can stop or start it in this demo.";
+  else note = "Every stop and start is written to the audit log.";
+  patch(box, '[data-c="note"]', note);
+
+  const slider = box.querySelector('[data-c="slider"]');
+  if (slider && document.activeElement !== slider) {
+    patch(box, '[data-c="speedval"]', `${(r.speed_mps ?? 0).toFixed(2)} m/s`);
+    if (+slider.value !== r.speed_mps && r.speed_mps != null) slider.value = r.speed_mps;
+  }
+  const wp = box.querySelector('[data-c="wp"]');
+  if (wp) {
+    const n = (r.waypoints || []).length;
+    const html = n
+      ? `Heading to a waypoint (${n} left) · <button class="panel-link" data-act="wpclear">Clear</button>`
+      : "Or click the floor to send it to a waypoint. Shift-click to chain several.";
+    if (wp.innerHTML !== html) {
+      wp.innerHTML = html;
+      const c = wp.querySelector('[data-act="wpclear"]');
+      if (c) c.onclick = () => control(`/api/dashboard/robot/${r.id}/navigate/clear`);
+    }
   }
 }
 
@@ -767,140 +640,37 @@ function renderMap() {
     p.push(`</g>`);
   }
   svg.innerHTML = p.join("");
-  renderMapSelection();
-  renderBubble();
 }
 
-function renderMapSelection() {
-  const box = $("#map-selection");
-  if (!box) return;
-  box.innerHTML = "";
-  if (!state.selectedRobot) return;
-  const r = robotById(state.selectedRobot);
-  const nav = r && r.waypoints && r.waypoints.length;
-  box.appendChild(el(`<span class="text-[11px] px-2 py-0.5 rounded-full bg-brand/15 text-brand">${esc(state.selectedRobot)}${nav ? " · en route" : ""}</span>`));
-  const desel = el(`<button class="text-[11px] px-2 py-0.5 rounded-md bg-surface-input hover:bg-line-strong">Deselect</button>`);
-  desel.onclick = () => { state.selectedRobot = null; closeRobotCard(); renderMap(); renderControlPanel(); renderFleet(); };
-  box.appendChild(desel);
-}
-
-// ── robot review card (click a robot on the map) ────────────────────────────────
-// Built once per open and patched in place on each fleet tick, so the buttons never get
-// swapped out from under a click.
-function mapFraction(r) {
-  const m = state.map;
-  if (!m || !r) return null;
-  return { fx: r.pose_external.x / m.width_m, fy: 1 - r.pose_external.y / m.height_m };
-}
+// ── robot panel helpers ─────────────────────────────────────────────────────────
 function isOperator() {
   const a = state.auth;
   return !a || !a.sign_in_available || ["operator", "admin"].includes(a.role);
 }
+const HALT_REASON = {
+  E_STOP: "Stopped by an operator E-Stop. Stays stopped until someone starts it.",
+  DEMO_STOP: "Stopped from the demo. Starts again on its own in two minutes.",
+  HUMAN_STOP: "Paused: a person is inside its stop radius. Resumes when they step away.",
+  DRIFT_HALT: "Halted: its own position estimate drifted too far from the camera view.",
+  AUTO_ESTOP: "Auto-halted by Orbital while it re-converges its position.",
+};
 function robotDoing(r) {
-  if (r.state === "halted") return HALT_REASON[r.error_code] || "Safety stop engaged — waiting to be started again";
+  if (r.state === "halted") return HALT_REASON[r.error_code] || "Safety stop engaged. Waiting to be started again.";
   if (r.state === "charging") return `Docked and charging (${Math.round(r.battery_pct)}%)`;
-  if (r.state === "cooldown") return "Just delivered — short pause before the next task";
+  if (r.state === "cooldown") return "Just delivered. Short pause before the next task.";
   if (r.control_mode === "visual_nav") return "Driving to an operator waypoint, steered by the overhead cameras";
   if (r.control_mode === "manual") return "Under manual control by an operator";
-  return r.mission || r.current_task || (r.state === "idle" ? "Idle — joins the next sequence" : "Autonomous patrol");
+  return r.mission || r.current_task || (r.state === "idle" ? "Idle. Joins the next sequence." : "Autonomous patrol");
 }
-const HALT_REASON = {
-  E_STOP: "Stopped by an operator E-Stop — latched until someone starts it",
-  DEMO_STOP: "Stopped from the demo — starts again on its own in two minutes",
-  HUMAN_STOP: "Paused: a person is inside its stop radius — resumes when they step away",
-  DRIFT_HALT: "Halted: its own position estimate drifted too far from the camera view",
-  AUTO_ESTOP: "Auto-halted by Orbital — re-converging its position before resuming",
-};
-
-function openRobotCard(id) {
-  const r = robotById(id);
-  const card = $("#robot-card"), stage = $("#map-stage");
-  if (!r || !card || !stage) return;
-  state.cardRobot = id;
-  card.hidden = false;
-  card.innerHTML = `
-    <div class="robot-card-head">
-      <div class="min-w-0">
-        <div class="robot-card-title" data-f="title"></div>
-        <div class="robot-card-sub" data-f="sub"></div>
-      </div>
-      <span data-f="status"></span>
-      <button class="robot-card-close" data-act="close" aria-label="Close">×</button>
-    </div>
-    <div class="robot-card-now">
-      <div class="robot-card-label">What it's doing now</div>
-      <div class="text-[12.5px] font-medium mt-0.5 leading-snug" data-f="doing"></div>
-      <div class="text-[11px] text-ink-mut mt-0.5" data-f="task"></div>
-    </div>
-    <div class="robot-card-stats">
-      <div><div class="robot-card-label">Battery</div><div class="robot-card-stat" data-f="batt"></div></div>
-      <div><div class="robot-card-label">Speed</div><div class="robot-card-stat" data-f="speed"></div></div>
-      <div><div class="robot-card-label">Drift Δ</div><div class="robot-card-stat" data-f="drift"></div></div>
-    </div>
-    <div class="robot-card-actions">
-      <button class="robot-card-primary" data-act="toggle"></button>
-      <button class="robot-card-secondary" data-act="details">Details</button>
-    </div>
-    <div class="robot-card-note" data-f="note"></div>`;
-  card.querySelector('[data-act="close"]').onclick = (e) => { e.stopPropagation(); closeRobotCard(); };
-  card.querySelector('[data-act="details"]').onclick = () => openRobot(id);
-  card.querySelector('[data-act="toggle"]').onclick = () => {
-    const cur = robotById(id);
-    if (cur) quickControl(cur, cur.state === "halted" ? "resume" : "estop");
-  };
-  card.addEventListener("click", (e) => e.stopPropagation());
-
-  // Anchor beside the robot where it was clicked; it stays put so the buttons don't drift.
-  const f = mapFraction(r), w = stage.clientWidth, h = stage.clientHeight;
-  const px = f.fx * w, py = f.fy * h;
-  const cw = 272, ch = card.offsetHeight || 260;
-  const left = px > w / 2 ? Math.max(8, px - cw - 22) : Math.min(w - cw - 8, px + 22);
-  const top = Math.max(8, Math.min(h - ch - 8, py - ch / 2));
-  card.style.left = `${left}px`; card.style.top = `${top}px`;
-  updateRobotCard();
-  renderBubble();
-}
-function closeRobotCard() {
-  state.cardRobot = null;
-  const card = $("#robot-card");
-  if (card) { card.hidden = true; card.innerHTML = ""; }
-}
-function updateRobotCard() {
-  const card = $("#robot-card");
-  const r = robotById(state.cardRobot);
-  if (!card || card.hidden) return;
-  if (!r) { closeRobotCard(); return; }
-  const set = (k, html) => { const n = card.querySelector(`[data-f="${k}"]`); if (n && n.innerHTML !== html) n.innerHTML = html; };
-  set("title", `${esc(r.vendor)} ${esc(r.model)}`);
-  set("sub", `${esc(r.id)} · ${esc(r.industry)}${r.fleet_role === "lead" ? " · lead" : ""}`);
-  set("status", inlineStatus(STATE_LABEL[r.state] || r.state, STATE_COLOR[r.state] || "#4A4F57"));
-  set("doing", esc(robotDoing(r)));
-  set("task", r.state !== "halted" && r.current_task && r.current_task !== r.mission ? `<span style="color:${PHASE_COLOR[r.mission_phase] || "#80858C"}">●</span> ${esc(r.current_task)}` : "");
-  set("batt", `${Math.round(r.battery_pct)}%`);
-  set("speed", r.state === "active" ? `${(r.speed_mps ?? 0).toFixed(2)}` : "0.00");
-  set("drift", `<span class="${driftColor(r.drift_delta_m)}">${r.drift_delta_m.toFixed(2)}m</span>`);
-
-  const halted = r.state === "halted";
-  const scopeOk = vendorGrants(r.vendor).has("control.estop");
-  const allowed = scopeOk && (r.simulated || isOperator());
-  const btn = card.querySelector('[data-act="toggle"]');
-  const label = halted ? "▶ Start" : "■ Stop";
-  if (btn.textContent !== label) btn.textContent = label;
-  btn.className = `robot-card-primary ${halted ? "start" : "stop"}`;
-  btn.disabled = !allowed || state.cardBusy === r.id;
-
-  let note;
-  if (!scopeOk) note = `${esc(r.vendor)} hasn't granted <span class="mono">control.estop</span> to Orbital, so stop and start are locked.`;
-  else if (!allowed) note = "This is a real robot. Sign in as an operator to stop or start it.";
-  else if (r.error_code === "DEMO_STOP") {
-    const left = Math.max(0, Math.round(((state.demoStops[r.id] || 0) - Date.now()) / 1000));
-    note = left ? `Simulated robot · starts again on its own in <span class="mono">${left}s</span> so the demo keeps running.` : "Simulated robot · starting again shortly.";
-  } else if (r.simulated && !isOperator()) note = "Simulated robot · anyone can stop or start it in this demo. Real robots require an operator sign-in.";
-  else note = "Every stop and start is written to the control audit log.";
-  set("note", note);
+// Who may stop/start this robot from here: OEM must grant control.estop, and anonymous
+// visitors only get the simulated demo fleet.
+function stopStartAccess(r) {
+  if (!vendorGrants(r.vendor).has("control.estop")) return { ok: false, why: `${r.vendor} hasn't granted stop/start to Orbital. This robot is monitor-only.` };
+  if (!r.simulated && !isOperator()) return { ok: false, why: "Real robot. Sign in as an operator to stop or start it." };
+  return { ok: true, why: "" };
 }
 async function quickControl(r, action) {
-  state.cardBusy = r.id; updateRobotCard();
+  state.busy = r.id; renderControlPanel(); renderFleet();
   try {
     const out = await postJSON(`/api/dashboard/robot/${r.id}/${action}`);
     if (out.auto_resume_s) state.demoStops[r.id] = Date.now() + out.auto_resume_s * 1000;
@@ -909,122 +679,14 @@ async function quickControl(r, action) {
   } catch (e) {
     toast(e.status === 403 ? blockedMsg(e) : `Failed: ${e.detail}`, "warn");
   } finally {
-    state.cardBusy = null; updateRobotCard();
+    state.busy = null; renderControlPanel(); renderFleet();
   }
 }
-
-// ── live commentary: plain-language narration diffed from fleet snapshots ──────
-const COMMENTARY_MAX = 40;
-function who(r) { return `<b>${esc(r.model)}</b> <span class="mono text-[10.5px] text-ink-dim">${esc(r.id)}</span>`; }
-function destOf(task) {
-  const m = /(?:→|to|at)\s+(.+)$/.exec(task || "");
-  return m ? m[1] : null;
-}
-function addCommentary(kind, html, robotId, bubbleText) {
-  const now = Date.now();
-  if (robotId && kind !== "safety") {
-    // Routine movement is throttled per robot and fleet-wide so safety events stay readable.
-    if (now - (state.lastNarrated[robotId] || 0) < 6000) return;
-    if (kind === "move" && now - (state.lastNarrated._move || 0) < 3000) return;
-    if (kind === "move") state.lastNarrated._move = now;
-  }
-  if (robotId) state.lastNarrated[robotId] = now;
-  state.commentary.unshift({ kind, html, robotId, ts: now });
-  state.commentary = state.commentary.slice(0, COMMENTARY_MAX);
-  renderCommentary();
-  if (robotId && bubbleText) {
-    state.bubble = { robotId, text: bubbleText, kind, until: now + 4500 };
-    renderBubble();
-  }
-}
-function narrate(prevList, list) {
-  const prev = Object.fromEntries((prevList || []).map((r) => [r.id, r]));
-  const byId = Object.fromEntries(list.map((r) => [r.id, r]));
-  for (const r of list) {
-    const p = prev[r.id];
-    if (!p) continue;
-    if (r.state !== p.state) {
-      if (r.state === "halted") {
-        const why = {
-          E_STOP: ["safety", `${who(r)} was E-Stopped by an operator.`, "E-Stopped by an operator"],
-          DEMO_STOP: ["safety", `${who(r)} was stopped from the demo. It starts again on its own in two minutes.`, "Stopped — back in 2 min"],
-          HUMAN_STOP: ["safety", `${who(r)} paused: a person stepped inside its stop radius.`, "Person nearby — pausing"],
-          DRIFT_HALT: ["safety", `${who(r)} halted: the cameras saw it drift off its own map.`, "Drift too high — halting"],
-          AUTO_ESTOP: ["safety", `Orbital auto-halted ${who(r)} to re-converge its position.`, "Auto-halted by Orbital"],
-        }[r.error_code] || ["safety", `${who(r)} halted.`, "Halted"];
-        addCommentary(why[0], why[1], r.id, why[2]);
-      } else if (p.state === "halted") {
-        addCommentary("good", `${who(r)} is moving again${p.error_code === "HUMAN_STOP" ? " — the path is clear" : ""}.`, r.id, "Back in motion");
-      } else if (r.state === "charging") {
-        addCommentary("info", `${who(r)} is docking to recharge at ${Math.round(r.battery_pct)}%.`, r.id, "Heading to charge");
-      } else if (r.state === "cooldown") {
-        const partner = r.handoff_partner && byId[r.handoff_partner];
-        addCommentary("good", partner ? `${who(r)} handed its load off to ${who(partner)}.` : `${who(r)} delivered its load.`, r.id, partner ? `Handed off to ${partner.id}` : "Delivered");
-      }
-      continue;
-    }
-    if (r.control_mode !== p.control_mode) {
-      if (r.control_mode === "visual_nav") { addCommentary("move", `${who(r)} is now steered by the overhead cameras, bypassing its own SLAM.`, r.id, "Camera-guided now"); continue; }
-      if (r.control_mode === "manual") { addCommentary("move", `An operator took manual control of ${who(r)}.`, r.id, "Manual control"); continue; }
-    }
-    if (r.drift_delta_m < 0.05) delete state.driftNarrated[r.id];
-    if (r.drift_delta_m >= 0.15 && !state.driftNarrated[r.id]) {
-      state.driftNarrated[r.id] = true;
-      addCommentary("safety", `Cameras see ${who(r)} ${r.drift_delta_m.toFixed(2)} m from where it thinks it is. Orbital is correcting it.`, r.id, `Drift ${r.drift_delta_m.toFixed(2)} m — correcting`);
-      continue;
-    }
-    if (r.state === "active" && r.mission_phase !== p.mission_phase) {
-      const dest = destOf(r.current_task);
-      if (r.mission_phase === "en_route_pickup") addCommentary("move", `${who(r)} is heading to ${esc(dest || "its next pickup")}.`, r.id, `Heading to ${dest || "pickup"}`);
-      else if (r.mission_phase === "working") addCommentary("move", r.fleet_role === "lead" ? `${who(r)} reached ${esc(dest || "its relay point")} and is holding it for the shuttles.` : `${who(r)} reached ${esc(dest || "the pickup")} and is loading.`, r.id, r.fleet_role === "lead" ? "Holding relay point" : "Loading");
-      else if (r.mission_phase === "carrying") addCommentary("move", `${who(r)} picked up its load and is carrying it to ${esc(dest || "the drop-off")}.`, r.id, `Carrying to ${dest || "drop-off"}`);
-    }
-  }
-}
-function narrateSequence(prevSeq, seq) {
-  if (!seq || !seq.label || (prevSeq && prevSeq.id === seq.id)) return;
-  addCommentary("info", `New mission sequence: <b>${esc(seq.label)}</b>. ${esc(seq.objective || "")}`);
-}
-function renderCommentary() {
-  const feed = $("#commentary-feed");
-  if (!feed) return;
-  feed.innerHTML = state.commentary.map((c, i) => `
-    <li class="commentary-item ${c.kind}" data-i="${i}">
-      <span class="bar"></span>
-      <span class="t">${new Date(c.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
-      <span>${c.html}</span>
-    </li>`).join("");
-  feed.querySelectorAll(".commentary-item").forEach((li) => {
-    const c = state.commentary[+li.dataset.i];
-    if (c?.robotId) li.onclick = () => { selectRobot(c.robotId); openRobotCard(c.robotId); };
-  });
-}
-function renderBubble() {
-  const box = $("#map-bubbles");
-  if (!box) return;
-  const b = state.bubble;
-  const r = b && b.until > Date.now() && b.robotId !== state.cardRobot ? robotById(b.robotId) : null;
-  const f = mapFraction(r);
-  if (!r || !f) { box.innerHTML = ""; return; }
-  let node = box.firstElementChild;
-  if (!node || node.dataset.key !== `${b.robotId}:${b.until}`) {
-    box.innerHTML = `<div class="map-bubble ${b.kind === "safety" ? "safety" : ""}" data-key="${b.robotId}:${b.until}"><span class="who">${esc(r.model.toUpperCase())} · ${esc(r.id)}</span>${esc(b.text)}</div>`;
-    node = box.firstElementChild;
-  }
-  node.style.left = `${(f.fx * 100).toFixed(2)}%`;
-  node.style.top = `${(f.fy * 100).toFixed(2)}%`;
-}
-function wireCommentary() {
-  const t = $("#commentary-toggle"), box = $("#commentary");
-  if (!t || !box) return;
-  t.onclick = () => {
-    const collapsed = box.classList.toggle("collapsed");
-    t.textContent = collapsed ? "Show" : "Hide";
-    t.setAttribute("aria-expanded", String(!collapsed));
-  };
-  const n = state.robots.length;
-  addCommentary("info", `Watching ${n} robots from ${new Set(state.robots.map((r) => r.vendor)).size} makers on one floor, tracked by overhead cameras. Click any robot to review it, or stop and start it.`);
-  setInterval(() => { renderBubble(); if (state.cardRobot && state.demoStops[state.cardRobot]) updateRobotCard(); }, 1000);
+// Patch an element's HTML only when it changed, so live ticks never swap a node mid-click.
+function patch(root, sel, html) {
+  const n = root.querySelector(sel);
+  if (n && n.innerHTML !== html) n.innerHTML = html;
+  return n;
 }
 
 async function setWaypoint(id, x, y, append) {
@@ -1103,8 +765,10 @@ function renderZoneBar() {
     bar.appendChild(el(`<span class="text-[10.5px] text-ink-dim">click the floor to add corners · Enter or double-click to finish · Esc to cancel</span>`));
     return;
   }
-  bar.appendChild(el(`<span class="text-[11px] text-ink-dim mr-1">Zones</span>`));
-  for (const [type, label] of [["keepout", "+ Keep-out"], ["slow", "+ Slow zone"]]) {
+  const zb = $("#btn-zones");
+  if (zb) zb.textContent = state.zones.length ? `Zones · ${state.zones.length}` : "Zones";
+  bar.appendChild(el(`<span class="text-[11.5px] text-ink-mut mr-1">${isOperator() ? "Keep robots out of an area, or slow them down in it:" : "Zones on this floor. Sign in as an operator to add or remove them."}</span>`));
+  for (const [type, label] of isOperator() ? [["keepout", "+ Keep-out"], ["slow", "+ Slow zone"]] : []) {
     const b = el(`<button class="text-[11.5px] px-2.5 py-1 rounded-md border hover:bg-surface-input" style="border-color:${ZONE_COLOR[type]}66;color:${ZONE_COLOR[type]}">${label}</button>`);
     b.onclick = () => startZoneDraft(type);
     bar.appendChild(b);
@@ -1147,11 +811,9 @@ function wireMap() {
     }
     const hit = e.target.closest("[data-robot]");
     if (hit) {
-      const id = hit.getAttribute("data-robot");
-      selectRobot(id); openRobotCard(id);
+      selectRobot(hit.getAttribute("data-robot"));
       return;
     }
-    if (state.cardRobot) { closeRobotCard(); renderBubble(); return; }
     if (state.selectedRobot) {
       const p = clickToWorld(e, svg);
       setWaypoint(state.selectedRobot, +p.x.toFixed(2), +p.y.toFixed(2), e.shiftKey);
@@ -1159,40 +821,6 @@ function wireMap() {
   });
 }
 
-// ── logic panel ────────────────────────────────────────────────────────────────
-function renderLogic() {
-  const box = $("#logic");
-  if (!box) return;
-  const o = state.orch;
-  const decisions = (o && o.decisions) || [];
-  const auto = decisions.filter((d) => d.auto_executed).length;
-  const orchLine = o
-    ? `${o.enabled ? "on" : "off"} · ${decisions.length} decision${decisions.length === 1 ? "" : "s"} · ${auto} auto-executed`
-    : "—";
-  $("#logic-orch").textContent = o ? `orchestrator ${orchLine}` : "";
-  const cards = [
-    ["1 · Control hierarchy",
-     "Each tick resolves one command source per robot in priority order: <span class='text-brand'>visual-nav waypoints</span> → <span class='text-amber-700'>manual jog</span> → <span class='text-ink-mut'>autonomous patrol</span>. Setting one supersedes the others."],
-    ["2 · Drift &amp; ARIA correction",
-     "Overhead cameras give the <span class='text-brand'>ground-truth pose</span>; the robot's onboard SLAM <span class='text-ink-mut'>self-report</span> accumulates odometric drift. ARIA decays that drift back toward zero every tick — the dashed link on the map is the live gap."],
-    ["3 · Safety halt",
-     "When drift crosses the halt threshold, ARIA fires an <span class='text-red-700'>auto E-Stop</span> + alert. Sim-triggered halts re-converge and auto-recover; a manual E-Stop waits for an operator Resume."],
-    ["4 · Orchestrator",
-     `A supervisory loop scans the fleet on a fixed cadence and takes safety-first actions — proactive charge dispatch on low battery, auto E-Stop on critical anomalies. <span class="text-ink-mut mono">${esc(orchLine)}</span>`],
-  ];
-  box.innerHTML = "";
-  for (const [title, body] of cards) {
-    box.appendChild(el(`
-      <div class="bg-surface-raised border border-line rounded-lg p-3.5">
-        <div class="font-semibold text-[12.5px] mb-1.5">${title}</div>
-        <div class="text-[12px] text-ink-mut leading-relaxed">${body}</div>
-      </div>`));
-  }
-}
-async function loadOrchestrator() {
-  try { state.orch = await getJSON("/api/dashboard/orchestrator"); renderLogic(); }
-  catch (_) {}
-}
 
 // ── validation: golden runs (Sprint K) ──────────────────────────────────────
 const VERDICT_COLOR = { pass: "#16A34A", golden: "#B45309", slow: "#D97706", deviated: "#DC2626",
@@ -1209,7 +837,7 @@ async function showRun(id) {
     const d = await getJSON(`/api/dashboard/runs/${encodeURIComponent(id)}`);
     state.runOverlay = { run: d.run, golden: d.golden };
     renderRuns(); renderMap();
-    $("#sec-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showView("live");
   } catch (e) { toast(`Could not load run: ${e.message || e}`, "warn"); }
 }
 async function makeGolden(id) {
@@ -1319,33 +947,67 @@ async function ackAlert(id) {
   await postJSON(`/api/dashboard/alerts/${id}/ack`);
   a.acknowledged = true;
 }
+const ALERT_TITLE = {
+  drift_exceeded: "Drifted off its own map",
+  hijack_suspected: "Moving without a command",
+  ghost_command: "Reports moving, cameras see it still",
+  low_battery: "Low battery",
+  human_proximity: "Person inside its stop radius",
+};
+// Open alerts collapsed to one row per robot + kind: the same person stop firing 30 times
+// is one thing to look at, not 30.
+function alertGroups() {
+  const groups = new Map();
+  for (const a of state.alerts) {
+    if (a.acknowledged) continue;
+    const k = `${a.robot_id}|${a.type}`;
+    const g = groups.get(k) || { key: k, robotId: a.robot_id, type: a.type, severity: a.severity, latest: a, ids: [] };
+    g.ids.push(a.id);
+    if (a.ts > g.latest.ts) g.latest = a;
+    if (a.severity === "critical") g.severity = "critical";
+    groups.set(k, g);
+  }
+  const rank = { critical: 0, warning: 1, info: 2 };
+  return [...groups.values()].sort((x, y) => (rank[x.severity] - rank[y.severity]) || (y.latest.ts - x.latest.ts));
+}
 function renderAlerts() {
-  const unacked = state.alerts.filter((a) => !a.acknowledged);
-  $("#alert-count").textContent = unacked.length;
+  const groups = alertGroups();
+  const count = $("#alert-count");
+  if (count) { count.textContent = groups.length; count.classList.toggle("hot", groups.some((g) => g.severity === "critical")); }
   const ackAllBtn = $("#ack-all");
   if (ackAllBtn) {
-    ackAllBtn.classList.toggle("hidden", unacked.length === 0);
+    ackAllBtn.classList.toggle("hidden", groups.length === 0);
     ackAllBtn.onclick = async () => {
-      await Promise.all(unacked.map((a) => ackAlert(a.id)));
+      await Promise.all(state.alerts.filter((a) => !a.acknowledged).map((a) => ackAlert(a.id)));
       renderAlerts(); renderStats();
     };
   }
   const box = $("#alerts");
+  if (!box) return;
+  const sig = groups.map((g) => `${g.key}:${g.ids.length}:${g.latest.id}`).join(",");
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
   box.innerHTML = "";
-  if (!state.alerts.length) { box.appendChild(el(`<div class="px-4 py-5 text-[12px] text-ink-dim">No alerts. Fleet nominal.</div>`)); return; }
-  // Unacknowledged first, then most-recent acknowledged — dense single-line rows.
-  const ordered = [...state.alerts].sort((a, b) => (a.acknowledged - b.acknowledged) || (b.ts - a.ts));
-  for (const a of ordered.slice(0, 60)) {
-    const dot = SEV_DOT[a.severity] || "#4A4F57";
-    const detail = a.message || a.type;
+  if (!groups.length) { box.appendChild(el(`<div class="att-empty">Nothing needs attention. The floor is running normally.</div>`)); return; }
+  for (const g of groups.slice(0, 30)) {
+    const r = robotById(g.robotId);
+    const who = r ? `${r.model} · ${r.id}` : g.robotId;
     const row = el(`
-      <div class="group flex items-center gap-2 px-3 py-1.5 ${a.acknowledged ? "opacity-40" : "cursor-pointer hover:bg-surface-raised/60"}" title="${esc(a.type)} · ${esc(a.message || "")}">
-        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${dot}"></span>
-        <span class="text-[11.5px] text-ink-mut truncate flex-1">${esc(detail)}</span>
-        <span class="text-[9.5px] text-ink-dim mono shrink-0">${fmtTime(a.ts)}</span>
-        ${a.acknowledged ? `<span class="text-[9px] text-ink-dim shrink-0">✓</span>` : `<span class="ack text-[10px] text-brand shrink-0 opacity-0 group-hover:opacity-100">ack</span>`}
+      <div class="att" title="${esc(g.latest.message || "")}">
+        <span class="bar" style="background:${SEV_DOT[g.severity] || "#4A4F57"}"></span>
+        <div class="att-main">
+          <div class="font-medium">${esc(ALERT_TITLE[g.type] || g.type)}</div>
+          <div class="att-meta">${esc(who)} · last ${new Date(g.latest.ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</div>
+        </div>
+        ${g.ids.length > 1 ? `<span class="att-times">×${g.ids.length}</span>` : ""}
+        <button class="panel-link self-start" data-act="clear" title="Mark as seen">Clear</button>
       </div>`);
-    if (!a.acknowledged) row.onclick = async () => { await ackAlert(a.id); renderAlerts(); renderStats(); };
+    row.onclick = () => { if (r) selectRobot(r.id); };
+    row.querySelector('[data-act="clear"]').onclick = async (e) => {
+      e.stopPropagation();
+      await Promise.all(g.ids.map(ackAlert));
+      renderAlerts(); renderStats();
+    };
     box.appendChild(row);
   }
 }
@@ -1381,9 +1043,9 @@ function renderActions() {
   const box = $("#actions");
   if (!box) return;
   const open = state.actions.filter((a) => a.status === "proposed");
-  $("#action-count").textContent = open.length;
   box.innerHTML = "";
-  if (!open.length) { box.appendChild(el(`<div class="px-4 py-5 text-[12px] text-ink-dim">Nothing to suggest right now.</div>`)); return; }
+  if (!open.length) return;
+  box.appendChild(el(`<div class="rp-label px-3.5 pt-2.5">Suggested next steps</div>`));
   for (const a of open) {
     const blocked = !!a.blocked_reason;
     const acceptLabel = a.scope ? "Accept" : "Take it";
@@ -1450,9 +1112,7 @@ async function loadOEMs() {
   try {
     const oems = await getJSON("/api/dashboard/oems");
     state.oems = oems;
-    renderCapabilities();
     renderControlPanel();
-    renderTicker();
     const tb = $("#oems"); tb.innerHTML = "";
     if (!oems.length) {
       tb.appendChild(el(`<tr><td colspan="7" class="text-ink-dim">No OEM partners yet. Use <button class="text-azure hover:underline" style="background:none;border:none;cursor:pointer;padding:0" onclick="openWizard()">Onboard robot API</button> to register one.</td></tr>`));
@@ -1698,15 +1358,16 @@ function renderAuth() {
   box.innerHTML = "";
   if (a && a.signed_in) {
     const who = (a.actor || "").replace(/^console:/, "");
-    box.appendChild(el(`<span class="text-[12px] px-2 py-1 rounded-md bg-brand/15 text-brand" title="Signed in until ${new Date(a.expires_at * 1000).toLocaleString()}">${esc(who)} · ${esc(a.role)}</span>`));
-    const out = el(`<button class="px-2.5 py-1.5 rounded-md text-[12px] text-ink-mut hover:text-ink" style="border:1px solid var(--line)">Sign out</button>`);
+    box.appendChild(el(`<span class="text-[12px] font-medium" title="Signed in until ${new Date(a.expires_at * 1000).toLocaleString()}">${esc(who)} <span class="text-ink-dim">· ${esc(a.role)}</span></span>`));
+    const out = el(`<button class="btn btn-ghost">Sign out</button>`);
     out.onclick = async () => { await postJSON("/api/auth/logout"); toast("Signed out — view only"); loadAuth(); };
     box.appendChild(out);
   } else {
-    const btn = el(`<button id="btn-sign-in" class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid #111418; color:#111418; background:#FFFFFF">Sign in</button>`);
+    const btn = el(`<button id="btn-sign-in" class="btn btn-ghost">Sign in</button>`);
     btn.onclick = openSignIn;
-    box.append(el(`<span class="hidden md:inline text-[11px] text-ink-dim">view only</span>`), btn);
+    box.append(btn);
   }
+  renderControlPanel(); renderFleet();
 }
 function openSignIn() {
   const card = $("#modal-sign-in .modal-card");
@@ -1752,7 +1413,6 @@ function setConn(ok) {
   state.connLive = ok;
   $("#conn-dot").className = `w-2 h-2 rounded-full ${ok ? "bg-brand pulse" : "bg-red-500"}`;
   $("#conn-label").textContent = ok ? "live" : "reconnecting…";
-  renderTicker();
 }
 function connectWS() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -1764,9 +1424,7 @@ function connectWS() {
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === "fleet") {
-      const prevRobots = state.robots, prevSeq = state.sequence;
       state.robots = msg.robots; if (msg.workers) state.workers = msg.workers; if (msg.sequence) state.sequence = msg.sequence;
-      if (!EMBED) { narrateSequence(prevSeq, state.sequence); narrate(prevRobots, state.robots); }
       onFleetUpdate();
     }
     else if (msg.type === "workers") { state.workers = msg.workers; renderMap(); }
@@ -1795,28 +1453,6 @@ function connectWS() {
   };
 }
 
-// ── left nav rail: click-to-scroll + scroll-spy active highlight ───────────────
-function initRail() {
-  const btns = [...document.querySelectorAll(".rail-btn[data-target]")];
-  if (!btns.length) return;
-  const byId = {};
-  btns.forEach((b) => {
-    byId[b.dataset.target] = b;
-    b.onclick = () => {
-      const t = document.getElementById(b.dataset.target);
-      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-  });
-  const sections = btns.map((b) => document.getElementById(b.dataset.target)).filter(Boolean);
-  const obs = new IntersectionObserver((entries) => {
-    const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-    if (!vis.length) return;
-    btns.forEach((x) => x.classList.remove("active"));
-    const b = byId[vis[0].target.id];
-    if (b) b.classList.add("active");
-  }, { rootMargin: "-35% 0px -55% 0px", threshold: [0, 0.25, 0.5] });
-  sections.forEach((s) => obs.observe(s));
-}
 
 // ── onboarding wizard (new robot API → permissions → policies) ─────────────────
 async function loadCatalog() {
@@ -2114,7 +1750,7 @@ function renderWizardDone() {
     try { await navigator.clipboard.writeText(credential.api_key); copy.textContent = "Copied ✓"; }
     catch (_) { toast("Copy failed — select manually", "warn"); }
   };
-  $("#modal-wizard #wz-done").onclick = () => { closeWizard(); document.getElementById("sec-partners")?.scrollIntoView({ behavior: "smooth" }); };
+  $("#modal-wizard #wz-done").onclick = () => { closeWizard(); showView("partners"); };
 }
 
 function closeWizard() { $("#modal-wizard").classList.add("hidden"); state.wizard = null; }
@@ -2122,20 +1758,51 @@ function closeWizard() { $("#modal-wizard").classList.add("hidden"); state.wizar
 // ── embed mode (marketing site iframe) — warehouse map + live metrics only ─
 function initEmbedMode() {
   if (!EMBED) return;
-  document.documentElement.classList.add("embed-mode", "embed-preview");
-  document.body.classList.add("embed-mode", "embed-preview");
-  document.getElementById("rail")?.classList.add("embed-hidden");
-  document.querySelector("header")?.classList.add("embed-hidden");
-  document.getElementById("sec-capabilities")?.classList.add("embed-hidden");
-  document.getElementById("sec-fleet")?.classList.add("embed-hidden");
-  document.getElementById("sec-benchmark")?.classList.add("embed-hidden");
-  document.getElementById("sec-partners")?.classList.add("embed-hidden");
-  document.querySelector("section:has(#logic)")?.classList.add("embed-hidden");
-  document.getElementById("btn-onboard")?.classList.add("embed-hidden");
-  document.getElementById("btn-dispatch")?.classList.add("embed-hidden");
-  document.getElementById("embed-hero")?.querySelector("aside")?.classList.add("embed-hidden");
-  document.getElementById("sequence-bar")?.classList.add("embed-hidden");
-  document.querySelector("#sec-map .card-head")?.classList.add("embed-hidden");
+  document.documentElement.classList.add("embed-mode");
+  document.body.classList.add("embed-mode");
+}
+
+// ── views: Live floor · Fleet · Runs · Partners (hash-routed, so links deep-link) ──
+const VIEWS = ["live", "fleet", "runs", "partners"];
+function showView(name) {
+  if (!VIEWS.includes(name)) name = "live";
+  state.view = name;
+  document.querySelectorAll("[data-view-panel]").forEach((p) => { p.hidden = p.dataset.viewPanel !== name; });
+  document.querySelectorAll(".view-tab").forEach((t) => {
+    const on = t.dataset.view === name;
+    t.classList.toggle("on", on);
+    if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+  });
+  if (location.hash.slice(1) !== name) history.replaceState(null, "", `#${name}`);
+  if (name === "live") renderMap();
+  if (name === "fleet") renderFleet();
+}
+function wireViews() {
+  document.querySelectorAll(".view-tab").forEach((t) => {
+    t.onclick = (e) => { e.preventDefault(); showView(t.dataset.view); window.scrollTo({ top: 0 }); };
+  });
+  window.addEventListener("hashchange", () => showView(location.hash.slice(1)));
+  showView(location.hash.slice(1) || "live");
+
+  const legendBtn = $("#btn-legend"), legend = $("#map-legend");
+  legendBtn.onclick = (e) => {
+    e.stopPropagation();
+    legend.hidden = !legend.hidden;
+    legendBtn.setAttribute("aria-expanded", String(!legend.hidden));
+  };
+  document.addEventListener("click", (e) => {
+    if (!legend.hidden && !legend.contains(e.target) && e.target !== legendBtn) {
+      legend.hidden = true; legendBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+  const zonesBtn = $("#btn-zones"), drawer = $("#zone-bar");
+  zonesBtn.onclick = () => {
+    drawer.hidden = !drawer.hidden;
+    zonesBtn.setAttribute("aria-expanded", String(!drawer.hidden));
+    if (drawer.hidden && state.zoneDraft) cancelZoneDraft();
+  };
+  // Visitor demo stops count down in the robot panel.
+  setInterval(() => { if (state.demoStops[state.selectedRobot]) renderControlPanel(); }, 1000);
 }
 
 let _embedRenderTimer = null;
@@ -2157,18 +1824,14 @@ function onFleetUpdate() {
     renderSequence();
     renderMap();
     renderControlPanel();
-    renderCapabilities();
-    updateRobotCard();
   }
 }
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 async function init() {
   initEmbedMode();
-  if (!EMBED) initRail();
   if (!EMBED) {
     $("#btn-dispatch").onclick = () => openDispatch();
-    $("#btn-onboard").onclick = () => openWizard();
     $("#btn-sign-in").onclick = openSignIn;
     loadAuth();
     const onboard2 = $("#btn-onboard-2"); if (onboard2) onboard2.onclick = () => openWizard();
@@ -2200,7 +1863,7 @@ async function init() {
 
   wireMap();
   await loadMap();
-  if (!EMBED) wireCommentary();
+  if (!EMBED) wireViews();
 
   if (!EMBED) {
     state.alerts = await getJSON("/api/dashboard/alerts");
@@ -2208,13 +1871,11 @@ async function init() {
     await loadBenchmark();
     await loadCatalog();
     await loadOEMs();
-    await loadOrchestrator();
     await loadActions();
     await loadRuns();
     await loadCalibration();
     setInterval(loadBenchmark, 5000);
     setInterval(loadOEMs, 8000);
-    setInterval(loadOrchestrator, 5000);
   }
   connectWS();
 
