@@ -24,6 +24,7 @@ import time
 from . import pathing, persistence
 from .config import LEAD_COUNT, SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
+from .kpis import kpis
 from .objects import object_store, objects_message, sim_objects, vehicle_speed_cap
 from .models import (
     AlertIn,
@@ -294,6 +295,8 @@ def _begin_carry(robot: RobotRuntime) -> None:
 def _complete_task(robot: RobotRuntime) -> None:
     """Finish the current leg. Leads roll a new random waypoint; shuttles flip direction."""
     recorder.finish(robot)
+    if robot.mission_phase == "carrying":
+        kpis.deliveries += 1
     robot.handoff_partner = None
     robot.pending_pickup = None
     if robot.fleet_role == "lead":
@@ -339,6 +342,7 @@ def _human_stop(robot: RobotRuntime) -> AlertIn | None:
     if now - _last_human_alert.get(robot.id, 0.0) < _HUMAN_ALERT_COOLDOWN_S:
         return None
     _last_human_alert[robot.id] = now
+    kpis.safety_stops += 1
     return AlertIn(
         robot_id=robot.id, type=AlertType.HUMAN_PROXIMITY, severity=AlertSeverity.WARNING,
         message=(f"{robot.vendor} {robot.model} stopped: {worker_label(worker)} is {dist:.1f}m away, "
@@ -519,6 +523,10 @@ async def _tick(dt: float) -> list[AlertIn]:
     alerts: list[AlertIn] = []
     for robot in store.robots.values():
         recorder.sample(robot)
+        kpis.note_time(dt, robot.state == RobotState.ACTIVE)
+        x, y = robot.pose_external.x, robot.pose_external.y
+        kpis.note_slowed(robot.id, robot.state == RobotState.ACTIVE
+                         and (proximity_speed_cap(x, y) is not None or vehicle_speed_cap(x, y) is not None))
         if robot.state == RobotState.CHARGING:
             robot.battery_pct = min(100.0, robot.battery_pct + 0.6)
             if robot.battery_pct >= 100.0:
@@ -640,11 +648,13 @@ async def run() -> None:
             "robots": [r.model_dump(mode="json") for r in store.fleet()],
             "workers": [w.model_dump(mode="json") for w in worker_store.list()],
             "sequence": store.sequence_public(),
+            "kpis": kpis.snapshot(),
         })
         if run_store.version != runs_seen:
             runs_seen = run_store.version
             await hub.broadcast(runs_message())
         if settings.sim_objects:
             object_store.ingest(settings.facility_id, sim_objects.batch(dt))
+            kpis.pallets_shipped, kpis.trucks_loaded = sim_objects.shipped, sim_objects.trucks_loaded
             await hub.broadcast(objects_message())
         await asyncio.sleep(dt)

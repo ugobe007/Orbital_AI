@@ -99,26 +99,38 @@ def objects_message(facility_id: Optional[str] = None) -> dict:
     return {"type": "objects", "facility_id": fid, "now": time.time(), "objects": objects_json(fid)}
 
 
-# Where forklifts pull pallets from: (name, pallet x, pallet y, forklift x, forklift y). The
-# forklift parks at its point facing the pallet, so the forks reach it.
-PICK_FACES: list[tuple[str, float, float, float, float]] = [
-    ("Rack G", 18.0, 5.1, 19.5, 5.1), ("Rack H", 18.0, 8.1, 19.5, 8.1),
-    ("Rack E", 7.1, 8.0, 8.6, 8.0), ("Rack C", 11.8, 4.0, 13.3, 4.0),
-    ("Rack F", 11.8, 10.0, 13.3, 10.0),
-]
-DOCK_LANES: list[tuple[str, float, float]] = [(d["id"], d["x"], d["y"]) for d in WAREHOUSE["dock_lanes"]]
-PALLET_SIZE = {"length": 1.2, "width": 1.0, "height": 1.1}
-FORKLIFT_SIZE = {"length": 2.2, "width": 1.1, "height": 2.1}
+PALLET_SIZE = {"length": 0.9, "width": 0.75, "height": 1.0}
+FORKLIFT_SIZE = {"length": 1.5, "width": 0.85, "height": 2.0}
 FORKLIFT_SPEED = 1.1        # m/s
 LIFT_S = 2.5                # forks up / down
-TRUCK_PICKUP_S = 35.0       # a delivered pallet waits this long before a truck takes it
+# Centre of the forklift to the centre of the pallet on its forks.
+FORK_REACH = FORKLIFT_SIZE["length"] / 2 + PALLET_SIZE["length"] / 2 - 0.15
+
+# Where forklifts pull pallets from: (name, pallet x, pallet y, side x, side y). The forklift
+# parks on that side of the pallet, one fork reach away, facing it.
+PICK_FACES: list[tuple[str, float, float, float, float]] = [
+    ("Rack G", 18.0, 5.1, 1, 0), ("Rack H", 18.0, 8.1, 1, 0), ("Rack E", 7.1, 8.0, 1, 0),
+    ("Rack C", 11.8, 4.0, 1, 0), ("Rack F", 11.8, 10.0, 1, 0),
+]
+DOCK_LANES: list[tuple[str, float, float]] = [(d["id"], d["x"], d["y"]) for d in WAREHOUSE["dock_lanes"]]
+
+# The outbound truck backs its trailer up to the dock door from the yard beyond the north wall.
+TRAILER_SIZE = {"length": 7.0, "width": 2.5, "height": 3.8}
+DOCK_DOOR_X = WAREHOUSE["dock"]["x"] + WAREHOUSE["dock"]["w"] / 2
+TRUCK_DOCKED_Y = WAREHOUSE["height_m"] + TRAILER_SIZE["length"] / 2
+TRUCK_APPROACH_M = 7.0
+TRUCK_SPEED = 1.2           # m/s backing in / pulling out
+TRUCK_LOAD_S = 2.5          # one pallet from a dock lane into the trailer
+TRUCK_CAPACITY = 6
+TRUCK_MAX_WAIT_S = 45.0     # leave with a part load rather than wait forever
+TRUCK_GAP_S = (12.0, 20.0)  # yard time between trucks
 
 
 class _Forklift:
     def __init__(self, fid: str, x: float, y: float) -> None:
         self.id, self.x, self.y, self.yaw = fid, x, y, 0.0
         self.vx = self.vy = 0.0
-        self.phase = "idle"           # idle | to_pick | lifting | to_dock | lowering
+        self.phase = "idle"           # idle | to_pick | lifting | holding | to_dock | lowering
         self.route: list[tuple[float, float]] = []
         self.pick: Optional[tuple[str, float, float, float, float]] = None
         self.lane: Optional[tuple[str, float, float]] = None
@@ -137,7 +149,9 @@ class _Forklift:
             return f"Carrying a pallet to {self.lane[0]}"
         if self.phase == "lowering" and self.lane:
             return f"Setting the pallet down at {self.lane[0]}"
-        return "Waiting for a free dock lane"
+        if self.phase == "holding":
+            return "Holding a pallet: every dock lane is full"
+        return "Waiting for its next pick"
 
     def drive(self, dt: float, speed: float = FORKLIFT_SPEED) -> bool:
         """Advance along the route; True once the last waypoint is reached."""
@@ -164,14 +178,35 @@ class _Forklift:
 
     @property
     def fork_tip(self) -> tuple[float, float]:
-        reach = FORKLIFT_SIZE["length"] / 2 + PALLET_SIZE["length"] / 2 - 0.2
-        return self.x + math.cos(self.yaw) * reach, self.y + math.sin(self.yaw) * reach
+        return self.x + math.cos(self.yaw) * FORK_REACH, self.y + math.sin(self.yaw) * FORK_REACH
+
+
+class _Truck:
+    """away → arriving (backs in) → loading → leaving → away."""
+
+    def __init__(self, first_gap_s: float) -> None:
+        self.phase = "away"
+        self.wait = first_gap_s
+        self.y = TRUCK_DOCKED_Y + TRUCK_APPROACH_M
+        self.vy = 0.0
+        self.load = 0
+        self.docked_s = 0.0
+        self.loading: Optional[str] = None     # pallet moving from its lane into the trailer
+
+    @property
+    def activity(self) -> str:
+        if self.phase == "arriving":
+            return "Backing up to the dock door"
+        if self.phase == "loading":
+            return f"Loading: {self.load} of {TRUCK_CAPACITY} pallets aboard"
+        return f"Pulling out with {self.load} pallet{'s' if self.load != 1 else ''}"
 
 
 class SimObjects:
     """Forklifts running pallets from the racks to the dock, the pallets themselves (waiting at a
-    rack, on the forks, or delivered and waiting for a truck), and a cart crossing the bottom
-    aisle. Routes go around the racks with the same planner the robots use."""
+    rack, on the forks, or delivered and waiting for a truck), the truck that backs up to the
+    dock and loads them, and a cart crossing the back aisle. Routes go around the racks with
+    the same planner the robots use."""
 
     def __init__(self, seed: int = 7) -> None:
         self.t = 0.0
@@ -179,6 +214,9 @@ class SimObjects:
         self.forklifts = [_Forklift("forklift-1", 21.5, 8.1), _Forklift("forklift-2", 14.0, 1.2)]
         self.pallets: dict[str, dict] = {}     # id → {x, y, yaw, state, since}
         self._next_pallet = 1
+        self.truck = _Truck(first_gap_s=8.0)
+        self.shipped = 0
+        self.trucks_loaded = 0
 
     def _new_pallet(self, x: float, y: float, state: str) -> str:
         pid = f"pallet-{self._next_pallet}"
@@ -201,8 +239,9 @@ class SimObjects:
         taken = {o.pick[0] for o in self.forklifts if o is not f and o.pick and o.phase in ("to_pick", "lifting")}
         free = [p for p in PICK_FACES if p[0] not in taken] or PICK_FACES
         f.pick = self.rng.choice(free)
-        f.pallet = self._new_pallet(f.pick[1], f.pick[2], "ready")
-        f.route = self._approach(f, (f.pick[3], f.pick[4]), (f.pick[1], f.pick[2]))
+        _, px, py, sx, sy = f.pick
+        f.pallet = self._new_pallet(px, py, "ready")
+        f.route = self._approach(f, (px + sx * FORK_REACH, py + sy * FORK_REACH), (px, py))
         f.phase = "to_pick"
 
     def _free_lane(self, f: _Forklift) -> Optional[tuple[str, float, float]]:
@@ -223,7 +262,7 @@ class SimObjects:
             ahead = dx * hx + dy * hy > 0
             if o.id < f.id and (d < 1.8 or (d < 2.6 and ahead)):
                 return o
-            if o.phase in ("lifting", "lowering") and d < 2.4 and ahead:
+            if o.phase in ("lifting", "holding", "lowering") and d < 2.4 and ahead:
                 return o
         return None
 
@@ -279,16 +318,16 @@ class SimObjects:
         elif f.phase == "to_pick":
             if f.drive(dt, self._speed(f)):
                 f.phase, f.wait = "lifting", LIFT_S
-        elif f.phase == "lifting":
+        elif f.phase in ("lifting", "holding"):
             f.wait -= dt
             if f.wait <= 0:
+                self.pallets[f.pallet]["state"] = "carried"
                 f.lane = self._free_lane(f)
                 if f.lane is None:
-                    f.wait = 1.0              # every lane full: hold the pallet until a truck clears one
-                    return
-                self.pallets[f.pallet]["state"] = "carried"
-                f.route = self._approach(f, (f.lane[1], f.lane[2] - 1.5), (f.lane[1], f.lane[2]))
-                f.phase = "to_dock"
+                    f.phase, f.wait = "holding", 1.0   # every lane full: wait for the truck to clear one
+                else:
+                    f.route = self._approach(f, (f.lane[1], f.lane[2] - FORK_REACH), (f.lane[1], f.lane[2]))
+                    f.phase = "to_dock"
         elif f.phase == "to_dock":
             if f.drive(dt, self._speed(f)):
                 f.phase, f.wait = "lowering", LIFT_S
@@ -296,7 +335,7 @@ class SimObjects:
             f.wait -= dt
             if f.wait <= 0:
                 p = self.pallets[f.pallet]
-                p.update(state="delivered", since=self.t, lane=f.lane[0], x=f.lane[1], y=f.lane[2], yaw=0.0)
+                p.update(state="delivered", since=self.t, lane=f.lane[0], x=f.lane[1], y=f.lane[2])
                 f.pallet, f.lane, f.pick = None, None, None
                 f.phase = "idle"
         if f.pallet and self.pallets[f.pallet]["state"] == "carried":
@@ -304,24 +343,72 @@ class SimObjects:
             p["x"], p["y"] = f.fork_tip
             p["yaw"] = f.yaw
 
+    def _step_truck(self, dt: float) -> None:
+        tr = self.truck
+        tr.vy = 0.0
+        if tr.phase == "away":
+            tr.wait -= dt
+            if tr.wait <= 0:
+                tr.phase, tr.load, tr.docked_s = "arriving", 0, 0.0
+                tr.y = TRUCK_DOCKED_Y + TRUCK_APPROACH_M
+        elif tr.phase == "arriving":
+            tr.y = max(TRUCK_DOCKED_Y, tr.y - TRUCK_SPEED * dt)
+            tr.vy = -TRUCK_SPEED
+            if tr.y <= TRUCK_DOCKED_Y:
+                tr.phase, tr.wait = "loading", TRUCK_LOAD_S
+        elif tr.phase == "loading":
+            tr.docked_s += dt
+            if tr.loading:
+                p = self.pallets[tr.loading]
+                tx, ty = DOCK_DOOR_X, WAREHOUSE["height_m"] + 0.4
+                dx, dy = tx - p["x"], ty - p["y"]
+                d = math.hypot(dx, dy)
+                step = d / max(tr.wait, dt) * dt
+                tr.wait -= dt
+                if tr.wait <= 0 or d <= step:
+                    del self.pallets[tr.loading]
+                    tr.loading = None
+                    tr.load += 1
+                    self.shipped += 1
+                else:
+                    p["x"], p["y"] = p["x"] + dx / d * step, p["y"] + dy / d * step
+                return
+            waiting = sorted((p["since"], pid) for pid, p in self.pallets.items() if p["state"] == "delivered")
+            if waiting and tr.load < TRUCK_CAPACITY:
+                tr.loading = waiting[0][1]
+                self.pallets[tr.loading]["state"] = "loading"
+                tr.wait = TRUCK_LOAD_S
+            elif tr.load >= TRUCK_CAPACITY or (tr.docked_s >= TRUCK_MAX_WAIT_S and tr.load > 0):
+                tr.phase = "leaving"
+        elif tr.phase == "leaving":
+            tr.y += TRUCK_SPEED * dt
+            tr.vy = TRUCK_SPEED
+            if tr.y >= TRUCK_DOCKED_Y + TRUCK_APPROACH_M:
+                self.trucks_loaded += 1
+                tr.phase, tr.wait = "away", self.rng.uniform(*TRUCK_GAP_S)
+
     def batch(self, dt: float) -> ObjectsIn:
         self.t += dt
         steps = max(1, math.ceil(dt / 0.25))
         for _ in range(steps):
             for f in self.forklifts:
                 self._step(f, dt / steps)
-        for pid in [k for k, p in self.pallets.items()
-                    if p["state"] == "delivered" and self.t - p["since"] >= TRUCK_PICKUP_S]:
-            del self.pallets[pid]
+            self._step_truck(dt / steps)
 
         objects: list[dict] = []
         for f in self.forklifts:
             objects.append({"id": f.id, "label": "forklift", "x": f.x, "y": f.y, "yaw": f.yaw,
                             "vx": f.vx, "vy": f.vy, "size": FORKLIFT_SIZE, "confidence": 0.93,
                             "activity": f.activity})
+        tr = self.truck
+        if tr.phase != "away":
+            objects.append({"id": "truck-1", "label": "truck", "x": DOCK_DOOR_X, "y": tr.y,
+                            "yaw": math.pi / 2, "vy": tr.vy, "size": TRAILER_SIZE, "confidence": 0.9,
+                            "activity": tr.activity})
         for pid, p in self.pallets.items():
             activity = {"ready": "Ready for pickup", "carried": "On the forks",
-                        "delivered": "Delivered, waiting for the truck"}[p["state"]]
+                        "delivered": "Delivered, waiting for the truck",
+                        "loading": "Going onto the truck"}[p["state"]]
             objects.append({"id": pid, "label": "pallet", "x": p["x"], "y": p["y"], "yaw": p["yaw"],
                             "size": PALLET_SIZE, "confidence": 0.97, "activity": activity})
         cart_x, cart_dir = _shuttle(2.0, 13.0, 0.5, self.t + 4.0)

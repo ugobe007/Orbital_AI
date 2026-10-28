@@ -103,26 +103,44 @@ def test_sim_objects_move_and_stay_on_the_floor():
     assert later["forklift-1"].x != first["forklift-1"].x
     for _ in range(200):
         for o in sim.batch(0.5).objects:
-            assert 0 <= o.x <= 24 and 0 <= o.y <= 16
+            if o.label == "truck":
+                assert o.y > 16                       # out in the yard, never on the floor
+            else:
+                assert 0 <= o.x <= 24 and 0 <= o.y <= 16.5
 
 
 def test_forklifts_carry_pallets_to_the_dock_and_trucks_take_them():
     sim = SimObjects()
-    seen_activity, picked_from, delivered = set(), set(), {}
+    seen_activity, picked_from, delivered, truck_y = set(), set(), {}, []
     for _ in range(1200):
         for o in sim.batch(0.25).objects:
             if o.label == "forklift":
                 seen_activity.add(o.activity.split(" ")[0])
             if o.label == "pallet" and o.activity.startswith("Delivered"):
                 delivered[o.id] = o
+            if o.label == "truck":
+                truck_y.append(o.y)
         picked_from |= {f.pick[0] for f in sim.forklifts if f.pick}
     assert {"Heading", "Lifting", "Carrying", "Setting"} <= seen_activity
     assert len(picked_from) >= 3
     assert len(delivered) >= 5
     assert all(o.y > 14 and 12 <= o.x <= 18 for o in delivered.values())
-    # Trucks clear the dock, so delivered pallets don't pile up forever.
+    # Trucks back up to the dock door, load what's waiting and leave, so the dock never jams.
+    assert sim.trucks_loaded >= 3 and sim.shipped >= 10
+    assert min(truck_y) == pytest.approx(16 + objects_mod.TRAILER_SIZE["length"] / 2)
     live = [o for o in sim.batch(0.25).objects if o.label == "pallet" and o.activity.startswith("Delivered")]
     assert len(live) <= 3
+
+
+def test_forks_reach_the_pallet_they_pick():
+    sim = SimObjects()
+    for _ in range(400):
+        sim.batch(0.25)
+        for f in sim.forklifts:
+            if f.phase == "lifting":
+                p = sim.pallets[f.pallet]
+                tx, ty = f.fork_tip
+                assert abs(tx - p["x"]) < 0.05 and abs(ty - p["y"]) < 0.05
 
 
 def test_forklifts_keep_their_distance():

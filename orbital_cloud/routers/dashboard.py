@@ -8,6 +8,7 @@ from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
 from ..benchmark import render_benchmark_report
 from ..config import INDUSTRIES, WAREHOUSE, settings
 from ..events import hub
+from ..kpis import kpis
 from ..models import (
     ActionProposalIn,
     Alert,
@@ -86,6 +87,7 @@ async def get_fleet(_role: Role = Depends(RequireViewer)) -> dict:
         "robots": [r.model_dump(mode="json") for r in store.fleet()],
         "workers": _workers_json(),
         "sequence": store.sequence_public(),
+        "kpis": kpis.snapshot(),
     }
 
 
