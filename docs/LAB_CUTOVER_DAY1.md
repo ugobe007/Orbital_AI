@@ -103,6 +103,13 @@ effect is there; the publishable sheet needs ten.
 python3 scripts/lab_report.py --url "$ORBITAL_CLOUD_URL" --site "Day 1, Unitree" --min-runs 5
 ```
 
+To keep a raw record of the whole floor for the session (every robot's camera and own pose,
+people, tracked objects, alerts and the value-bar totals), leave a capture running alongside:
+
+```bash
+python3 scripts/capture_floor.py --url "$ORBITAL_CLOUD_URL" --out captures/day1 --duration 3600
+```
+
 ---
 
 ## After Day 1
