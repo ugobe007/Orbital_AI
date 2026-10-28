@@ -501,11 +501,11 @@ async function loadMap() {
     renderMap(); renderZoneBar();
   } catch (e) { console.error(e); }
 }
+// The drawing is letterboxed inside the SVG box when the box's shape differs from the floor's,
+// so map the pointer through the SVG's own transform rather than the box.
 function clickToWorld(evt, svg) {
-  const m = state.map, rect = svg.getBoundingClientRect();
-  const fx = (evt.clientX - rect.left) / rect.width;
-  const fy = (evt.clientY - rect.top) / rect.height;
-  return { x: fx * m.width_m, y: (1 - fy) * (m.height_m + (m.yard_m || 0)) };
+  const pt = new DOMPoint(evt.clientX, evt.clientY).matrixTransform(svg.getScreenCTM().inverse());
+  return { x: pt.x, y: state.map.height_m - pt.y };
 }
 
 // Live updates arrive a few times a second. Each moving thing glides from where it is drawn now
@@ -1989,6 +1989,14 @@ function wireViews() {
   });
   window.addEventListener("hashchange", () => showView(location.hash.slice(1)));
   showView(location.hash.slice(1) || "live");
+
+  const fsBtn = $("#btn-fullscreen"), mapPanel = $("#sec-map");
+  if (!mapPanel.requestFullscreen) fsBtn.hidden = true;
+  fsBtn.onclick = () => (document.fullscreenElement ? document.exitFullscreen() : mapPanel.requestFullscreen()).catch(() => {});
+  document.addEventListener("fullscreenchange", () => {
+    fsBtn.textContent = document.fullscreenElement ? "Exit full screen" : "Full screen";
+    renderMap();
+  });
 
   const legendBtn = $("#btn-legend"), legend = $("#map-legend");
   legendBtn.onclick = (e) => {
