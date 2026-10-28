@@ -183,6 +183,8 @@ class TrackedObjectIn(BaseModel):
     size: ObjectSize = Field(default_factory=ObjectSize)
     confidence: float = Field(default=1.0, ge=0, le=1)
     ttl_s: Optional[float] = Field(default=None, gt=0, le=300)
+    # What it's doing, when the publisher knows (e.g. from a WMS): "Carrying a pallet to Dock lane 2".
+    activity: Optional[str] = Field(default=None, max_length=80)
 
 
 class ObjectsIn(BaseModel):

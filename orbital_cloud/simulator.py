@@ -24,7 +24,7 @@ import time
 from . import pathing, persistence
 from .config import LEAD_COUNT, SEQUENCE_PERIOD_S, SEQUENCE_THEMES, WAREHOUSE, settings
 from .events import hub
-from .objects import object_store, objects_message, sim_objects
+from .objects import object_store, objects_message, sim_objects, vehicle_speed_cap
 from .models import (
     AlertIn,
     AlertSeverity,
@@ -318,9 +318,10 @@ def _complete_task(robot: RobotRuntime) -> None:
 
 
 def _zone_speed(robot: RobotRuntime) -> float:
-    """The robot's speed, capped by any slow zone it is inside and by people nearby."""
+    """The robot's speed, capped by any slow zone it is inside and by people or forklifts nearby."""
     x, y = robot.pose_external.x, robot.pose_external.y
-    caps = [c for c in (zone_store.speed_cap(x, y, robot.vendor), proximity_speed_cap(x, y)) if c is not None]
+    caps = [c for c in (zone_store.speed_cap(x, y, robot.vendor), proximity_speed_cap(x, y),
+                        vehicle_speed_cap(x, y)) if c is not None]
     return min([robot.speed_mps, *caps])
 
 

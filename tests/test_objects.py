@@ -98,12 +98,58 @@ def test_sim_objects_move_and_stay_on_the_floor():
     sim = SimObjects()
     first = {o.id: o for o in sim.batch(0.2).objects}
     later = {o.id: o for o in sim.batch(3.0).objects}
-    assert set(first) == {"pallet-1", "forklift-1", "cart-1"}
+    assert {"forklift-1", "forklift-2", "cart-1"} <= set(first)
+    assert any(o.label == "pallet" for o in first.values())
     assert later["forklift-1"].x != first["forklift-1"].x
-    assert later["pallet-1"].x == first["pallet-1"].x
     for _ in range(200):
         for o in sim.batch(0.5).objects:
             assert 0 <= o.x <= 24 and 0 <= o.y <= 16
+
+
+def test_forklifts_carry_pallets_to_the_dock_and_trucks_take_them():
+    sim = SimObjects()
+    seen_activity, picked_from, delivered = set(), set(), {}
+    for _ in range(1200):
+        for o in sim.batch(0.25).objects:
+            if o.label == "forklift":
+                seen_activity.add(o.activity.split(" ")[0])
+            if o.label == "pallet" and o.activity.startswith("Delivered"):
+                delivered[o.id] = o
+        picked_from |= {f.pick[0] for f in sim.forklifts if f.pick}
+    assert {"Heading", "Lifting", "Carrying", "Setting"} <= seen_activity
+    assert len(picked_from) >= 3
+    assert len(delivered) >= 5
+    assert all(o.y > 14 and 12 <= o.x <= 18 for o in delivered.values())
+    # Trucks clear the dock, so delivered pallets don't pile up forever.
+    live = [o for o in sim.batch(0.25).objects if o.label == "pallet" and o.activity.startswith("Delivered")]
+    assert len(live) <= 3
+
+
+def test_forklifts_keep_their_distance():
+    import math
+
+    sim = SimObjects(seed=3)
+    closest = 99.0
+    for _ in range(2400):
+        sim.batch(0.25)
+        a, b = sim.forklifts
+        closest = min(closest, math.hypot(a.x - b.x, a.y - b.y))
+    assert closest > 0.9
+
+
+def test_robots_slow_down_near_a_tracked_forklift():
+    assert objects_mod.vehicle_speed_cap(18.0, 8.1) is None
+    object_store.ingest(FAC, ObjectsIn(source="cv", objects=[FORKLIFT]))
+    assert objects_mod.vehicle_speed_cap(19.0, 8.1) == settings.human_slow_speed_mps
+    assert objects_mod.vehicle_speed_cap(5.0, 3.0) is None
+
+
+def test_object_activity_is_optional_and_shown_on_the_map():
+    obj = {**PALLET, "activity": "On the forks"}
+    client.post(f"/api/v1/objects/{FAC}", json={"source": "wms", "objects": [obj, FORKLIFT]})
+    by_id = {o["id"]: o for o in client.get(f"/api/v1/objects/{FAC}").json()["objects"]}
+    assert by_id["pallet-7"]["activity"] == "On the forks"
+    assert by_id["fl-1"]["activity"] is None
 
 
 def test_mcp_get_map_describes_objects():

@@ -468,6 +468,45 @@ function clickToWorld(evt, svg) {
   return { x: fx * m.width_m, y: (1 - fy) * m.height_m };
 }
 
+// A top-down forklift: yellow body with the cab and counterweight, forks reaching ahead to
+// where a carried pallet sits. Drawn in the vehicle's own frame, then rotated to its yaw.
+function forkliftGlyph(o, cx, cy, deg) {
+  const L = o.size.length, Wd = o.size.width, h = Wd / 2;
+  const forkFrom = L / 2 - 0.2, forkTo = L / 2 + 1.0;
+  const label = `<text class="map-label" x="${cx}" y="${cy - Math.max(L, Wd) / 2 - 0.46}" fill="#854D0E" font-size="0.36" font-weight="700" text-anchor="middle">${esc(o.id)}</text>`
+    + (o.activity ? `<text class="map-label" x="${cx}" y="${cy - Math.max(L, Wd) / 2 - 0.1}" fill="#3F3F46" font-size="0.28" text-anchor="middle">${esc(o.activity)}</text>` : "");
+  return `<g transform="translate(${cx} ${cy}) rotate(${deg})">`
+    + `<rect x="${forkFrom}" y="${-h * 0.62}" width="${forkTo - forkFrom}" height="0.1" rx="0.03" fill="#52525B"/>`
+    + `<rect x="${forkFrom}" y="${h * 0.62 - 0.1}" width="${forkTo - forkFrom}" height="0.1" rx="0.03" fill="#52525B"/>`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L}" height="${Wd}" rx="0.16" fill="#FACC15" stroke="#A16207" stroke-width="0.05"/>`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L * 0.22}" height="${Wd}" rx="0.14" fill="#A16207" opacity="0.55"/>`
+    + `<rect x="${-L * 0.1}" y="${-h * 0.7}" width="${L * 0.36}" height="${Wd * 0.7}" rx="0.08" fill="#1F2937" opacity="0.8"/>`
+    + `<rect x="${L / 2 - 0.22}" y="${-h * 0.95}" width="0.16" height="${Wd * 0.95}" rx="0.03" fill="#3F3F46"/>`
+    + `</g>` + label;
+}
+
+// A wooden pallet seen from above: deck boards across the stringers. Delivered pallets carry a
+// small check so you can see the dock filling up for the truck.
+function palletGlyph(o, cx, cy, deg) {
+  const L = o.size.length, Wd = o.size.width, h = Wd / 2;
+  const delivered = (o.activity || "").startsWith("Delivered");
+  const carried = (o.activity || "") === "On the forks";
+  let boards = "";
+  for (let i = 0; i < 5; i++) {
+    const bx = -L / 2 + 0.05 + i * (L - 0.1 - 0.16) / 4;
+    boards += `<rect x="${bx}" y="${-h + 0.04}" width="0.16" height="${Wd - 0.08}" fill="#E8C48A"/>`;
+  }
+  const load = carried || delivered
+    ? `<rect x="${-L / 2 + 0.12}" y="${-h + 0.12}" width="${L - 0.24}" height="${Wd - 0.24}" rx="0.06" fill="#B0875A" fill-opacity="0.55" stroke="#7C5A36" stroke-width="0.03"/>`
+    : "";
+  const check = delivered
+    ? `<circle cx="${cx + L / 2 - 0.05}" cy="${cy - h + 0.05}" r="0.2" fill="#16A34A"/><path d="M${cx + L / 2 - 0.15} ${cy - h + 0.05} l0.07 0.07 l0.13 -0.14" stroke="#fff" stroke-width="0.05" fill="none"/>`
+    : "";
+  return `<g transform="translate(${cx} ${cy}) rotate(${deg})">`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L}" height="${Wd}" rx="0.05" fill="#A47148" stroke="#6B4423" stroke-width="0.04"/>`
+    + boards + load + `</g>` + check;
+}
+
 function renderMap() {
   const svg = $("#map"), m = state.map;
   if (!svg || !m) return;
@@ -485,6 +524,11 @@ function renderMap() {
     const d = m.dock;
     p.push(`<rect x="${d.x}" y="${Y(d.y + d.h)}" width="${d.w}" height="${d.h}" rx="0.08" fill="#DBE4FB" stroke="#1D4ED8" stroke-width="0.03" opacity="0.85"/>`);
     p.push(`<text x="${d.x + d.w / 2}" y="${Y(d.y + d.h) + d.h / 2 + 0.16}" fill="#1D4ED8" font-size="0.42" text-anchor="middle" opacity="0.95">DOCK</text>`);
+  }
+  // Painted drop spots where forklifts leave outbound pallets for the truck.
+  for (const [i, l] of (m.dock_lanes || []).entries()) {
+    p.push(`<g><title>${esc(l.id)}</title><rect x="${l.x - 0.7}" y="${Y(l.y) - 0.6}" width="1.4" height="1.2" rx="0.06" fill="#EEF2FF" stroke="#1D4ED8" stroke-width="0.04" stroke-dasharray="0.16 0.1"/>`);
+    p.push(`<text x="${l.x}" y="${Y(l.y) + 0.12}" fill="#1D4ED8" font-size="0.34" font-weight="600" text-anchor="middle" opacity="0.6">${i + 1}</text></g>`);
   }
   for (const r of m.racks) {
     p.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.08" fill="#C9CCC6" stroke="#8A8F88" stroke-width="0.035"/>`);
@@ -553,11 +597,20 @@ function renderMap() {
   // is moving, and its label. Objects past their expiry are dropped even between updates.
   const now = Date.now() / 1000 + state.clockSkew;
   state.objects = state.objects.filter((o) => o.expires_at > now);
-  for (const o of state.objects) {
+  const order = { forklift: 1, pallet: 2 };
+  const objs = [...state.objects].sort((a, b) => (order[a.label] || 0) - (order[b.label] || 0));
+  for (const o of objs) {
     const color = OBJECT_COLOR[o.label] || OBJECT_COLOR.default;
     const L = o.size.length, Wd = o.size.width, deg = -o.yaw * 180 / Math.PI;
     const cx = o.x, cy = Y(o.y);
-    p.push(`<g><title>${esc(o.label)} ${esc(o.id)} · ${(o.confidence * 100).toFixed(0)}% · ${esc(o.source)}</title>`);
+    const tip = `${esc(o.label)} ${esc(o.id)}${o.activity ? ` · ${esc(o.activity)}` : ""} · ${(o.confidence * 100).toFixed(0)}% · ${esc(o.source)}`;
+    if (o.label === "forklift" || o.label === "pallet") {
+      p.push(`<g class="map-object"><title>${tip}</title>`);
+      p.push(o.label === "forklift" ? forkliftGlyph(o, cx, cy, deg) : palletGlyph(o, cx, cy, deg));
+      p.push(`</g>`);
+      continue;
+    }
+    p.push(`<g><title>${tip}</title>`);
     p.push(`<rect x="${cx - L / 2}" y="${cy - Wd / 2}" width="${L}" height="${Wd}" rx="0.06" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="0.045" transform="rotate(${deg} ${cx} ${cy})"/>`);
     p.push(`<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(o.yaw) * L / 2}" y2="${Y(o.y + Math.sin(o.yaw) * L / 2)}" stroke="${color}" stroke-width="0.04" opacity="0.7"/>`);
     if (Math.hypot(o.vx, o.vy) > 0.05) {

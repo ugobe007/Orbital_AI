@@ -424,3 +424,6 @@ button.stat.on .stat-val { color: #FFFFFF; }
   .seq-objective { display: none; }
 }
 [data-view-panel][hidden] { display: none !important; }
+
+/* Map labels sit over racks and floor lines; a white halo keeps them readable. */
+.map-label { paint-order: stroke; stroke: #fff; stroke-width: 0.09px; stroke-linejoin: round; }
