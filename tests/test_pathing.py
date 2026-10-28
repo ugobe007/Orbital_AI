@@ -55,3 +55,31 @@ def test_operator_waypoint_routes_around_obstacle():
         if not robot.nav_queue:
             break
     assert math.hypot(robot.pose_external.x - 9.0, robot.pose_external.y - 4.5) < 0.5
+
+
+def test_route_goes_around_an_avoid_rectangle():
+    blocker = (11.5, 14.0, 12.5, 15.4)        # a vehicle parked across the top aisle
+    route = pathing.plan((8.0, 15.0), (16.0, 15.0), avoid=[blocker])
+    pts = [(8.0, 15.0), *route]
+    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+        for i in range(41):
+            x, y = ax + (bx - ax) * i / 40, ay + (by - ay) * i / 40
+            assert not (blocker[0] <= x <= blocker[2] and blocker[1] <= y <= blocker[3])
+            assert not _in_any_rack(x, y)
+    assert route[-1] == (16.0, 15.0)
+
+
+def test_unreachable_goal_with_avoid_gives_no_route():
+    # Fence the goal in completely: the caller keeps its current route instead of a straight
+    # line through the racks.
+    fence = [(14.0, 0.0, 24.0, 2.5), (14.0, 0.0, 15.0, 16.0), (14.0, 13.5, 24.0, 16.0)]
+    assert pathing.plan((5.0, 15.0), (20.0, 5.0), avoid=fence) == []
+
+
+def test_a_start_against_a_rack_corner_does_not_snap_across_it():
+    route = pathing.plan((11.24, 13.44), (9.0, 15.0))
+    pts = [(11.24, 13.44), *route]
+    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+        for i in range(41):
+            x, y = ax + (bx - ax) * i / 40, ay + (by - ay) * i / 40
+            assert not (10.0 < x < 11.2 and 9.0 < y < 14.0)     # rack F

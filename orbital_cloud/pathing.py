@@ -122,11 +122,12 @@ _grid_cache: dict[tuple[int, Optional[str], int], Grid] = {}
 
 
 def _grid_for(polys: Polys, vendor: Optional[str], seen: Cells = frozenset(),
-              seen_version: int = 0) -> Grid:
+              seen_version: Optional[int] = 0) -> Grid:
+    """``seen_version=None`` means a one-off obstacle set (``avoid``): build, don't cache."""
     if not polys and not seen:
         return _GRID
     key = (zone_store.version if polys else -1, vendor if polys else None, seen_version if seen else 0)
-    grid = _grid_cache.get(key)
+    grid = _grid_cache.get(key) if seen_version is not None else None
     if grid is None:
         if len(_grid_cache) > 32:
             _grid_cache.clear()
@@ -142,8 +143,25 @@ def _grid_for(polys: Polys, vendor: Optional[str], seen: Cells = frozenset(),
                 for cj in range(j0, j1 + 1):
                     if not grid[ci][cj] and _in_inflated(*_center(ci, cj), poly):
                         grid[ci][cj] = True
-        _grid_cache[key] = grid
+        if seen_version is not None:
+            _grid_cache[key] = grid
     return grid
+
+
+Rect = tuple[float, float, float, float]
+
+
+def _rect_cells(rects: Sequence[Rect]) -> Cells:
+    cells: set[tuple[int, int]] = set()
+    for x0, y0, x1, y1 in rects:
+        i0, j0 = _to_cell(x0, y0)
+        i1, j1 = _to_cell(x1, y1)
+        for ci in range(i0, i1 + 1):
+            for cj in range(j0, j1 + 1):
+                cx, cy = _center(ci, cj)
+                if x0 <= cx <= x1 and y0 <= cy <= y1:
+                    cells.add((ci, cj))
+    return frozenset(cells)
 
 
 def _blocked_cell(ci: int, cj: int, grid: Grid = _GRID) -> bool:
@@ -152,20 +170,36 @@ def _blocked_cell(ci: int, cj: int, grid: Grid = _GRID) -> bool:
     return grid[ci][cj]
 
 
-def _nearest_free(ci: int, cj: int, grid: Grid = _GRID) -> tuple[int, int]:
-    """Spiral outward to the closest free cell (start/goal may sit inside inflation)."""
-    if not _blocked_cell(ci, cj, grid):
+def _crosses_rack(p0: tuple[float, float], p1: tuple[float, float]) -> bool:
+    """True if the straight segment passes through a rack itself (not its clearance)."""
+    steps = max(1, int(math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / (CELL * 0.25)))
+    for s in range(steps + 1):
+        x, y = p0[0] + (p1[0] - p0[0]) * s / steps, p0[1] + (p1[1] - p0[1]) * s / steps
+        if any(r["x"] < x < r["x"] + r["w"] and r["y"] < y < r["y"] + r["h"] for r in WAREHOUSE.get("racks", [])):
+            return True
+    return False
+
+
+def _nearest_free(ci: int, cj: int, grid: Grid = _GRID,
+                  origin: Optional[tuple[float, float]] = None) -> tuple[int, int]:
+    """Spiral outward to the closest free cell (start/goal may sit inside inflation). With
+    ``origin``, only cells reachable from it in a straight line without crossing a rack count,
+    so a start wedged against a rack corner doesn't snap to the far side of it."""
+    def ok(i: int, j: int) -> bool:
+        return not _blocked_cell(i, j, grid) and (origin is None or not _crosses_rack(origin, _center(i, j)))
+
+    if ok(ci, cj):
         return ci, cj
     for radius in range(1, max(_COLS, _ROWS)):
         for di in range(-radius, radius + 1):
             for dj in (-radius, radius):
-                if not _blocked_cell(ci + di, cj + dj, grid):
+                if ok(ci + di, cj + dj):
                     return ci + di, cj + dj
         for dj in range(-radius + 1, radius):
             for di in (radius, -radius):
-                if not _blocked_cell(ci + di, cj + dj, grid):
+                if ok(ci + di, cj + dj):
                     return ci + di, cj + dj
-    return ci, cj
+    return _nearest_free(ci, cj, grid) if origin is not None else (ci, cj)
 
 
 _NEIGHBORS = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
@@ -238,24 +272,32 @@ def _simplify(points: list[tuple[float, float]], polys: Polys = (),
 
 
 def plan(start: tuple[float, float], goal: tuple[float, float],
-         vendor: Optional[str] = None) -> list[tuple[float, float]]:
+         vendor: Optional[str] = None, avoid: Sequence[Rect] = ()) -> list[tuple[float, float]]:
     """Return a list of world waypoints from just after ``start`` to ``goal`` that avoids
     the racks and every keep-out zone that applies to ``vendor``. Falls back to a direct
     segment when already clear or when no grid path exists. Obstacles the cameras see on the
     floor are avoided for every vendor. The final point is the exact ``goal`` so the robot
     arrives precisely — unless the goal sits inside a keep-out zone or a camera-seen obstacle,
-    in which case the route stops at the nearest reachable point outside it."""
+    in which case the route stops at the nearest reachable point outside it. ``avoid`` adds
+    one-off rectangles ``(x0, y0, x1, y1)`` to steer around, such as a vehicle in the way; the
+    caller pads them, they are not inflated again. With ``avoid``, an unreachable goal gives
+    an empty list instead of the direct segment, so the caller keeps its current route."""
     polys = _keepout_polys(vendor)
     seen_version, seen, seen_raw = _camera_cells()
+    if avoid:
+        extra = _rect_cells(avoid)
+        seen, seen_raw, seen_version = seen | extra, seen_raw | extra, None
     if _segment_clear(start, goal, polys, seen):
         return [goal]
     grid = _grid_for(polys, vendor, seen, seen_version)
     goal_in_keepout = (any(point_in_polygon(goal[0], goal[1], p) for p in polys)
                        or _to_cell(*goal) in seen_raw)
-    s_cell = _nearest_free(*_to_cell(*start), grid)
+    s_cell = _nearest_free(*_to_cell(*start), grid, origin=start)
     g_cell = _nearest_free(*_to_cell(*goal), grid)
     cells = _astar(s_cell, g_cell, grid)
     if not cells:
+        if avoid:
+            return []
         return [_center(*g_cell)] if goal_in_keepout else [goal]
     pts = [start, *[_center(ci, cj) for ci, cj in cells]]
     if not goal_in_keepout:
