@@ -634,7 +634,7 @@ async def run() -> None:
     dt = 1.0 / hz
     runs_seen = run_store.version
     while True:
-        sim_crowd.tick(dt)
+        sim_crowd.tick(dt, horns=sim_objects.horns() if settings.sim_objects else None)
         # Rotate the fleet mission sequence when its window elapses (keeps the floor alive).
         seq = store.sequence
         if time.time() - float(seq.get("started_at", 0)) >= float(seq.get("period_s", SEQUENCE_PERIOD_S)):
@@ -654,7 +654,9 @@ async def run() -> None:
             runs_seen = run_store.version
             await hub.broadcast(runs_message())
         if settings.sim_objects:
-            object_store.ingest(settings.facility_id, sim_objects.batch(dt))
+            people = [(w.id, w.pose.x, w.pose.y) for w in worker_store.list()]
+            robots = [(r.id, r.pose_external.x, r.pose_external.y) for r in store.robots.values()]
+            object_store.ingest(settings.facility_id, sim_objects.batch(dt, people=people, robots=robots))
             kpis.pallets_shipped, kpis.trucks_loaded = sim_objects.shipped, sim_objects.trucks_loaded
             await hub.broadcast(objects_message())
         await asyncio.sleep(dt)

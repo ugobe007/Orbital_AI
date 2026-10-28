@@ -11,7 +11,7 @@ import math
 import random
 import threading
 import time
-from typing import Optional
+from typing import Optional, Sequence
 
 from .config import WAREHOUSE, settings
 from .models import ObjectsIn, TrackedObject
@@ -86,6 +86,68 @@ VEHICLE_LABELS = {"forklift"}
 VEHICLE_SLOW_RADIUS_M = 2.5
 
 
+class Box:
+    """A rotated rectangle on the floor: centre, heading, half length (along the heading) and
+    half width. Used for vehicle footprints."""
+
+    __slots__ = ("cx", "cy", "yaw", "hl", "hw", "_c", "_s")
+
+    def __init__(self, cx: float, cy: float, yaw: float, hl: float, hw: float) -> None:
+        self.cx, self.cy, self.yaw, self.hl, self.hw = cx, cy, yaw, hl, hw
+        self._c, self._s = math.cos(yaw), math.sin(yaw)
+
+    def dist(self, x: float, y: float) -> float:
+        """Distance from a point to the rectangle; 0 inside."""
+        dx, dy = x - self.cx, y - self.cy
+        lx, ly = dx * self._c + dy * self._s, -dx * self._s + dy * self._c
+        return math.hypot(max(abs(lx) - self.hl, 0.0), max(abs(ly) - self.hw, 0.0))
+
+    def overlaps(self, other: "Box", pad: float = 0.0) -> bool:
+        """True when the two rectangles come within ``pad`` of each other (separating axes)."""
+        dx, dy = other.cx - self.cx, other.cy - self.cy
+        for ax, ay in ((self._c, self._s), (-self._s, self._c), (other._c, other._s), (-other._s, other._c)):
+            r1 = self.hl * abs(self._c * ax + self._s * ay) + self.hw * abs(-self._s * ax + self._c * ay)
+            r2 = other.hl * abs(other._c * ax + other._s * ay) + other.hw * abs(-other._s * ax + other._c * ay)
+            if abs(dx * ax + dy * ay) > r1 + r2 + pad:
+                return False
+        return True
+
+    def corners(self) -> list[tuple[float, float]]:
+        out = []
+        for sl, sw in ((1, 1), (1, -1), (-1, -1), (-1, 1)):
+            lx, ly = sl * self.hl, sw * self.hw
+            out.append((self.cx + lx * self._c - ly * self._s, self.cy + lx * self._s + ly * self._c))
+        return out
+
+    def gap(self, other: "Box") -> float:
+        """Clearance between two rectangles; 0 when they touch. For convex shapes that don't
+        overlap, the closest pair always includes a corner of one of them."""
+        if self.overlaps(other):
+            return 0.0
+        return min(min(other.dist(x, y) for x, y in self.corners()),
+                   min(self.dist(x, y) for x, y in other.corners()))
+
+    def bounds(self, pad: float = 0.0) -> tuple[float, float, float, float]:
+        ex = self.hl * abs(self._c) + self.hw * abs(self._s) + pad
+        ey = self.hl * abs(self._s) + self.hw * abs(self._c) + pad
+        return self.cx - ex, self.cy - ey, self.cx + ex, self.cy + ey
+
+
+def forklift_box(x: float, y: float, yaw: float, length: float, width: float) -> Box:
+    """Body plus forks: the forks (and any pallet on them) reach about 0.47 body lengths
+    past the front, so the footprint is shifted forward to cover them."""
+    front, back = length / 2 + length * 0.5, length / 2
+    off = (front - back) / 2
+    return Box(x + math.cos(yaw) * off, y + math.sin(yaw) * off, yaw, (front + back) / 2, width / 2)
+
+
+def vehicle_boxes(facility_id: Optional[str] = None, now: Optional[float] = None) -> list[tuple[str, Box]]:
+    """Footprints of the camera-tracked vehicles on the floor, for anyone who must keep clear."""
+    return [(o.id, forklift_box(o.x, o.y, o.yaw, o.size.length, o.size.width))
+            for o in object_store.list(facility_id or settings.facility_id, now)
+            if o.label in VEHICLE_LABELS]
+
+
 def vehicle_speed_cap(x: float, y: float, facility_id: Optional[str] = None) -> Optional[float]:
     """Speed cap for a robot at (x, y) because a camera-tracked vehicle is close by."""
     for o in object_store.list(facility_id or settings.facility_id):
@@ -102,6 +164,7 @@ def objects_message(facility_id: Optional[str] = None) -> dict:
 PALLET_SIZE = {"length": 0.9, "width": 0.75, "height": 1.0}
 FORKLIFT_SIZE = {"length": 1.5, "width": 0.85, "height": 2.0}
 FORKLIFT_SPEED = 1.1        # m/s
+TURN_RATE = 1.6             # rad/s, turning on the spot
 LIFT_S = 2.5                # forks up / down
 # Centre of the forklift to the centre of the pallet on its forks.
 FORK_REACH = FORKLIFT_SIZE["length"] / 2 + PALLET_SIZE["length"] / 2 - 0.15
@@ -125,6 +188,27 @@ TRUCK_CAPACITY = 6
 TRUCK_MAX_WAIT_S = 45.0     # leave with a part load rather than wait forever
 TRUCK_GAP_S = (12.0, 20.0)  # yard time between trucks
 
+# Keeping clear. A forklift never moves closer to a person than PERSON_STOP_M or to a robot than
+# ROBOT_STOP_M (measured from its footprint, forks included), never moves its footprint within
+# FORKLIFT_GAP_M of another forklift's, and slows to CREEP_MPS with anyone within SLOW_NEAR_M.
+PERSON_STOP_M = 0.7
+ROBOT_STOP_M = 0.5
+FORKLIFT_GAP_M = 0.3
+SLOW_NEAR_M = 2.5
+CREEP_MPS = 0.45
+DETOUR_AFTER_S = 1.5        # blocked this long: plan a way around whatever is in the way
+PERSON_DETOUR_PADS = (1.4, 1.1, 0.8)     # widest that leaves the forklift's goal reachable
+FORKLIFT_DETOUR_PADS = (0.9, 0.5, 0.25)
+DETOUR_NEAR_M = 4.0
+GIVE_WAY_AFTER_S = 4.0      # still stuck on a forklift: pull aside off its path and let it by
+GIVE_WAY_HOLD_S = 2.5
+REDISPATCH_AFTER_S = 20.0   # a person or robot still in the way: pick somewhere else
+SWAP_AFTER_S = 10.0         # two forklifts stuck on each other this long: the other one gives way
+REVERSE_M = 1.5             # straight-line move away from a forklift before pulling aside
+BACK_OUT_M = (0.8, 1.0)     # back straight out of a rack face / dock lane before turning
+HORN_M = 2.0   # people this close to a stuck forklift step out of its way
+CART_Y, CART_X, CART_SPEED = 0.9, (2.0, 13.0), 0.5
+
 
 class _Forklift:
     def __init__(self, fid: str, x: float, y: float) -> None:
@@ -136,11 +220,30 @@ class _Forklift:
         self.lane: Optional[tuple[str, float, float]] = None
         self.pallet: Optional[str] = None
         self.wait = 0.0
-        self.yielding = 0.0
-        self.detoured = False
+        self.target: Optional[tuple[tuple[float, float], tuple[float, float]]] = None   # (park, face)
+        self.blocked_by: Optional[str] = None      # "forklift-2", "person wkr-01", "robot rbt-03"
+        self.blocked_s = 0.0
+        self.detour_at = -1e9
+        self.reverse_m = 0.0           # metres left to drive straight, no turning...
+        self.reverse_dir = -1          # ...backwards (-1) or forwards (+1)
+        self.aside = False             # driving to a spot off another forklift's path
+        self.yield_to: Optional[str] = None   # the forklift we're backing up / pulling aside for
+        self.hold_s = 0.0              # pulled aside, letting it by
+
+    @property
+    def box(self) -> Box:
+        return forklift_box(self.x, self.y, self.yaw, FORKLIFT_SIZE["length"], FORKLIFT_SIZE["width"])
 
     @property
     def activity(self) -> str:
+        if self.reverse_m > 0:
+            return "Backing up" if self.reverse_dir < 0 else "Pulling forward to make room"
+        if self.aside or self.hold_s > 0:
+            return "Pulling aside to let a forklift by"
+        if self.blocked_by and self.blocked_s > 0.3:
+            who = self.blocked_by.split(" ")[0]
+            return {"person": "Stopped: a person is in the way", "robot": "Stopped: a robot is in the way"}.get(
+                who, f"Giving way to {self.blocked_by}")
         if self.phase == "to_pick" and self.pick:
             return f"Heading to {self.pick[0]} for a pallet"
         if self.phase == "lifting" and self.pick:
@@ -154,7 +257,9 @@ class _Forklift:
         return "Waiting for its next pick"
 
     def drive(self, dt: float, speed: float = FORKLIFT_SPEED) -> bool:
-        """Advance along the route; True once the last waypoint is reached."""
+        """Advance along the route, turning toward each waypoint at TURN_RATE before driving
+        to it; True once the last waypoint is reached."""
+        left = dt
         budget = speed * dt
         self.vx = self.vy = 0.0
         while self.route and budget > 0:
@@ -162,6 +267,12 @@ class _Forklift:
             dx, dy = tx - self.x, ty - self.y
             dist = math.hypot(dx, dy)
             if dist > 1e-6:
+                err = (math.atan2(dy, dx) - self.yaw + math.pi) % (2 * math.pi) - math.pi
+                if abs(err) > TURN_RATE * left:
+                    self.yaw += math.copysign(TURN_RATE * left, err)
+                    return False
+                left -= abs(err) / TURN_RATE
+                budget = min(budget, speed * left)
                 self.yaw = math.atan2(dy, dx)
                 self.vx, self.vy = speed * dx / dist, speed * dy / dist
             if dist <= budget:
@@ -217,6 +328,10 @@ class SimObjects:
         self.truck = _Truck(first_gap_s=8.0)
         self.shipped = 0
         self.trucks_loaded = 0
+        self.people: list[tuple[str, float, float]] = []
+        self.robots: list[tuple[str, float, float]] = []
+        self.cart_x, self.cart_dir, self.cart_v = 6.0, 1, 0.0
+        self.deadlock_s = 0.0     # how long the two forklifts have been stuck on each other
 
     def _new_pallet(self, x: float, y: float, state: str) -> str:
         pid = f"pallet-{self._next_pallet}"
@@ -224,101 +339,248 @@ class SimObjects:
         self.pallets[pid] = {"x": x, "y": y, "yaw": 0.0, "state": state, "since": self.t}
         return pid
 
-    def _route(self, f: _Forklift, goal: tuple[float, float]) -> list[tuple[float, float]]:
+    def _route(self, f: _Forklift, goal: tuple[float, float], avoid=()) -> list[tuple[float, float]]:
         from .pathing import plan  # lazy: pathing pulls in zones + occupancy
-        return plan((f.x, f.y), goal) or [goal]
+        return (plan((f.x, f.y), goal, avoid=avoid) if avoid else []) or plan((f.x, f.y), goal) or [goal]
 
     def _approach(self, f: _Forklift, park: tuple[float, float],
-                  face: tuple[float, float]) -> list[tuple[float, float]]:
+                  face: tuple[float, float], avoid=()) -> list[tuple[float, float]]:
         """Route to ``park``, then a hair toward ``face`` so the forks end up pointing at it."""
+        f.target, f.aside, f.hold_s = (park, face), False, 0.0
         dx, dy = face[0] - park[0], face[1] - park[1]
         d = math.hypot(dx, dy) or 1.0
-        return [*self._route(f, park), (park[0] + dx / d * 0.01, park[1] + dy / d * 0.01)]
+        return [*self._route(f, park, avoid), (park[0] + dx / d * 0.01, park[1] + dy / d * 0.01)]
 
-    def _assign(self, f: _Forklift) -> None:
+    def _assign(self, f: _Forklift, avoid_face: Optional[str] = None) -> None:
         taken = {o.pick[0] for o in self.forklifts
                  if o is not f and o.pick and o.phase in ("to_pick", "lifting", "holding")}
-        free = [p for p in PICK_FACES if p[0] not in taken] or PICK_FACES
+        free = [p for p in PICK_FACES if p[0] not in taken and p[0] != avoid_face] or PICK_FACES
         f.pick = self.rng.choice(free)
         _, px, py, sx, sy = f.pick
-        f.pallet = self._new_pallet(px, py, "ready")
+        if avoid_face and f.pallet:
+            self.pallets[f.pallet].update(x=px, y=py)    # the WMS sends it for a pallet elsewhere
+        else:
+            f.pallet = self._new_pallet(px, py, "ready")
         f.route = self._approach(f, (px + sx * FORK_REACH, py + sy * FORK_REACH), (px, py))
         f.phase = "to_pick"
 
-    def _free_lane(self, f: _Forklift) -> Optional[tuple[str, float, float]]:
+    def _free_lane(self, f: _Forklift, exclude: Optional[str] = None) -> Optional[tuple[str, float, float]]:
         busy = {o.lane[0] for o in self.forklifts if o is not f and o.lane and o.phase in ("to_dock", "lowering")}
         busy |= {p["lane"] for p in self.pallets.values() if p["state"] == "delivered"}
+        busy |= {exclude} if exclude else set()
         free = [lane for lane in DOCK_LANES if lane[0] not in busy]
         return self.rng.choice(free) if free else None
 
-    def _must_yield(self, f: _Forklift) -> Optional[_Forklift]:
-        """Right of way: the higher id gives way to a forklift just ahead, and nobody drives into
-        one that is parked lifting or lowering a pallet."""
-        hx, hy = math.cos(f.yaw), math.sin(f.yaw)
+    def _others(self) -> list[tuple[str, str, float, float]]:
+        """People and robots on the floor: (kind, id, x, y)."""
+        return [("person", pid, x, y) for pid, x, y in self.people] + \
+               [("robot", rid, x, y) for rid, x, y in self.robots]
+
+    def _speed(self, f: _Forklift) -> float:
+        box = f.box
+        if any(box.dist(x, y) < SLOW_NEAR_M for _, _, x, y in self._others()):
+            return CREEP_MPS
+        if any(o is not f and box.overlaps(o.box, SLOW_NEAR_M / 2) for o in self.forklifts):
+            return CREEP_MPS
+        return FORKLIFT_SPEED
+
+    def _blocker(self, f: _Forklift, before: Box) -> Optional[str]:
+        """What the move from ``before`` to the forklift's current pose would hit, if anything.
+        Inside a stop zone only moves that open up distance are allowed: no sliding past people."""
+        after = f.box
+        for kind, oid, x, y in self._others():
+            stop = PERSON_STOP_M if kind == "person" else ROBOT_STOP_M
+            d = after.dist(x, y)
+            if d < stop and d <= before.dist(x, y) + 1e-3:
+                return f"{kind} {oid}"
         for o in self.forklifts:
             if o is f:
                 continue
-            dx, dy = o.x - f.x, o.y - f.y
-            d = math.hypot(dx, dy)
-            ahead = dx * hx + dy * hy > 0
-            if o.id < f.id and (d < 1.8 or (d < 2.6 and ahead)):
-                return o
-            if o.phase in ("lifting", "holding", "lowering") and d < 2.4 and ahead:
-                return o
+            ob = o.box
+            if not after.overlaps(ob, FORKLIFT_GAP_M):
+                continue
+            g = after.gap(ob)
+            if g < FORKLIFT_GAP_M and g <= before.gap(ob) + 1e-3:
+                return o.id
         return None
 
-    def _back_off(self, f: _Forklift, o: _Forklift, dt: float) -> None:
-        """Reverse away from a forklift that is closing in, staying on the floor."""
-        dx, dy = f.x - o.x, f.y - o.y
-        d = math.hypot(dx, dy) or 1.0
-        if d >= 2.2:
-            return
-        step = 0.6 * dt
-        f.x = min(max(f.x + dx / d * step, 0.8), WAREHOUSE["width_m"] - 0.8)
-        f.y = min(max(f.y + dy / d * step, 0.8), WAREHOUSE["height_m"] - 0.8)
-        f.vx, f.vy = dx / d * 0.6, dy / d * 0.6
-        f.detoured = True
+    def _obstacles_near(self, f: _Forklift, park: tuple[float, float]) -> list[tuple[float, float, float, float]]:
+        """Everyone within a few metres, as rectangles to route around: padded generously, or
+        less when that would fence off ``park`` (whoever stands right there will move)."""
+        # Pads are from the obstacle to the forklift's centre line: half its width plus the stop
+        # distance for a person, half its width plus the gap for another forklift.
+        boxes = [(Box(x, y, 0.0, 0.0, 0.0), PERSON_DETOUR_PADS) for _, _, x, y in self._others()
+                 if math.hypot(x - f.x, y - f.y) < DETOUR_NEAR_M]
+        boxes += [(o.box, FORKLIFT_DETOUR_PADS) for o in self.forklifts
+                  if o is not f and math.hypot(o.x - f.x, o.y - f.y) < DETOUR_NEAR_M]
+        rects = []
+        for b, pads in boxes:
+            for pad in pads:
+                r = b.bounds(pad)
+                if not (r[0] <= park[0] <= r[2] and r[1] <= park[1] <= r[3]):
+                    rects.append(r)
+                    break
+        return rects
 
-    def _speed(self, f: _Forklift) -> float:
-        """Creep when another forklift is close ahead, so a gap can open."""
-        hx, hy = math.cos(f.yaw), math.sin(f.yaw)
-        for o in self.forklifts:
-            dx, dy = o.x - f.x, o.y - f.y
-            if o is not f and math.hypot(dx, dy) < 2.4 and dx * hx + dy * hy > 0:
-                return 0.3
-        return FORKLIFT_SPEED
+    def _should_detour(self, f: _Forklift) -> bool:
+        """Go around whatever is in the way, except a forklift that is still moving (it will
+        clear the way) and, when two forklifts block each other, only the higher id goes round."""
+        o = next((o for o in self.forklifts if o.id == f.blocked_by), None)
+        if o is None:
+            return True
+        if o.blocked_by == f.id:
+            # Higher id gives way; if it's boxed in and nothing has moved for a while, swap.
+            return (f.id > o.id) != (int(self.deadlock_s // SWAP_AFTER_S) % 2 == 1)
+        return not (o.phase in ("to_pick", "to_dock") and o.blocked_s == 0.0)
+
+    def _detour(self, f: _Forklift) -> None:
+        if f.target is None or self.t - f.detour_at < 3.0:
+            return
+        park, face = f.target
+        rects = self._obstacles_near(f, park)
+        if rects:
+            f.detour_at = self.t
+            f.route = self._approach(f, park, face, avoid=rects)
 
     def _replan(self, f: _Forklift) -> None:
-        if not f.detoured or not f.route:
-            return
-        f.detoured = False
-        if len(f.route) >= 2:
-            park, nudge = f.route[-2], f.route[-1]
-            f.route = [*self._route(f, park), nudge]
+        if f.target is not None:
+            park, face = f.target
+            f.detour_at = self.t
+            f.route = self._approach(f, park, face, avoid=self._obstacles_near(f, park))
+
+    def _pull_aside(self, f: _Forklift, o: _Forklift) -> bool:
+        """Drive to a nearby clear spot well off ``o``'s remaining path. False if there is none."""
+        from .pathing import _dist_to_segment, _point_blocked
+        path = [[o.x, o.y], *[[x, y] for x, y in o.route]]
+        w, h = float(WAREHOUSE["width_m"]), float(WAREHOUSE["height_m"])
+        best, best_score = None, -math.inf
+        for r in (1.5, 2.5, 3.5):
+            for k in range(16):
+                a = k * math.pi / 8
+                px, py = f.x + math.cos(a) * r, f.y + math.sin(a) * r
+                if not (1.0 <= px <= w - 1.0 and 1.0 <= py <= h - 1.0):
+                    continue
+                if any(_point_blocked(f.x + (px - f.x) * t / 6, f.y + (py - f.y) * t / 6) for t in range(1, 7)):
+                    continue
+                clear = (min(_dist_to_segment(px, py, path[i], path[i + 1]) for i in range(len(path) - 1))
+                         if len(path) > 1 else math.hypot(px - o.x, py - o.y))
+                if clear < 1.8 or any(math.hypot(px - x, py - y) < 1.5 for _, _, x, y in self._others()):
+                    continue
+                score = min(clear, 3.0) - 0.4 * r
+                if score > best_score:
+                    best, best_score = (px, py), score
+        if best is None:
+            return False
+        f.route, f.aside, f.blocked_s = [best], True, 0.0
+        return True
+
+    def _straight_step(self, f: _Forklift, sign: int, d: float) -> bool:
+        """Move ``d`` metres straight back (-1) or ahead (+1) if nothing is in the way. Straight
+        moves never swing the forks, so they're how a boxed-in forklift makes room."""
+        from .pathing import _point_blocked
+        before, saved = f.box, (f.x, f.y)
+        c, s = math.cos(f.yaw), math.sin(f.yaw)
+        f.x, f.y = f.x + sign * c * d, f.y + sign * s * d
+        reach = FORKLIFT_SIZE["length"] if sign > 0 else FORKLIFT_SIZE["length"] / 2
+        lead = (f.x + sign * c * reach, f.y + sign * s * reach)
+        w, h = float(WAREHOUSE["width_m"]), float(WAREHOUSE["height_m"])
+        if not (0.2 <= lead[0] <= w - 0.2 and 0.2 <= lead[1] <= h - 0.2) or _point_blocked(*lead) \
+                or self._blocker(f, before):
+            f.x, f.y = saved
+            return False
+        return True
+
+    def _make_room(self, f: _Forklift, ox: float, oy: float, yield_to: Optional[str] = None) -> bool:
+        """Start driving straight away from (ox, oy): back up if it's in front, else pull
+        forward; the other way if that one is blocked."""
+        ahead = math.cos(f.yaw) * (ox - f.x) + math.sin(f.yaw) * (oy - f.y) > 0
+        for sign in ((-1, 1) if ahead else (1, -1)):
+            x, y = f.x, f.y
+            if self._straight_step(f, sign, 0.05):
+                f.x, f.y = x, y
+                f.reverse_m, f.reverse_dir, f.yield_to, f.aside = REVERSE_M, sign, yield_to, False
+                return True
+        return False
+
+    def _reverse(self, f: _Forklift, dt: float) -> None:
+        """Drive straight (see ``_straight_step``), then pull aside or re-plan."""
+        d = min(CREEP_MPS * dt, f.reverse_m)
+        if self._straight_step(f, f.reverse_dir, d):
+            f.reverse_m -= d
+            f.blocked_by = None
+            c, s = math.cos(f.yaw), math.sin(f.yaw)
+            f.vx, f.vy = f.reverse_dir * c * CREEP_MPS, f.reverse_dir * s * CREEP_MPS
         else:
-            f.route = self._route(f, f.route[-1])
+            f.reverse_m = 0.0
+        if f.reverse_m <= 1e-6:
+            f.reverse_m, f.reverse_dir, f.blocked_s = 0.0, -1, 0.0
+            o = next((o for o in self.forklifts if o.id == f.yield_to), None)
+            f.yield_to = None
+            if o is None or f.box.gap(o.box) > 2.0 or not self._pull_aside(f, o):
+                self._replan(f)
+
+    def _redispatch(self, f: _Forklift) -> None:
+        """Someone has been standing in the way too long: go for a different pick, or to a
+        different dock lane, the way a dispatcher would rather than leave the forklift idle."""
+        f.blocked_s, f.detour_at = 0.0, self.t
+        if f.phase == "to_pick" and f.pick:
+            self._assign(f, avoid_face=f.pick[0])
+        elif f.phase == "to_dock" and f.lane:
+            lane = self._free_lane(f, exclude=f.lane[0])
+            if lane is not None:
+                f.lane = lane
+                f.route = self._approach(f, (lane[1], lane[2] - FORK_REACH), (lane[1], lane[2]))
+
+    def _drive(self, f: _Forklift, dt: float) -> bool:
+        """Drive along the route unless that would hit someone; True on arrival."""
+        if f.reverse_m > 0:
+            self._reverse(f, dt)
+            return False
+        if f.hold_s > 0:
+            f.hold_s -= dt
+            if f.hold_s <= 0:
+                self._replan(f)
+            return False
+        before, saved = f.box, (f.x, f.y, f.yaw, list(f.route))
+        arrived = f.drive(dt, self._speed(f))
+        hit = self._blocker(f, before)
+        if hit is None:
+            f.blocked_by, f.blocked_s = None, 0.0
+            if arrived and f.aside:
+                f.aside, f.hold_s = False, GIVE_WAY_HOLD_S
+                return False
+            return arrived
+        f.x, f.y, f.yaw, f.route = saved
+        f.vx = f.vy = 0.0
+        f.blocked_s += dt
+        f.blocked_by = hit
+        if f.blocked_s >= DETOUR_AFTER_S and self._should_detour(f):
+            o = next((o for o in self.forklifts if o.id == hit), None)
+            if o is None and f.blocked_s >= REDISPATCH_AFTER_S:
+                self._redispatch(f)
+            elif o is None:
+                # Someone inside the circle the forks sweep pins a forklift that needs to turn:
+                # back away from them in a straight line, then route around.
+                who = next(((x, y) for kind, oid, x, y in self._others() if f"{kind} {oid}" == hit), None)
+                if who and f.blocked_s >= GIVE_WAY_AFTER_S and self.t - f.detour_at >= 3.0:
+                    f.detour_at = self.t
+                    self._make_room(f, *who)
+                else:
+                    self._detour(f)
+            elif f.blocked_s >= GIVE_WAY_AFTER_S:
+                # Close up, any turn swings the forks into the other one: drive straight away
+                # from it first, then pull aside off its path.
+                if not self._make_room(f, o.x, o.y, o.id) and not self._pull_aside(f, o):
+                    f.blocked_s = DETOUR_AFTER_S
+            elif not f.aside:
+                self._detour(f)
+        return False
 
     def _step(self, f: _Forklift, dt: float) -> None:
-        # After waiting 4 s a forklift takes a 2 s turn to go, so two can never lock each other.
-        if f.yielding < 0:
-            f.yielding = min(0.0, f.yielding + dt)
-        elif f.phase in ("to_pick", "to_dock") and (other := self._must_yield(f)) is not None:
-            f.yielding += dt
-            f.vx = f.vy = 0.0
-            self._back_off(f, other, dt)
-            self._carry(f)
-            if f.yielding >= 4.0 and math.hypot(other.x - f.x, other.y - f.y) > 2.0:
-                f.yielding = -2.0
-                self._replan(f)
-            return
-        else:
-            if f.yielding > 0:
-                self._replan(f)
-            f.yielding = 0.0
         if f.phase == "idle":
             self._assign(f)
         elif f.phase == "to_pick":
-            if f.drive(dt, self._speed(f)):
+            if self._drive(f, dt):
                 f.phase, f.wait = "lifting", LIFT_S
         elif f.phase in ("lifting", "holding"):
             f.wait -= dt
@@ -329,17 +591,17 @@ class SimObjects:
                     f.phase, f.wait = "holding", 1.0   # every lane full: wait for the truck to clear one
                 else:
                     f.route = self._approach(f, (f.lane[1], f.lane[2] - FORK_REACH), (f.lane[1], f.lane[2]))
-                    f.phase = "to_dock"
+                    f.phase, f.reverse_m = "to_dock", BACK_OUT_M[0]
         elif f.phase == "to_dock":
-            if f.drive(dt, self._speed(f)):
+            if self._drive(f, dt):
                 f.phase, f.wait = "lowering", LIFT_S
         elif f.phase == "lowering":
             f.wait -= dt
             if f.wait <= 0:
                 p = self.pallets[f.pallet]
                 p.update(state="delivered", since=self.t, lane=f.lane[0], x=f.lane[1], y=f.lane[2])
-                f.pallet, f.lane, f.pick = None, None, None
-                f.phase = "idle"
+                f.pallet, f.lane, f.pick, f.target = None, None, None, None
+                f.phase, f.reverse_m = "idle", BACK_OUT_M[1]
         self._carry(f)
 
     def _carry(self, f: _Forklift) -> None:
@@ -393,13 +655,42 @@ class SimObjects:
                 self.trucks_loaded += 1
                 tr.phase, tr.wait = "away", self.rng.uniform(*TRUCK_GAP_S)
 
-    def batch(self, dt: float) -> ObjectsIn:
+    def _step_cart(self, dt: float) -> None:
+        """The cart runs the back aisle and stops for anyone in front of it."""
+        ahead_x = self.cart_x + self.cart_dir * 0.9
+        blocked = any(abs(x - ahead_x) < 0.7 and abs(y - CART_Y) < 0.9 for _, _, x, y in self._others()) or \
+            any(f.box.dist(ahead_x, CART_Y) < 0.6 for f in self.forklifts)
+        self.cart_v = 0.0 if blocked else CART_SPEED * self.cart_dir
+        self.cart_x += self.cart_v * dt
+        if not CART_X[0] <= self.cart_x <= CART_X[1]:
+            self.cart_x = min(max(self.cart_x, CART_X[0]), CART_X[1])
+            self.cart_dir = -self.cart_dir
+
+    def horns(self) -> dict[str, Box]:
+        """People a stopped forklift is waiting on, with its footprint: the sim's horn, so the
+        crowd steps aside instead of standing in a forklift's way forever."""
+        horns: dict[str, Box] = {}
+        for f in self.forklifts:
+            if f.blocked_by and f.blocked_s >= 1.0:
+                box = f.box
+                horns.update({pid: box for pid, x, y in self.people if box.dist(x, y) < HORN_M})
+        return horns
+
+    def batch(self, dt: float, people: Sequence[tuple[str, float, float]] = (),
+              robots: Sequence[tuple[str, float, float]] = ()) -> ObjectsIn:
+        """Advance ``dt`` seconds. ``people`` and ``robots`` are ``(id, x, y)`` of everyone else
+        on the floor, so forklifts and the cart can keep clear of them."""
+        self.people, self.robots = list(people), list(robots)
         self.t += dt
         steps = max(1, math.ceil(dt / 0.25))
         for _ in range(steps):
             for f in self.forklifts:
                 self._step(f, dt / steps)
             self._step_truck(dt / steps)
+            self._step_cart(dt / steps)
+            a, b = self.forklifts[0], self.forklifts[1]
+            stuck = a.blocked_by == b.id and b.blocked_by == a.id
+            self.deadlock_s = self.deadlock_s + dt / steps if stuck else 0.0
 
         objects: list[dict] = []
         for f in self.forklifts:
@@ -417,19 +708,11 @@ class SimObjects:
                         "loading": "Going onto the truck"}[p["state"]]
             objects.append({"id": pid, "label": "pallet", "x": p["x"], "y": p["y"], "yaw": p["yaw"],
                             "size": PALLET_SIZE, "confidence": 0.97, "activity": activity})
-        cart_x, cart_dir = _shuttle(2.0, 13.0, 0.5, self.t + 4.0)
-        objects.append({"id": "cart-1", "label": "cart", "x": cart_x, "y": 0.9,
-                        "yaw": 0.0 if cart_dir > 0 else math.pi, "vx": 0.5 * cart_dir,
+        objects.append({"id": "cart-1", "label": "cart", "x": self.cart_x, "y": CART_Y,
+                        "yaw": 0.0 if self.cart_dir > 0 else math.pi, "vx": self.cart_v,
                         "size": {"length": 1.0, "width": 0.6, "height": 1.0}, "confidence": 0.88,
-                        "activity": "Moving parts along the back aisle"})
+                        "activity": "Moving parts along the back aisle" if self.cart_v else "Stopped: someone is in the way"})
         return ObjectsIn(source="sim", replace=True, objects=objects)
-
-
-def _shuttle(lo: float, hi: float, speed: float, t: float) -> tuple[float, int]:
-    """Position and direction (+1/-1) of something going back and forth between lo and hi."""
-    span = hi - lo
-    d = (t * speed) % (2 * span)
-    return (lo + d, 1) if d < span else (hi - (d - span), -1)
 
 
 sim_objects = SimObjects()
