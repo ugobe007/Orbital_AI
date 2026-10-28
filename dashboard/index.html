@@ -8,270 +8,166 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/tw.css?v=20261026c" />
-  <link rel="stylesheet" href="/styles.css?v=20261026c" />
+  <link rel="stylesheet" href="/tw.css?v=20261027a" />
+  <link rel="stylesheet" href="/styles.css?v=20261027a" />
 </head>
-<body class="min-h-screen text-ink md:pl-14">
-  <!-- Left nav rail -->
-  <nav id="rail" class="hidden md:flex fixed left-0 top-0 bottom-0 w-14 flex-col items-center py-3 gap-1 z-30" style="background:#FFFFFF; border-right:2px solid #111418;">
-      <a href="/" class="w-9 h-9 flex items-center justify-center mb-3" title="Orbital AI home"><svg width="24" height="24" viewBox="0 0 22 22" role="img" aria-label="Orbital AI"><circle cx="11" cy="11" r="9.5" fill="none" stroke="#111418" stroke-width="2"/><circle cx="11" cy="11" r="3.5" fill="#1D4ED8"/><rect x="16.5" y="2.5" width="4" height="4" fill="#111418"/></svg></a>
-    <div class="flex-1 flex flex-col items-center gap-1 w-full px-2">
-      <button class="rail-btn" data-target="sec-overview" title="Overview" aria-label="Overview"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></button>
-      <button class="rail-btn" data-target="sec-map" title="Spatial Map" aria-label="Spatial Map"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></button>
-      <button class="rail-btn" data-target="sec-fleet" title="Fleet" aria-label="Fleet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></svg></button>
-      <button class="rail-btn" data-target="sec-alerts" title="Alerts" aria-label="Alerts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
-      <button class="rail-btn" data-target="sec-capabilities" title="Capabilities" aria-label="Capabilities"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M20 9h2M20 14h2M2 9h2M2 14h2"/></svg></button>
-      <button class="rail-btn" data-target="sec-benchmark" title="Benchmark" aria-label="Benchmark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></button>
-      <button class="rail-btn" data-target="sec-partners" title="OEM Partners" aria-label="OEM Partners"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
-    </div>
-    <button class="rail-btn" title="Settings — coming soon" aria-label="Settings" onclick="return false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-  </nav>
-
-  <!-- Top nav -->
-  <header class="sticky top-0 z-20 bg-surface" style="border-bottom:2px solid #111418">
-    <div class="max-w-[1500px] mx-auto px-5 min-h-[56px] py-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-      <a href="/" class="flex items-center gap-2 shrink-0 hover:opacity-90 transition" title="Back to home">
+<body class="console min-h-screen text-ink">
+  <header class="topbar">
+    <div class="topbar-row">
+      <a href="/" class="flex items-center gap-2 shrink-0" title="Orbital AI home">
         <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9.5" fill="none" stroke="#111418" stroke-width="2"/><circle cx="11" cy="11" r="3.5" fill="#1D4ED8"/><rect x="16.5" y="2.5" width="4" height="4" fill="#111418"/></svg>
-        <div>
-          <div class="display text-[19px] leading-none" style="font-weight:900">Orbital<span class="text-azure"> AI</span></div>
-          <div class="text-[10px] text-ink-dim leading-none mt-1 mono tracking-[0.12em]">FLEET CONTROL · ARIA EDGE</div>
-        </div>
+        <span class="display text-[18px] leading-none" style="font-weight:900">Orbital<span class="text-azure"> AI</span></span>
       </a>
-      <a href="/" class="header-nav-link hidden md:inline-flex items-center gap-1.5 text-[13px] text-ink-mut hover:text-ink transition shrink-0">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Home
-      </a>
-      <a href="/setup" class="header-nav-link hidden md:inline-flex items-center text-[13px] text-ink-mut hover:text-ink transition shrink-0">Setup guide</a>
-      <div class="ml-1 pl-4 border-l border-line hidden sm:block">
-        <div class="text-[11px] text-ink-dim leading-none">Facility</div>
-        <div id="facility-name" class="text-[13px] font-medium leading-none mt-1">—</div>
+      <div class="facility hidden sm:block">
+        <div class="facility-label">FACILITY</div>
+        <div id="facility-name" class="facility-name">—</div>
       </div>
+      <nav class="view-tabs" aria-label="Console views">
+        <a href="#live" data-view="live" class="view-tab">Live floor</a>
+        <a href="#fleet" data-view="fleet" class="view-tab">Fleet</a>
+        <a href="#runs" data-view="runs" class="view-tab">Runs</a>
+        <a href="#partners" data-view="partners" class="view-tab">Partners</a>
+      </nav>
       <div class="flex-1"></div>
-      <div class="flex items-center gap-2 text-[13px] mr-1">
+      <a href="/setup" class="topbar-link hidden lg:inline">Setup guide</a>
+      <div class="conn">
         <span id="conn-dot" class="w-2 h-2 rounded-full bg-ink-dim"></span>
         <span id="conn-label" class="text-ink-mut">connecting…</span>
       </div>
       <div id="auth-box" class="flex items-center gap-2 shrink-0">
-        <button id="btn-sign-in" class="px-3 py-1.5 rounded-md text-[13px] font-medium transition btn-press" style="border:1px solid #111418; color:#111418; background:#FFFFFF">Sign in</button>
+        <button id="btn-sign-in" class="btn btn-ghost">Sign in</button>
       </div>
-      <button id="btn-onboard" class="px-3 py-1.5 rounded-md text-[13px] font-semibold transition btn-press glow-blue flex items-center gap-1.5" style="background:#111418; border:1px solid #111418; color:#FFFFFF">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-        Onboard robot API
-      </button>
-      <button id="btn-dispatch" class="px-3 py-1.5 rounded-md bg-cta hover:bg-cta-600 text-[#FFFFFF] text-[13px] font-semibold transition btn-press glow-amber">Dispatch task</button>
+      <button id="btn-dispatch" class="btn btn-primary">Dispatch task</button>
     </div>
+    <div id="stats" class="statusbar" aria-label="Fleet status"></div>
   </header>
 
-  <!-- Live monitoring ticker -->
-  <div id="ticker" class="ticker border-b border-line" aria-label="Live fleet monitoring ticker">
-    <div id="ticker-track" class="ticker-track"></div>
-  </div>
-
-  <!-- Live fleet overview (metrics + interactive status distribution) -->
-  <section id="sec-overview" class="max-w-[1500px] mx-auto px-5 pt-4">
-    <div id="overview-grid" class="card p-3 grid grid-cols-1 xl:grid-cols-[minmax(0,420px)_1fr] gap-3 items-stretch">
-      <div id="stats" class="grid grid-cols-4 gap-2"></div>
-      <div id="fleet-status" class="rounded-lg bg-surface-raised border border-line p-3 flex flex-col"></div>
-    </div>
-  </section>
-
-  <!-- Map + control/alerts -->
-  <section id="embed-hero" class="max-w-[1500px] mx-auto px-5 pt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4">
-    <!-- Map -->
-    <div id="sec-map" class="card overflow-hidden">
-      <div class="card-head px-4 py-2.5 flex items-center gap-3 flex-wrap">
-        <span class="tag">MAP·01</span>
-        <h2 class="font-semibold text-[14px]">Warehouse — Global Spatial Map</h2>
-        <span class="text-[11px] text-ink-dim">click any robot to review it and stop or start it</span>
-        <div class="flex-1"></div>
-        <div id="map-selection" class="flex items-center gap-2"></div>
-      </div>
-      <!-- Live mission sequence: what the fleet is doing right now + countdown to the next one -->
-      <div id="sequence-bar" class="px-4 py-2.5 border-b border-line bg-surface-raised"></div>
-      <div class="p-3">
+  <main class="console-main">
+    <!-- Live floor: map + selected robot + what needs attention -->
+    <section id="view-live" data-view-panel="live" class="live-grid">
+      <div id="sec-map" class="panel map-panel">
+        <div class="panel-head">
+          <div id="sequence-bar" class="seq-line"></div>
+          <div class="map-tools">
+            <button id="btn-zones" class="tool-btn" aria-expanded="false">Zones</button>
+            <button id="btn-legend" class="tool-btn" aria-expanded="false">Legend</button>
+          </div>
+        </div>
+        <div id="zone-bar" class="zone-drawer" hidden></div>
         <div id="map-stage" class="map-stage">
-          <svg id="map" class="w-full rounded-lg select-none border border-line" style="background:#FFFFFF; cursor: crosshair; touch-action: none; max-height: 62vh;"></svg>
-          <div id="map-bubbles" class="map-bubbles" aria-hidden="true"></div>
-          <div id="robot-card" class="robot-card" role="dialog" aria-label="Robot review" hidden></div>
-          <section id="commentary" class="commentary" aria-live="polite" aria-label="Live commentary">
-            <header class="commentary-head">
-              <span class="commentary-live"><span class="commentary-dot"></span>LIVE COMMENTARY</span>
-              <button id="commentary-toggle" class="commentary-toggle" aria-expanded="true">Hide</button>
-            </header>
-            <ol id="commentary-feed" class="commentary-feed"></ol>
-          </section>
+          <svg id="map" class="select-none" style="touch-action: none;"></svg>
+          <div id="map-legend" class="legend-pop" hidden>
+            <span><i class="lg-dot" style="background:#16A34A"></i>robot · green working, amber idle, red stopped</span>
+            <span><i class="lg-ring" style="border-color:#B45309"></i>lead robot (★)</span>
+            <span><i class="lg-ring" style="border-color:#6B7078"></i>where the robot thinks it is (drift)</span>
+            <span><i class="lg-box" style="border-color:#1D4ED8;background:#DBE4FB"></i>pick / drop station</span>
+            <span><i class="lg-line" style="background:#1D4ED8"></i>camera-guided path to a waypoint</span>
+            <span><i class="lg-box" style="background:#C9CCC6;border-color:#8A8F88"></i>storage rack</span>
+            <span><i class="lg-box dashed" style="border-color:#DC2626;background:#DC262622"></i>keep-out zone</span>
+            <span><i class="lg-box dashed" style="border-color:#D97706;background:#D9770622"></i>slow zone</span>
+            <span><i class="lg-box" style="border-color:#CA8A04;background:#CA8A042e"></i>tracked object (pallet, cart, forklift)</span>
+            <span><i class="lg-box" style="border-color:#4A4F5780;background:#6B707852"></i>floor blocked, seen by cameras</span>
+            <span><span style="color:#DB2777">◆</span>person · robots slow nearby, stop up close</span>
+            <span><span class="mono" style="color:#6D28D9">◹</span>overhead camera</span>
+          </div>
         </div>
-        <div id="map-legend" class="mt-2.5 flex items-center gap-x-4 gap-y-1 text-[10.5px] text-ink-mut flex-wrap">
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:#16A34A"></span> robot (camera-tracked)</span>
-          <span class="flex items-center gap-1.5"><span class="mono" style="color:#6D28D9">◹</span> overhead camera</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm border" style="border-color:#1D4ED8;background:#DBE4FB"></span> named station (pick / drop)</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full border-2" style="border-color:#1D4ED8;background:transparent"></span> operator waypoint</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-0.5" style="background:#1D4ED8"></span> visual-nav path</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full border" style="border-color:#6B7078"></span> SLAM self-report (drift)</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2 rounded-sm" style="background:#C9CCC6"></span> storage rack</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm border border-dashed" style="border-color:#DC2626;background:#DC262622"></span> keep-out zone</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm border border-dashed" style="border-color:#D97706;background:#D9770622"></span> slow zone</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-2 rounded-sm border" style="border-color:#CA8A04;background:#CA8A042e"></span> tracked object (footprint, heading, motion)</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm border" style="border-color:#4A4F5780;background:#6B707852"></span> blocked (seen by cameras)</span>
-          <span class="flex items-center gap-1.5"><span class="inline-block w-2 h-2 rotate-45 border" style="border-color:#16A34A;background:#16A34A40"></span> floor marker (red = re-seat)</span>
-          <span class="flex items-center gap-1.5"><span style="color:#DB2777">◆</span> person (robots slow nearby, stop up close)</span>
+        <div class="map-hint">Click a robot to select it. With a robot selected, click the floor to send it there.</div>
+      </div>
+
+      <aside class="side">
+        <div class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">Robot</h2>
+            <span id="control-mode" class="panel-meta"></span>
+          </div>
+          <div id="robot-picker" class="robot-picker" role="listbox" aria-label="Choose a robot"></div>
+          <div id="control-panel"></div>
         </div>
-        <div id="zone-bar" class="mt-2.5 pt-2.5 border-t border-line flex items-center gap-2 flex-wrap"></div>
-      </div>
-    </div>
 
-    <!-- Right rail: control panel + alerts (capped when stacked below the map so it never
-         stretches to full page width) -->
-    <aside class="flex flex-col gap-4 w-full max-w-[560px] lg:max-w-none lg:sticky lg:top-[64px] self-start">
-      <div class="card overflow-hidden">
-        <div class="card-head px-3 py-2 flex items-center gap-2">
-          <span class="tag">CTRL</span>
-          <h2 class="font-semibold text-[13px]">Robot Control</h2>
-          <span id="control-mode" class="text-[10.5px] text-ink-dim ml-auto"></span>
+        <div id="sec-alerts" class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">Needs attention</h2>
+            <span id="alert-count" class="count-pill">0</span>
+            <span id="action-count" hidden>0</span>
+            <button id="ack-all" class="panel-link ml-auto hidden">Clear all</button>
+          </div>
+          <div id="actions"></div>
+          <div id="alerts" class="attention-list"></div>
         </div>
-        <div id="control-panel" class="p-2.5"></div>
-      </div>
+      </aside>
+    </section>
 
-      <div id="sec-actions" class="card overflow-hidden">
-        <div class="card-head px-4 py-2 flex items-center gap-2">
-          <span class="tag">NEXT</span>
-          <h2 class="font-semibold text-[13px]">Next Actions</h2>
-          <span id="action-count" class="text-[10.5px] px-2 py-0.5 rounded-full bg-surface-input text-ink-mut mono">0</span>
-          <span class="text-[10.5px] text-ink-dim ml-auto">ranked by orchestrator</span>
+    <!-- Fleet: every robot in one table -->
+    <section id="view-fleet" data-view-panel="fleet" hidden>
+      <div id="sec-fleet" class="panel">
+        <div class="panel-head flex-wrap">
+          <h2 class="panel-title">Fleet</h2>
+          <span id="fleet-count" class="panel-meta"></span>
+          <span id="fleet-filter"></span>
+          <div id="tabs" class="flex flex-wrap gap-1.5 ml-auto"></div>
         </div>
-        <div id="actions" class="max-h-[300px] overflow-y-auto divide-y divide-line/60"></div>
-      </div>
-
-      <div id="sec-alerts" class="card overflow-hidden">
-        <div class="card-head px-4 py-2 flex items-center gap-2">
-          <span class="tag">ALRT</span>
-          <h2 class="font-semibold text-[13px]">Safety &amp; Drift Alerts</h2>
-          <span id="alert-count" class="text-[10.5px] px-2 py-0.5 rounded-full bg-surface-input text-ink-mut mono">0</span>
-          <button id="ack-all" class="ml-auto text-[10.5px] text-brand hover:underline hidden">Ack all</button>
+        <div class="overflow-x-auto">
+          <table class="data-table fleet-table">
+            <thead><tr><th>Robot</th><th>Status</th><th>Doing now</th><th>Battery</th><th>Drift</th><th></th></tr></thead>
+            <tbody id="fleet"></tbody>
+          </table>
         </div>
-        <div id="alerts" class="max-h-[260px] overflow-y-auto divide-y divide-line/60"></div>
       </div>
+    </section>
 
-      <div id="sec-calibration" class="card overflow-hidden">
-        <div class="card-head px-4 py-2 flex items-center gap-2">
-          <span class="tag">RIG</span>
-          <h2 class="font-semibold text-[13px]">Rig Calibration</h2>
-          <span id="calib-status" class="text-[10.5px] text-ink-dim ml-auto">none</span>
+    <!-- Runs: recorded task runs scored against the best run, plus rig calibration -->
+    <section id="view-runs" data-view-panel="runs" class="runs-grid" hidden>
+      <div id="sec-validation" class="panel">
+        <div class="panel-head flex-wrap">
+          <h2 class="panel-title">Task runs</h2>
+          <span class="panel-meta">each run scored against the best run of the same task · click one to compare on the floor</span>
+          <span id="run-verdicts" class="flex items-center gap-1.5 flex-wrap ml-auto"></span>
         </div>
-        <div id="calibration" class="max-h-[300px] overflow-y-auto"></div>
+        <div class="overflow-x-auto">
+          <table class="data-table">
+            <thead><tr><th>Time</th><th>Robot</th><th>Task</th><th class="num">Cycle</th><th class="num">Path dev</th><th class="num">Halts</th><th>Verdict</th><th></th></tr></thead>
+            <tbody id="runs"></tbody>
+          </table>
+        </div>
       </div>
-    </aside>
-  </section>
+      <div id="sec-calibration" class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Camera calibration</h2>
+          <span id="calib-status" class="panel-meta ml-auto">none</span>
+        </div>
+        <div id="calibration"></div>
+      </div>
+    </section>
 
-  <!-- Validation: recorded task runs scored against each task's golden run (Sprint K) -->
-  <section id="sec-validation" class="max-w-[1500px] mx-auto px-5 pt-4">
-    <div class="card overflow-hidden">
-      <div class="card-head px-4 py-2 flex items-center gap-2 flex-wrap">
-        <span class="tag">VAL</span>
-        <h2 class="font-semibold text-[13px]">Validation · Golden Runs</h2>
-        <span id="run-verdicts" class="flex items-center gap-1.5 flex-wrap"></span>
-        <span class="text-[10.5px] text-ink-dim ml-auto">click a run to compare it with its golden run on the map · export with <span class="mono">scripts/export_dataset.py</span></span>
+    <!-- Partners: robot makers connected to Orbital + cross-vendor benchmark -->
+    <section id="view-partners" data-view-panel="partners" hidden>
+      <div id="sec-partners" class="panel">
+        <div class="panel-head flex-wrap">
+          <h2 class="panel-title">Robot makers</h2>
+          <span class="panel-meta">what each maker lets Orbital read and control</span>
+          <button id="btn-onboard-2" class="btn btn-primary ml-auto">Connect a robot maker</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="sb-table">
+            <thead><tr><th>Company</th><th>Vendor</th><th>Transport</th><th>Status</th><th>Granted / Ceiling</th><th>Readiness</th><th></th></tr></thead>
+            <tbody id="oems"></tbody>
+          </table>
+        </div>
       </div>
-      <div class="max-h-[320px] overflow-y-auto">
-        <table class="w-full text-[11.5px]">
-          <thead class="text-ink-dim text-[10px] uppercase tracking-wide sticky top-0 bg-surface-panel">
-            <tr>
-              <th class="text-left font-medium px-3 py-1.5">Time</th>
-              <th class="text-left font-medium px-3 py-1.5">Robot</th>
-              <th class="text-left font-medium px-3 py-1.5">Task</th>
-              <th class="text-right font-medium px-3 py-1.5">Cycle</th>
-              <th class="text-right font-medium px-3 py-1.5">Path dev</th>
-              <th class="text-right font-medium px-3 py-1.5">Halts</th>
-              <th class="text-left font-medium px-3 py-1.5">Verdict</th>
-              <th class="px-3 py-1.5"></th>
-            </tr>
-          </thead>
-          <tbody id="runs" class="divide-y divide-line/60"></tbody>
-        </table>
+      <div id="sec-benchmark" class="panel mt-4">
+        <div class="panel-head flex-wrap">
+          <h2 class="panel-title">Vendor benchmark</h2>
+          <span class="panel-meta">how far each maker's robots drift from where they think they are, measured by the cameras</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="sb-table">
+            <thead><tr><th>Vendor</th><th>Robots</th><th>Samples</th><th>Mean drift</th><th>P95 drift</th><th>MTBD</th><th>Recovery</th><th>Env score</th></tr></thead>
+            <tbody id="benchmark"></tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  </section>
-
-  <!-- How the live sim works -->
-  <section class="max-w-[1500px] mx-auto px-5 pt-4">
-    <div class="card overflow-hidden">
-      <div class="card-head px-4 py-2.5 flex items-center gap-2">
-        <h2 class="font-semibold text-[14px]">How the live simulation works</h2>
-        <span class="text-[11px] text-ink-dim">the logic driving this mock fleet</span>
-        <div class="flex-1"></div>
-        <span id="logic-orch" class="text-[11px] text-ink-mut"></span>
-      </div>
-      <div id="logic" class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-[12.5px]"></div>
-    </div>
-  </section>
-
-  <!-- Control capabilities catalog (what OEM vendors unlock, what operators can do) -->
-  <section id="sec-capabilities" class="max-w-[1500px] mx-auto px-3 pt-3">
-    <div class="card tight overflow-hidden">
-      <div class="sb-section">
-        <span class="sb-kicker">CAP · 08</span>
-        <h2 class="sb-section-title">Control Capabilities</h2>
-        <p class="sb-section-desc">Operator control surface — each capability unlocked per-OEM via API scope</p>
-        <span class="ml-auto text-[10px] text-ink-dim"><span style="color:var(--brand)">●</span> live · <span style="color:var(--azure)">●</span> monitor · <span class="text-ink-dim">●</span> unlocked</span>
-      </div>
-      <div id="capabilities" class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2"></div>
-    </div>
-  </section>
-
-  <!-- Fleet -->
-  <main id="sec-fleet" class="max-w-[1500px] mx-auto px-3 py-3">
-    <div class="sb-section" style="border: none; padding-left: 0; padding-right: 0;">
-      <span class="sb-kicker" style="color:var(--brand)" id="fleet-kicker">FLT</span>
-      <h2 class="sb-section-title">Fleet</h2>
-      <p class="sb-section-desc" id="fleet-count">filter by category</p>
-      <div id="tabs" class="flex flex-wrap gap-1.5 ml-auto"></div>
-      <span id="fleet-filter"></span>
-    </div>
-    <div id="fleet" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5"></div>
+    </section>
   </main>
-
-  <!-- Benchmark -->
-  <section id="sec-benchmark" class="max-w-[1500px] mx-auto px-3 pb-6">
-    <div class="card tight overflow-hidden">
-      <div class="sb-section">
-        <span class="sb-kicker" style="color:#7C3AED">BNCH</span>
-        <h2 class="sb-section-title">Benchmark Library</h2>
-        <p class="sb-section-desc">Cross-vendor drift performance — licensed to OEMs</p>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="sb-table">
-          <thead>
-            <tr>
-              <th>Vendor</th><th>Robots</th><th>Samples</th><th>Mean drift</th><th>P95 drift</th><th>MTBD</th><th>Recovery</th><th>Env score</th>
-            </tr>
-          </thead>
-          <tbody id="benchmark"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- OEM partners & API scopes -->
-  <section id="sec-partners" class="max-w-[1500px] mx-auto px-3 pb-8">
-    <div class="card tight overflow-hidden">
-      <div class="sb-section flex-wrap">
-        <span class="sb-kicker" style="color:#D97706">OEM-07</span>
-        <h2 class="sb-section-title">OEM Partners &amp; API Scopes</h2>
-        <p class="sb-section-desc">3rd-party robot companies and the control they've unlocked for Orbital</p>
-        <button id="btn-onboard-2" class="ml-auto sb-btn text-[12px]">+ Onboard robot API</button>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="sb-table">
-          <thead>
-            <tr>
-              <th>Company</th><th>Vendor</th><th>Transport</th><th>Status</th><th>Granted / Ceiling</th><th>Readiness</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="oems"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
 
   <div id="modal-robot" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-dispatch" class="modal hidden"><div class="modal-card"></div></div>
@@ -279,6 +175,6 @@
   <div id="modal-sign-in" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-wizard" class="modal hidden"><div class="modal-card modal-card-lg"></div></div>
 
-  <script src="/app.js?v=20261026e"></script>
+  <script src="/app.js?v=20261027a"></script>
 </body>
 </html>
