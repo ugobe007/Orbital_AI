@@ -292,7 +292,18 @@ def _reject_agent(request: Request, caller: Caller, status: int, detail: str) ->
     return HTTPException(status_code=status, detail=detail)
 
 
-def _caller_dep(*, agent_allowed, rate_limited: bool):
+def demo_sim_control() -> bool:
+    return _env_flag("ORBITAL_DEMO_SIM_CONTROL", "1")
+
+
+def _is_simulated_target(request: Request) -> bool:
+    from .store import store  # lazy: store pulls in the whole cloud state
+
+    robot = store.robots.get(request.path_params.get("robot_id") or "")
+    return bool(robot is not None and robot.simulated)
+
+
+def _caller_dep(*, agent_allowed, rate_limited: bool, demo_sim: bool = False):
     async def _dep(
         request: Request,
         x_orbital_role: str | None = Header(default=None, alias="X-Orbital-Role"),
@@ -316,6 +327,9 @@ def _caller_dep(*, agent_allowed, rate_limited: bool):
                                     f"agent rate limit: {agent_rate_per_min()} write calls per minute")
             return caller
         if _RANK[role] < _RANK[Role.OPERATOR]:
+            # Public demo: viewers can stop/start the simulated fleet, never a real robot.
+            if demo_sim and role == Role.VIEWER and demo_sim_control() and _is_simulated_target(request):
+                return Caller(role, caller.actor if caller.actor != role.value else "demo-visitor")
             raise HTTPException(status_code=403, detail=f"requires role operator or higher (have {role.value})")
         return caller
 
@@ -337,6 +351,8 @@ def _direct_control() -> tuple[bool, str]:
 RequireStopper = _caller_dep(agent_allowed=_always, rate_limited=False)
 RequireProposer = _caller_dep(agent_allowed=_always, rate_limited=True)
 RequireController = _caller_dep(agent_allowed=_direct_control, rate_limited=True)
+DemoStopper = _caller_dep(agent_allowed=_always, rate_limited=False, demo_sim=True)
+DemoResumer = _caller_dep(agent_allowed=_direct_control, rate_limited=True, demo_sim=True)
 
 
 async def CurrentCaller(

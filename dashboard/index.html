@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/tw.css?v=20261026b" />
-  <link rel="stylesheet" href="/styles.css?v=20261026b" />
+  <link rel="stylesheet" href="/tw.css?v=20261026c" />
+  <link rel="stylesheet" href="/styles.css?v=20261026c" />
 </head>
 <body class="min-h-screen text-ink md:pl-14">
   <!-- Left nav rail -->
@@ -82,14 +82,25 @@
       <div class="card-head px-4 py-2.5 flex items-center gap-3 flex-wrap">
         <span class="tag">MAP·01</span>
         <h2 class="font-semibold text-[14px]">Warehouse — Global Spatial Map</h2>
-        <span class="text-[11px] text-ink-dim">click a robot to select · click floor to set a visual waypoint</span>
+        <span class="text-[11px] text-ink-dim">click any robot to review it and stop or start it</span>
         <div class="flex-1"></div>
         <div id="map-selection" class="flex items-center gap-2"></div>
       </div>
       <!-- Live mission sequence: what the fleet is doing right now + countdown to the next one -->
       <div id="sequence-bar" class="px-4 py-2.5 border-b border-line bg-surface-raised"></div>
       <div class="p-3">
-        <svg id="map" class="w-full rounded-lg select-none border border-line" style="background:#FFFFFF; cursor: crosshair; touch-action: none; max-height: 62vh;"></svg>
+        <div id="map-stage" class="map-stage">
+          <svg id="map" class="w-full rounded-lg select-none border border-line" style="background:#FFFFFF; cursor: crosshair; touch-action: none; max-height: 62vh;"></svg>
+          <div id="map-bubbles" class="map-bubbles" aria-hidden="true"></div>
+          <div id="robot-card" class="robot-card" role="dialog" aria-label="Robot review" hidden></div>
+          <section id="commentary" class="commentary" aria-live="polite" aria-label="Live commentary">
+            <header class="commentary-head">
+              <span class="commentary-live"><span class="commentary-dot"></span>LIVE COMMENTARY</span>
+              <button id="commentary-toggle" class="commentary-toggle" aria-expanded="true">Hide</button>
+            </header>
+            <ol id="commentary-feed" class="commentary-feed"></ol>
+          </section>
+        </div>
         <div id="map-legend" class="mt-2.5 flex items-center gap-x-4 gap-y-1 text-[10.5px] text-ink-mut flex-wrap">
           <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:#16A34A"></span> robot (camera-tracked)</span>
           <span class="flex items-center gap-1.5"><span class="mono" style="color:#6D28D9">◹</span> overhead camera</span>
@@ -268,6 +279,6 @@
   <div id="modal-sign-in" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-wizard" class="modal hidden"><div class="modal-card modal-card-lg"></div></div>
 
-  <script src="/app.js?v=20261026d"></script>
+  <script src="/app.js?v=20261026e"></script>
 </body>
 </html>

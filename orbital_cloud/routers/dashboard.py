@@ -44,10 +44,11 @@ from ..rbac import (
     Caller,
     CurrentCaller,
     RequireAdmin,
+    DemoResumer,
+    DemoStopper,
     RequireController,
     RequireOperator,
     RequireProposer,
-    RequireStopper,
     RequireViewer,
     Role,
     agent_direct_control,
@@ -55,6 +56,7 @@ from ..rbac import (
     diagnose_caller,
 )
 from .. import recommendations, scope_guard
+from ..simulator import DEMO_STOP_RELEASE_S
 from ..objects import objects_json, objects_message
 from ..occupancy import camera_occupancy
 from ..rig_calibration import calibration_store
@@ -550,19 +552,23 @@ async def control_audit(limit: int = 100, actor: str | None = None,
 
 
 @router.post("/robot/{robot_id}/estop")
-async def estop(robot_id: str, dry_run: bool = False, caller: Caller = Depends(RequireStopper)) -> dict:
+async def estop(robot_id: str, dry_run: bool = False, caller: Caller = Depends(DemoStopper)) -> dict:
     _enforce_audited(caller, "estop", robot_id, APIScope.ESTOP)
     if dry_run:
         return _dry_run(caller, "estop", robot_id, f"halt {robot_id}")
-    if not store.estop(robot_id):
+    demo = caller.role == Role.VIEWER
+    if not store.estop(robot_id, demo=demo):
         raise HTTPException(status_code=404, detail="robot not found")
     store.record_control(actor=caller.actor, role=caller.role.value, action="estop", robot_id=robot_id, ok=True)
     await _broadcast_fleet()
-    return {"ok": True, "robot_id": robot_id, "state": "halted"}
+    out = {"ok": True, "robot_id": robot_id, "state": "halted"}
+    if demo:
+        out["auto_resume_s"] = int(DEMO_STOP_RELEASE_S)
+    return out
 
 
 @router.post("/robot/{robot_id}/resume")
-async def resume(robot_id: str, dry_run: bool = False, caller: Caller = Depends(RequireController)) -> dict:
+async def resume(robot_id: str, dry_run: bool = False, caller: Caller = Depends(DemoResumer)) -> dict:
     _enforce_audited(caller, "resume", robot_id, APIScope.ESTOP)
     if dry_run:
         return _dry_run(caller, "resume", robot_id, f"resume {robot_id}")

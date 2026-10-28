@@ -49,7 +49,9 @@ _DRIFT_HALT = "DRIFT_HALT"   # sim safety halt (auto-recovers immediately)
 _AUTO_ESTOP = "AUTO_ESTOP"   # orchestrator auto-halt (auto-recovers after a cooldown)
 HUMAN_STOP = "HUMAN_STOP"    # a person inside the stop radius (resumes once they step away)
 # "E_STOP" (human/operator) is NOT in this set — it latches until an operator resumes.
-_RECOVERABLE_HALTS = {_DRIFT_HALT, _AUTO_ESTOP}
+DEMO_STOP = "DEMO_STOP"      # public-demo visitor stop on a simulated robot
+DEMO_STOP_RELEASE_S = 120.0
+_RECOVERABLE_HALTS = {_DRIFT_HALT, _AUTO_ESTOP, DEMO_STOP}
 _HUMAN_ALERT_COOLDOWN_S = 60.0
 _last_human_alert: dict[str, float] = {}
 _JOINTS = ("hip_left", "hip_right", "knee_left", "knee_right")
@@ -533,10 +535,11 @@ async def _tick(dt: float) -> list[AlertIn]:
             # Sim safety halts recover immediately; orchestrator auto-stops recover after a
             # cooldown (ARIA re-converges). A human E-Stop latches until an operator resumes.
             if robot.error_code in _RECOVERABLE_HALTS:
+                hold_s = DEMO_STOP_RELEASE_S if robot.error_code == DEMO_STOP else settings.auto_recover_s
                 cooled = (
                     robot.error_code == _DRIFT_HALT
                     or robot.halted_at is None
-                    or (time.time() - robot.halted_at) >= settings.auto_recover_s
+                    or (time.time() - robot.halted_at) >= hold_s
                 )
                 if cooled:
                     robot.drift_bias = (0.0, 0.0)

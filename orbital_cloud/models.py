@@ -321,6 +321,8 @@ class RobotSummary(BaseModel):
     speed_mps: float = 0.6         # current commanded speed
     manual_drive: bool = False     # operator is jogging it along a fixed heading
     control_mode: str = "patrol"   # patrol | visual_nav | manual | charging | halted | idle
+    # Driven by the built-in simulator, not a real edge. Demo visitors may E-Stop/Resume these.
+    simulated: bool = False
 
 
 class ControlGrants(BaseModel):

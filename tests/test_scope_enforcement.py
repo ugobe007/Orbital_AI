@@ -55,13 +55,13 @@ def test_mission_dispatch_requires_scope():
 
 
 def test_robot_detail_exposes_control_grants():
-    # Boston Dynamics ceiling excludes cmd_vel velocity — so even after granting, velocity
-    # stays False while estop (in-ceiling) flips True. rbt-03 is a BD robot.
-    _register_and_grant("Boston Dynamics", ["telemetry.read", "control.estop", "mission.dispatch"])
-    detail = client.get("/api/dashboard/robot/rbt-03").json()
+    # Agility's cloud-REST ceiling excludes cmd_vel velocity — so even after granting, velocity
+    # stays False while estop (in-ceiling) flips True.
+    _register_and_grant("Agility Robotics", ["telemetry.read", "control.estop", "mission.dispatch"])
+    detail = client.get(f"/api/dashboard/robot/{_robot_of_vendor('Agility Robotics')}").json()
     assert detail["control"]["managed"] is True
     assert detail["control"]["estop"] is True
-    assert detail["control"]["velocity"] is False   # not grantable for BD
+    assert detail["control"]["velocity"] is False   # not grantable over cloud REST
 
 
 def test_operator_oem_management_flow():

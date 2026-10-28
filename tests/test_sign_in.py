@@ -12,6 +12,7 @@ def rbac(monkeypatch):
     monkeypatch.setenv("ORBITAL_RBAC_ENFORCE", "1")
     monkeypatch.setenv("ORBITAL_RBAC_TOKENS", "admin:adm-key-123,operator:ops-key-456,agent:bot-key")
     monkeypatch.delenv("ORBITAL_SESSION_SECRET", raising=False)
+    monkeypatch.setenv("ORBITAL_DEMO_SIM_CONTROL", "0")
     auth._login_limiter.reset()
     return TestClient(app)
 
