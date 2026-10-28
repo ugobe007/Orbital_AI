@@ -180,3 +180,30 @@ def test_mcp_get_map_describes_objects():
     server = build_server(client_factory=_Client)
     tool = server._tool_manager.get_tool("get_map")
     assert "objects" in tool.description and "forklift" in tool.description
+
+
+def test_carried_pallet_stays_on_the_forks_while_yielding():
+    sim = SimObjects(seed=3)
+    checked = 0
+    for _ in range(2400):
+        sim.batch(0.25)
+        for f in sim.forklifts:
+            if f.pallet and sim.pallets[f.pallet]["state"] == "carried":
+                p, (tx, ty) = sim.pallets[f.pallet], f.fork_tip
+                assert abs(p["x"] - tx) < 1e-9 and abs(p["y"] - ty) < 1e-9
+                checked += f.yielding > 0
+    assert checked > 0          # the run did exercise a carrying forklift backing off
+
+
+def test_a_forklift_holding_a_pallet_keeps_its_rack_face():
+    from orbital_cloud.objects import PICK_FACES
+
+    sim = SimObjects()
+    a, b = sim.forklifts
+    sim._assign(a)
+    a.phase = "holding"
+    for _ in range(50):
+        b.phase = "idle"
+        sim._assign(b)
+        assert b.pick[0] != a.pick[0]
+    assert len(PICK_FACES) > 1

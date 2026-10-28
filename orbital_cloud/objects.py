@@ -236,7 +236,8 @@ class SimObjects:
         return [*self._route(f, park), (park[0] + dx / d * 0.01, park[1] + dy / d * 0.01)]
 
     def _assign(self, f: _Forklift) -> None:
-        taken = {o.pick[0] for o in self.forklifts if o is not f and o.pick and o.phase in ("to_pick", "lifting")}
+        taken = {o.pick[0] for o in self.forklifts
+                 if o is not f and o.pick and o.phase in ("to_pick", "lifting", "holding")}
         free = [p for p in PICK_FACES if p[0] not in taken] or PICK_FACES
         f.pick = self.rng.choice(free)
         _, px, py, sx, sy = f.pick
@@ -305,6 +306,7 @@ class SimObjects:
             f.yielding += dt
             f.vx = f.vy = 0.0
             self._back_off(f, other, dt)
+            self._carry(f)
             if f.yielding >= 4.0 and math.hypot(other.x - f.x, other.y - f.y) > 2.0:
                 f.yielding = -2.0
                 self._replan(f)
@@ -338,6 +340,10 @@ class SimObjects:
                 p.update(state="delivered", since=self.t, lane=f.lane[0], x=f.lane[1], y=f.lane[2])
                 f.pallet, f.lane, f.pick = None, None, None
                 f.phase = "idle"
+        self._carry(f)
+
+    def _carry(self, f: _Forklift) -> None:
+        """Keep a carried pallet on the forks wherever the forklift has moved."""
         if f.pallet and self.pallets[f.pallet]["state"] == "carried":
             p = self.pallets[f.pallet]
             p["x"], p["y"] = f.fork_tip
