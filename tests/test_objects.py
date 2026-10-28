@@ -1,4 +1,6 @@
 """Sprint J3/J4 — tracked objects: ingest, expiry, map, MCP."""
+import math
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -116,8 +118,9 @@ def test_forklifts_carry_pallets_to_the_dock_and_trucks_take_them():
         for o in sim.batch(0.25).objects:
             if o.label == "forklift":
                 seen_activity.add(o.activity.split(" ")[0])
-            if o.label == "pallet" and o.activity.startswith("Delivered"):
-                delivered[o.id] = o
+            # A pallet set down while a truck is docked can go straight onto it.
+            if o.label == "pallet" and o.activity.startswith(("Delivered", "Going onto")):
+                delivered.setdefault(o.id, o)
             if o.label == "truck":
                 truck_y.append(o.y)
         picked_from |= {f.pick[0] for f in sim.forklifts if f.pick}
@@ -143,16 +146,16 @@ def test_forks_reach_the_pallet_they_pick():
                 assert abs(tx - p["x"]) < 0.05 and abs(ty - p["y"]) < 0.05
 
 
-def test_forklifts_keep_their_distance():
-    import math
-
+def test_forklift_footprints_never_touch():
+    """Forks included: the two forklifts never touch, and they still get the work done."""
     sim = SimObjects(seed=3)
     closest = 99.0
     for _ in range(2400):
         sim.batch(0.25)
         a, b = sim.forklifts
-        closest = min(closest, math.hypot(a.x - b.x, a.y - b.y))
-    assert closest > 0.9
+        closest = min(closest, a.box.gap(b.box))
+    assert closest > 0.2
+    assert sim.shipped > 0
 
 
 def test_robots_slow_down_near_a_tracked_forklift():
@@ -191,8 +194,8 @@ def test_carried_pallet_stays_on_the_forks_while_yielding():
             if f.pallet and sim.pallets[f.pallet]["state"] == "carried":
                 p, (tx, ty) = sim.pallets[f.pallet], f.fork_tip
                 assert abs(p["x"] - tx) < 1e-9 and abs(p["y"] - ty) < 1e-9
-                checked += f.yielding > 0
-    assert checked > 0          # the run did exercise a carrying forklift backing off
+                checked += f.blocked_s > 0 or f.reverse_m > 0
+    assert checked > 0          # the run did exercise a carrying forklift stopping or backing up
 
 
 def test_a_forklift_holding_a_pallet_keeps_its_rack_face():
@@ -207,3 +210,107 @@ def test_a_forklift_holding_a_pallet_keeps_its_rack_face():
         sim._assign(b)
         assert b.pick[0] != a.pick[0]
     assert len(PICK_FACES) > 1
+
+
+def test_box_gap_measures_clearance_between_footprints():
+    from orbital_cloud.objects import Box
+
+    a = Box(0.0, 0.0, 0.0, 1.0, 0.5)
+    assert a.gap(Box(3.0, 0.0, 0.0, 1.0, 0.5)) == pytest.approx(1.0)
+    assert a.gap(Box(0.0, 2.0, 0.0, 1.0, 0.5)) == pytest.approx(1.0)
+    assert a.gap(Box(1.5, 0.0, 0.7, 1.0, 0.5)) == 0.0                 # overlapping
+    assert a.dist(0.2, 0.1) == 0.0 and a.dist(2.0, 0.0) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("spot", [(15.4, 9.5), (15.4, 7.0), (13.6, 11.0), (13.4, 12.6)])
+def test_forklifts_never_come_within_stop_distance_of_someone_standing_in_the_way(spot):
+    """A person who won't move: forklifts stop short (forks included), go around or pick
+    elsewhere, and keep shipping."""
+    sim = SimObjects(seed=3)
+    closest = 99.0
+    for _ in range(2400):
+        sim.batch(0.25, people=[("wkr-x", *spot)])
+        closest = min(closest, *(f.box.dist(*spot) for f in sim.forklifts))
+    assert closest >= objects_mod.PERSON_STOP_M - 1e-6
+    assert sim.shipped >= 5
+
+
+def test_a_stopped_forklift_says_why():
+    sim = SimObjects(seed=3)
+    seen = set()
+    for _ in range(2400):
+        for o in sim.batch(0.25, people=[("wkr-x", 15.4, 9.5)]).objects:
+            if o.label == "forklift":
+                seen.add(o.activity)
+    assert "Stopped: a person is in the way" in seen
+
+
+def test_the_cart_stops_for_a_person_in_the_back_aisle():
+    sim = SimObjects(seed=3)
+    for _ in range(800):
+        sim.batch(0.25, people=[("wkr-x", 8.0, objects_mod.CART_Y)])
+        assert abs(sim.cart_x - 8.0) > 1.0
+    cart = next(o for o in sim.batch(0.25, people=[("wkr-x", 8.0, objects_mod.CART_Y)]).objects if o.id == "cart-1")
+    assert cart.vx == 0.0 and cart.activity.startswith("Stopped")
+
+
+def test_people_and_forklifts_share_the_floor_safely():
+    """The sim crowd walking among the forklifts: nobody is ever inside a forklift's stop
+    distance, the forklifts never touch, people never walk through a rack, and pallets ship."""
+    import random
+
+    from orbital_cloud.workers import SimCrowd, worker_store
+
+    random.seed(5)
+    worker_store.clear()
+    crowd, sim = SimCrowd(), SimObjects(seed=5)
+    crowd.spawn(8)
+    now, dt = 1_000_000.0, 0.2
+    for w in crowd._walkers:
+        w.dwell_until = now + 2
+    closest, gap = 99.0, 99.0
+    try:
+        for _ in range(int(600 / dt)):
+            now += dt
+            crowd.tick(dt, now=now, horns=sim.horns())
+            people = [(w.id, w.pose.x, w.pose.y) for w in worker_store.list(now)]
+            object_store.ingest(FAC, sim.batch(dt, people=people), now=now)
+            a, b = sim.forklifts
+            gap = min(gap, a.box.gap(b.box))
+            for _, x, y in people:
+                closest = min(closest, a.box.dist(x, y), b.box.dist(x, y))
+                assert not any(r["x"] < x < r["x"] + r["w"] and r["y"] < y < r["y"] + r["h"]
+                               for r in objects_mod.WAREHOUSE["racks"])
+    finally:
+        worker_store.clear()
+    assert closest >= objects_mod.PERSON_STOP_M - 1e-6
+    assert gap > 0.2
+    assert sim.shipped >= 10
+
+
+def test_people_step_out_of_a_honking_forklifts_way():
+    from orbital_cloud.models import WorkerPoseIn
+    from orbital_cloud.objects import forklift_box
+    from orbital_cloud.workers import SimCrowd, worker_store
+
+    worker_store.clear()
+    crowd = SimCrowd()
+    crowd.spawn(1)
+    w = crowd._walkers[0]
+    now = 1_000_000.0
+    w.dwell_until = now + 60                       # busy at a station...
+    x0, y0 = 11.3, 3.4                             # ...against rack C, in front of the forks
+    worker_store.upsert(w.id, WorkerPoseIn(x=x0, y=y0), source="sim", now=now)
+    horn = forklift_box(12.85, 4.0, -2.03, 1.5, 0.85)
+    object_store.ingest(FAC, ObjectsIn(source="sim", objects=[
+        {"id": "forklift-2", "label": "forklift", "x": 12.85, "y": 4.0, "yaw": -2.03,
+         "size": objects_mod.FORKLIFT_SIZE}]), now=now)
+    try:
+        for _ in range(60):
+            now += 0.2
+            crowd.tick(0.2, now=now, horns={w.id: horn})
+            p = worker_store.get(w.id, now).pose
+            assert horn.dist(p.x, p.y) >= 0.69
+        assert math.hypot(p.x - horn.cx, p.y - horn.cy) >= 2.5     # clear of the forks' swing
+    finally:
+        worker_store.clear()
