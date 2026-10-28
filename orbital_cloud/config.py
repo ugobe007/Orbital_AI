@@ -80,13 +80,12 @@ INDUSTRIES = ["Humanoids", "Cleaning", "Delivery", "Inventory"]
 SEED_FLEET: list[dict] = [
     {"id": "rbt-01", "vendor": "Unitree", "model": "G1", "industry": "Humanoids"},
     {"id": "rbt-02", "vendor": "AgiBot", "model": "A2", "industry": "Humanoids"},
-    {"id": "rbt-03", "vendor": "Boston Dynamics", "model": "Spot", "industry": "Inventory"},
-    {"id": "rbt-04", "vendor": "Agility Robotics", "model": "Digit", "industry": "Delivery"},
-    {"id": "rbt-05", "vendor": "Deep Robotics", "model": "Lite3", "industry": "Inventory"},
-    {"id": "rbt-06", "vendor": "Fourier Robotics", "model": "GR-1", "industry": "Humanoids"},
-    {"id": "rbt-07", "vendor": "MagicLab", "model": "MagicDog", "industry": "Cleaning"},
-    {"id": "rbt-08", "vendor": "Unitree", "model": "Go2", "industry": "Cleaning"},
-    {"id": "rbt-09", "vendor": "AgiBot", "model": "A2-W", "industry": "Delivery"},
+    {"id": "rbt-03", "vendor": "Agility Robotics", "model": "Digit", "industry": "Delivery"},
+    {"id": "rbt-04", "vendor": "Deep Robotics", "model": "Lite3", "industry": "Inventory"},
+    {"id": "rbt-05", "vendor": "Fourier Robotics", "model": "GR-1", "industry": "Humanoids"},
+    {"id": "rbt-06", "vendor": "MagicLab", "model": "MagicDog", "industry": "Cleaning"},
+    {"id": "rbt-07", "vendor": "Unitree", "model": "Go2", "industry": "Cleaning"},
+    {"id": "rbt-08", "vendor": "AgiBot", "model": "A2-W", "industry": "Delivery"},
 ]
 
 # ── Warehouse map (Global Spatial Map for the operator console) ───────────────

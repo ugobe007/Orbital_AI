@@ -35,7 +35,7 @@ def test_navigate_requires_velocity_scope():
         "company_name": "Nav Test Co", "vendor": "MagicLab",
         "contact_email": "n@x.com", "transport": "ros2",
     })
-    r = client.post("/api/dashboard/robot/rbt-07/navigate", json={"waypoints": [{"x": 5.0, "y": 5.0}]})
+    r = client.post("/api/dashboard/robot/rbt-06/navigate", json={"waypoints": [{"x": 5.0, "y": 5.0}]})
     assert r.status_code == 403 and "control.velocity" in r.json()["detail"]
 
 

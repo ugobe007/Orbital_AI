@@ -59,6 +59,9 @@ def test_fleet_has_leads_and_shuttles_with_relay_points():
 def test_shuttle_flips_direction_between_relay_points():
     simulator.prime()
     shuttle = next(r for r in simulator.store.robots.values() if r.fleet_role == "shuttle")
+    shuttle.shuttle_flip = False
+    # Leads can momentarily share a waypoint; pin two distinct relays so a flip is observable.
+    simulator.store.relay_points = [("Relay A", 2.0, 2.0), ("Relay B", 8.0, 6.0)]
     simulator._assign_task(shuttle)
     assert shuttle.mission_pickup and shuttle.mission_dropoff
     a, b = shuttle.mission_pickup[0], shuttle.mission_dropoff[0]

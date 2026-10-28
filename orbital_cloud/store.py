@@ -59,6 +59,8 @@ class RobotRuntime:
         self.error_code: Optional[str] = None
         self.halted_at: Optional[float] = None
         self.created_at: float = time.time()
+        # Cleared the moment a real edge posts telemetry for this robot.
+        self.simulated: bool = False
 
         # Simulator internals (ignored when driven by real edge telemetry).
         self.trajectory: list[tuple[float, float]] = []
@@ -150,6 +152,7 @@ class RobotRuntime:
             speed_mps=round(self.speed_mps, 2),
             manual_drive=self.manual_heading is not None,
             control_mode=self.control_mode,
+            simulated=self.simulated,
         )
 
 
@@ -226,6 +229,7 @@ class Store:
     def _seed(self) -> None:
         for seed in SEED_FLEET:
             self.robots[seed["id"]] = RobotRuntime(seed)
+            self.robots[seed["id"]].simulated = settings.simulator_enabled
             self._telemetry.ensure_robot(seed["id"])
         self.telemetry = self._telemetry.as_dict()
 
@@ -318,15 +322,16 @@ class Store:
             return [t for t in self.tasks.values() if t.status in (TaskStatus.QUEUED, TaskStatus.ACTIVE)]
 
     # ── Control (monitor+control) ────────────────────────────────────────────────
-    def estop(self, robot_id: str, *, auto: bool = False) -> bool:
+    def estop(self, robot_id: str, *, auto: bool = False, demo: bool = False) -> bool:
         """Halt a robot. Operator E-Stops latch until a human resumes; orchestrator/auto stops
-        use a distinct code the simulator re-converges from after a cooldown."""
+        use a distinct code the simulator re-converges from after a cooldown. Demo-visitor
+        stops (simulated robots only) also self-release so a shared demo never stays frozen."""
         with self._lock:
             robot = self.robots.get(robot_id)
             if robot is None:
                 return False
             robot.state = RobotState.HALTED
-            robot.error_code = "AUTO_ESTOP" if auto else "E_STOP"
+            robot.error_code = "AUTO_ESTOP" if auto else ("DEMO_STOP" if demo else "E_STOP")
             robot.halted_at = time.time()
             return True
 

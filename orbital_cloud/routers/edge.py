@@ -91,6 +91,8 @@ async def get_occupancy(facility_id: str) -> dict:
 
 @router.post("/telemetry", status_code=202)
 async def post_telemetry(t: TelemetryIn) -> dict:
+    if (robot := store.robots.get(t.robot_id)) is not None:
+        robot.simulated = False
     store.ingest_telemetry(t)
     return {"ok": True}
 

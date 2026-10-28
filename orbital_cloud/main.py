@@ -30,7 +30,7 @@ from .store import store
 _DEMO_OEMS = [
     ("Unitree Robotics (demo)", "Unitree", ControlTransport.ROS2,
      [APIScope.TELEMETRY, APIScope.STATE, APIScope.VELOCITY, APIScope.ESTOP, APIScope.MISSION, APIScope.MAP]),
-    ("Boston Dynamics (demo)", "Boston Dynamics", ControlTransport.GRPC,
+    ("Deep Robotics (demo)", "Deep Robotics", ControlTransport.ROS2,
      [APIScope.TELEMETRY, APIScope.STATE, APIScope.ESTOP, APIScope.MISSION]),
     ("Agility Robotics (demo)", "Agility Robotics", ControlTransport.CLOUD_REST,
      [APIScope.TELEMETRY, APIScope.STATE]),
