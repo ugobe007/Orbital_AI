@@ -98,12 +98,76 @@ def test_sim_objects_move_and_stay_on_the_floor():
     sim = SimObjects()
     first = {o.id: o for o in sim.batch(0.2).objects}
     later = {o.id: o for o in sim.batch(3.0).objects}
-    assert set(first) == {"pallet-1", "forklift-1", "cart-1"}
+    assert {"forklift-1", "forklift-2", "cart-1"} <= set(first)
+    assert any(o.label == "pallet" for o in first.values())
     assert later["forklift-1"].x != first["forklift-1"].x
-    assert later["pallet-1"].x == first["pallet-1"].x
     for _ in range(200):
         for o in sim.batch(0.5).objects:
-            assert 0 <= o.x <= 24 and 0 <= o.y <= 16
+            if o.label == "truck":
+                assert o.y > 16                       # out in the yard, never on the floor
+            else:
+                assert 0 <= o.x <= 24 and 0 <= o.y <= 16.5
+
+
+def test_forklifts_carry_pallets_to_the_dock_and_trucks_take_them():
+    sim = SimObjects()
+    seen_activity, picked_from, delivered, truck_y = set(), set(), {}, []
+    for _ in range(1200):
+        for o in sim.batch(0.25).objects:
+            if o.label == "forklift":
+                seen_activity.add(o.activity.split(" ")[0])
+            if o.label == "pallet" and o.activity.startswith("Delivered"):
+                delivered[o.id] = o
+            if o.label == "truck":
+                truck_y.append(o.y)
+        picked_from |= {f.pick[0] for f in sim.forklifts if f.pick}
+    assert {"Heading", "Lifting", "Carrying", "Setting"} <= seen_activity
+    assert len(picked_from) >= 3
+    assert len(delivered) >= 5
+    assert all(o.y > 14 and 12 <= o.x <= 18 for o in delivered.values())
+    # Trucks back up to the dock door, load what's waiting and leave, so the dock never jams.
+    assert sim.trucks_loaded >= 3 and sim.shipped >= 10
+    assert min(truck_y) == pytest.approx(16 + objects_mod.TRAILER_SIZE["length"] / 2)
+    live = [o for o in sim.batch(0.25).objects if o.label == "pallet" and o.activity.startswith("Delivered")]
+    assert len(live) <= 3
+
+
+def test_forks_reach_the_pallet_they_pick():
+    sim = SimObjects()
+    for _ in range(400):
+        sim.batch(0.25)
+        for f in sim.forklifts:
+            if f.phase == "lifting":
+                p = sim.pallets[f.pallet]
+                tx, ty = f.fork_tip
+                assert abs(tx - p["x"]) < 0.05 and abs(ty - p["y"]) < 0.05
+
+
+def test_forklifts_keep_their_distance():
+    import math
+
+    sim = SimObjects(seed=3)
+    closest = 99.0
+    for _ in range(2400):
+        sim.batch(0.25)
+        a, b = sim.forklifts
+        closest = min(closest, math.hypot(a.x - b.x, a.y - b.y))
+    assert closest > 0.9
+
+
+def test_robots_slow_down_near_a_tracked_forklift():
+    assert objects_mod.vehicle_speed_cap(18.0, 8.1) is None
+    object_store.ingest(FAC, ObjectsIn(source="cv", objects=[FORKLIFT]))
+    assert objects_mod.vehicle_speed_cap(19.0, 8.1) == settings.human_slow_speed_mps
+    assert objects_mod.vehicle_speed_cap(5.0, 3.0) is None
+
+
+def test_object_activity_is_optional_and_shown_on_the_map():
+    obj = {**PALLET, "activity": "On the forks"}
+    client.post(f"/api/v1/objects/{FAC}", json={"source": "wms", "objects": [obj, FORKLIFT]})
+    by_id = {o["id"]: o for o in client.get(f"/api/v1/objects/{FAC}").json()["objects"]}
+    assert by_id["pallet-7"]["activity"] == "On the forks"
+    assert by_id["fl-1"]["activity"] is None
 
 
 def test_mcp_get_map_describes_objects():
@@ -116,3 +180,30 @@ def test_mcp_get_map_describes_objects():
     server = build_server(client_factory=_Client)
     tool = server._tool_manager.get_tool("get_map")
     assert "objects" in tool.description and "forklift" in tool.description
+
+
+def test_carried_pallet_stays_on_the_forks_while_yielding():
+    sim = SimObjects(seed=3)
+    checked = 0
+    for _ in range(2400):
+        sim.batch(0.25)
+        for f in sim.forklifts:
+            if f.pallet and sim.pallets[f.pallet]["state"] == "carried":
+                p, (tx, ty) = sim.pallets[f.pallet], f.fork_tip
+                assert abs(p["x"] - tx) < 1e-9 and abs(p["y"] - ty) < 1e-9
+                checked += f.yielding > 0
+    assert checked > 0          # the run did exercise a carrying forklift backing off
+
+
+def test_a_forklift_holding_a_pallet_keeps_its_rack_face():
+    from orbital_cloud.objects import PICK_FACES
+
+    sim = SimObjects()
+    a, b = sim.forklifts
+    sim._assign(a)
+    a.phase = "holding"
+    for _ in range(50):
+        b.phase = "idle"
+        sim._assign(b)
+        assert b.pick[0] != a.pick[0]
+    assert len(PICK_FACES) > 1

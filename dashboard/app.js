@@ -29,6 +29,11 @@ const state = {
   runOverlay: null,     // { run, golden } drawn on the map when a run row is selected
   objects: [],          // tracked objects (pallets, carts, forklifts) from the camera rig
   clockSkew: 0,         // server time minus browser time, so objects expire on the server's clock
+  kpis: null,           // running totals for the value bar (pallets shipped, deliveries, …)
+  tickMs: 200,          // measured gap between live updates; motion is smoothed over it
+  lastFleetAt: 0,
+  animUntil: 0,         // performance.now() until which something on the map is still gliding
+  mapDirty: true,       // floor, zones or overlays changed: redraw the static layer too
   cameraCells: [],      // floor cells the Digital Net sees as blocked: [x0, y0, x1, y1] (m)
   auth: null,           // /api/auth/me: who is signed in to this console
   calibration: null,    // latest rig-calibration report for this facility (Sprint H)
@@ -181,6 +186,41 @@ function renderStats() {
   setK("drift", `${m.avgDrift.toFixed(3)} m`);
   setK("batt", `${Math.round(m.avgBatt)}%`);
   setK("alerts", String(m.openAlerts), !m.openAlerts);
+}
+
+// What the floor has delivered since the server started: the reason the fleet is there.
+const KPI_TILES = [
+  { k: "pallets_shipped", label: "Pallets shipped", sub: (v) => `${v.trucks_loaded} truck${v.trucks_loaded === 1 ? "" : "s"} loaded` },
+  { k: "deliveries", label: "Robot deliveries", sub: (v, hrs) => hrs >= 0.05 ? `${Math.round(v.deliveries / hrs)} per hour` : "drop-offs completed" },
+  { k: "slowdowns", label: "Safety slow-downs", sub: () => "near people or forklifts" },
+  { k: "safety_stops", label: "Safety stops", sub: () => "a person came too close" },
+  { k: "fleet_busy_pct", label: "Fleet busy", sub: () => "of robot time working", fmt: (n) => n == null ? "—" : `${n}%` },
+];
+function renderValueBar() {
+  const box = $("#value-bar"), v = state.kpis;
+  if (!box || !v) return;
+  if (!box.dataset.built) {
+    box.dataset.built = "1";
+    box.innerHTML = KPI_TILES.map((t) => `<div class="kpi"><div class="kpi-label">${t.label}</div>
+      <div class="kpi-val" data-k="${t.k}">—</div><div class="kpi-sub" data-sub="${t.k}"></div></div>`).join("")
+      + `<div class="kpi-since" id="kpi-since"></div>`;
+    box.hidden = false;
+  }
+  const hrs = (Date.now() / 1000 + state.clockSkew - v.since) / 3600;
+  for (const t of KPI_TILES) {
+    const el = box.querySelector(`[data-k="${t.k}"]`);
+    const text = t.fmt ? t.fmt(v[t.k]) : String(v[t.k]);
+    if (el.textContent !== text) {
+      const grew = t.k !== "fleet_busy_pct" && el.textContent !== "—" && Number(text) > Number(el.textContent);
+      el.textContent = text;
+      if (grew) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+    }
+    const sub = t.sub(v, hrs);
+    const subEl = box.querySelector(`[data-sub="${t.k}"]`);
+    if (subEl.textContent !== sub) subEl.textContent = sub;
+  }
+  const since = `since ${new Date(v.since * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  if ($("#kpi-since").textContent !== since) $("#kpi-since").textContent = since;
 }
 
 // Human labels for the mission leg each robot is on.
@@ -465,18 +505,140 @@ function clickToWorld(evt, svg) {
   const m = state.map, rect = svg.getBoundingClientRect();
   const fx = (evt.clientX - rect.left) / rect.width;
   const fy = (evt.clientY - rect.top) / rect.height;
-  return { x: fx * m.width_m, y: (1 - fy) * m.height_m };
+  return { x: fx * m.width_m, y: (1 - fy) * (m.height_m + (m.yard_m || 0)) };
 }
 
-function renderMap() {
+// Live updates arrive a few times a second. Each moving thing glides from where it is drawn now
+// to its newest position over one update interval, so motion reads as continuous.
+const _glide = new Map();
+function smoothPose(key, x, y, a = 0) {
+  const now = performance.now();
+  let g = _glide.get(key);
+  if (!g) {
+    g = { fx: x, fy: y, fa: a, tx: x, ty: y, ta: a, t0: now, dur: 1 };
+    _glide.set(key, g);
+  } else if (g.tx !== x || g.ty !== y || g.ta !== a) {
+    const cur = glideAt(g, now);
+    const jump = Math.hypot(x - cur.x, y - cur.y) > 3;
+    Object.assign(g, jump ? { fx: x, fy: y, fa: a } : { fx: cur.x, fy: cur.y, fa: cur.a });
+    Object.assign(g, { tx: x, ty: y, ta: a, t0: now, dur: state.tickMs * 1.05 });
+  }
+  g.seen = now;
+  if (g.t0 + g.dur > state.animUntil) state.animUntil = g.t0 + g.dur;
+  return glideAt(g, now);
+}
+function glideAt(g, now) {
+  const k = Math.min(1, (now - g.t0) / g.dur);
+  const da = Math.atan2(Math.sin(g.ta - g.fa), Math.cos(g.ta - g.fa));
+  return { x: g.fx + (g.tx - g.fx) * k, y: g.fy + (g.ty - g.fy) * k, a: g.fa + da * k };
+}
+function noteLiveTick() {
+  const now = performance.now();
+  if (state.lastFleetAt) state.tickMs = Math.min(1000, Math.max(60, state.tickMs * 0.8 + (now - state.lastFleetAt) * 0.2));
+  state.lastFleetAt = now;
+  for (const [k, g] of _glide) if (now - g.seen > 10000) _glide.delete(k);
+}
+
+// A top-down forklift: yellow body with the cab and counterweight, forks reaching ahead to
+// where a carried pallet sits. Drawn in the vehicle's own frame, then rotated to its yaw.
+function forkliftGlyph(o, cx, cy, deg) {
+  const L = o.size.length, Wd = o.size.width, h = Wd / 2;
+  const forkFrom = L / 2 - 0.15, forkTo = L / 2 + L * 0.47;
+  const label = `<text class="map-label" x="${cx}" y="${cy - Math.max(L, Wd) / 2 - 0.46}" fill="#854D0E" font-size="0.36" font-weight="700" text-anchor="middle">${esc(o.id)}</text>`
+    + (o.activity ? `<text class="map-label" x="${cx}" y="${cy - Math.max(L, Wd) / 2 - 0.1}" fill="#3F3F46" font-size="0.28" text-anchor="middle">${esc(o.activity)}</text>` : "");
+  return `<g transform="translate(${cx} ${cy}) rotate(${deg})">`
+    + `<rect x="${forkFrom}" y="${-h * 0.62}" width="${forkTo - forkFrom}" height="0.08" rx="0.03" fill="#52525B"/>`
+    + `<rect x="${forkFrom}" y="${h * 0.62 - 0.08}" width="${forkTo - forkFrom}" height="0.08" rx="0.03" fill="#52525B"/>`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L}" height="${Wd}" rx="0.16" fill="#FACC15" stroke="#A16207" stroke-width="0.05"/>`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L * 0.22}" height="${Wd}" rx="0.14" fill="#A16207" opacity="0.55"/>`
+    + `<rect x="${-L * 0.1}" y="${-h * 0.7}" width="${L * 0.36}" height="${Wd * 0.7}" rx="0.08" fill="#1F2937" opacity="0.8"/>`
+    + `<rect x="${L / 2 - 0.18}" y="${-h * 0.95}" width="0.12" height="${Wd * 0.95}" rx="0.03" fill="#3F3F46"/>`
+    + `</g>` + label;
+}
+
+// A wooden pallet seen from above: deck boards across the stringers. Delivered pallets carry a
+// small check so you can see the dock filling up for the truck.
+function palletGlyph(o, cx, cy, deg) {
+  const L = o.size.length, Wd = o.size.width, h = Wd / 2;
+  const delivered = (o.activity || "").startsWith("Delivered");
+  const carried = (o.activity || "") === "On the forks";
+  let boards = "";
+  for (let i = 0; i < 5; i++) {
+    const bx = -L / 2 + 0.05 + i * (L - 0.1 - 0.12) / 4;
+    boards += `<rect x="${bx}" y="${-h + 0.04}" width="0.12" height="${Wd - 0.08}" fill="#E8C48A"/>`;
+  }
+  const load = carried || delivered
+    ? `<rect x="${-L / 2 + 0.1}" y="${-h + 0.1}" width="${L - 0.2}" height="${Wd - 0.2}" rx="0.05" fill="#B0875A" fill-opacity="0.55" stroke="#7C5A36" stroke-width="0.03"/>`
+    : "";
+  const check = delivered
+    ? `<circle cx="${cx + L / 2 - 0.05}" cy="${cy - h + 0.05}" r="0.17" fill="#16A34A"/><path d="M${cx + L / 2 - 0.13} ${cy - h + 0.05} l0.06 0.06 l0.11 -0.12" stroke="#fff" stroke-width="0.045" fill="none"/>`
+    : "";
+  return `<g transform="translate(${cx} ${cy}) rotate(${deg})">`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L}" height="${Wd}" rx="0.05" fill="#A47148" stroke="#6B4423" stroke-width="0.04"/>`
+    + boards + load + `</g>` + check;
+}
+
+// A box truck seen from above, cab away from the dock and the trailer's rear doors facing it.
+// Only the end nearest the dock is inside the drawn yard; the rest runs off the top edge.
+function truckGlyph(o, cx, cy, deg) {
+  const L = o.size.length, Wd = o.size.width, h = Wd / 2;
+  let ribs = "";
+  for (let x = -L / 2 + 0.6; x < L / 2 - 0.3; x += 0.6) ribs += `<line x1="${x}" y1="${-h}" x2="${x}" y2="${h}" stroke="#D4D4D8" stroke-width="0.03"/>`;
+  return `<g transform="translate(${cx} ${cy}) rotate(${deg})">`
+    + `<rect x="${L / 2 + 0.15}" y="${-h * 0.9}" width="1.8" height="${Wd * 0.9}" rx="0.3" fill="#1D4ED8"/>`
+    + `<rect x="${-L / 2}" y="${-h}" width="${L}" height="${Wd}" rx="0.08" fill="#FAFAFA" stroke="#52525B" stroke-width="0.05"/>`
+    + ribs
+    + `<rect x="${-L / 2}" y="${-h}" width="0.14" height="${Wd}" fill="#3F3F46"/>`
+    + `<line x1="${-L / 2}" y1="0" x2="${-L / 2 + 0.14}" y2="0" stroke="#FAFAFA" stroke-width="0.03"/>`
+    + `</g>`;
+}
+
+function renderMap() { state.mapDirty = true; scheduleMapFrame(); }
+let _mapFrame = 0, _mapDrawnAt = 0;
+function scheduleMapFrame() { if (!_mapFrame) _mapFrame = requestAnimationFrame(mapFrame); }
+function mapFrame(ts) {
+  _mapFrame = 0;
+  if (!EMBED && state.view !== "live") return;           // showView("live") redraws
+  const gliding = ts < state.animUntil;
+  if (!state.mapDirty && !gliding) return;
+  if (!state.mapDirty && ts - _mapDrawnAt < 30) { scheduleMapFrame(); return; }   // ~30 fps is plenty
+  drawMap(state.mapDirty);
+  state.mapDirty = false;
+  _mapDrawnAt = ts;
+  if (performance.now() < state.animUntil) scheduleMapFrame();
+}
+
+// Two layers: the floor, racks, zones and overlays only change on events; robots, people and
+// objects are redrawn every frame while they glide.
+function drawMap(full) {
   const svg = $("#map"), m = state.map;
   if (!svg || !m) return;
-  const W = m.width_m, H = m.height_m;
+  let stat = svg.querySelector("#map-static"), dyn = svg.querySelector("#map-dyn");
+  if (!stat || !dyn) {
+    svg.innerHTML = `<g id="map-static"></g><g id="map-dyn"></g>`;
+    stat = svg.querySelector("#map-static"); dyn = svg.querySelector("#map-dyn");
+    full = true;
+  }
+  const W = m.width_m, H = m.height_m, yard = m.yard_m || 0;
   const Y = (y) => H - y;
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.style.aspectRatio = `${W} / ${H}`;
+  if (full) {
+    svg.setAttribute("viewBox", `0 ${-yard} ${W} ${H + yard}`);
+    svg.style.aspectRatio = `${W} / ${H + yard}`;
+    stat.innerHTML = mapStaticLayer(m, W, H, yard, Y);
+  }
+  dyn.innerHTML = mapLiveLayer(m, H, yard, Y);
+}
 
+function mapStaticLayer(m, W, H, yard, Y) {
   const p = [];
+  if (yard) {
+    p.push(`<rect x="0" y="${-yard}" width="${W}" height="${yard}" fill="#E7E5E4"/>`);
+    p.push(`<text x="0.4" y="${-yard + 0.55}" fill="#78716C" font-size="0.34" font-weight="600" letter-spacing="0.06">TRUCK YARD</text>`);
+    if (m.dock) {
+      const cx = m.dock.x + m.dock.w / 2;
+      for (const dx of [-1.6, 1.6]) p.push(`<line x1="${cx + dx}" y1="${-yard}" x2="${cx + dx}" y2="0" stroke="#FAFAF9" stroke-width="0.08" stroke-dasharray="0.5 0.3"/>`);
+    }
+  }
   p.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#FFFFFF" stroke="#111418" stroke-width="0.06"/>`);
   for (let gx = 2; gx < W; gx += 2) p.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#D5D8D2" stroke-width="0.025"/>`);
   for (let gy = 2; gy < H; gy += 2) p.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#D5D8D2" stroke-width="0.025"/>`);
@@ -485,6 +647,11 @@ function renderMap() {
     const d = m.dock;
     p.push(`<rect x="${d.x}" y="${Y(d.y + d.h)}" width="${d.w}" height="${d.h}" rx="0.08" fill="#DBE4FB" stroke="#1D4ED8" stroke-width="0.03" opacity="0.85"/>`);
     p.push(`<text x="${d.x + d.w / 2}" y="${Y(d.y + d.h) + d.h / 2 + 0.16}" fill="#1D4ED8" font-size="0.42" text-anchor="middle" opacity="0.95">DOCK</text>`);
+  }
+  // Painted drop spots where forklifts leave outbound pallets for the truck.
+  for (const [i, l] of (m.dock_lanes || []).entries()) {
+    p.push(`<g><title>${esc(l.id)}</title><rect x="${l.x - 0.7}" y="${Y(l.y) - 0.6}" width="1.4" height="1.2" rx="0.06" fill="#EEF2FF" stroke="#1D4ED8" stroke-width="0.04" stroke-dasharray="0.16 0.1"/>`);
+    p.push(`<text x="${l.x}" y="${Y(l.y) + 0.12}" fill="#1D4ED8" font-size="0.34" font-weight="600" text-anchor="middle" opacity="0.6">${i + 1}</text></g>`);
   }
   for (const r of m.racks) {
     p.push(`<rect x="${r.x}" y="${Y(r.y + r.h)}" width="${r.w}" height="${r.h}" rx="0.08" fill="#C9CCC6" stroke="#8A8F88" stroke-width="0.035"/>`);
@@ -549,15 +716,40 @@ function renderMap() {
     p.push(`<rect x="${x0}" y="${Y(y1)}" width="${x1 - x0}" height="${y1 - y0}" fill="#4A4F57" fill-opacity="0.32" stroke="#4A4F57" stroke-opacity="0.5" stroke-width="0.02"/>`);
   }
 
+  if (yard && m.dock) p.push(`<line x1="${m.dock.x}" y1="0" x2="${m.dock.x + m.dock.w}" y2="0" stroke="#1D4ED8" stroke-width="0.14"/>`);
+  return p.join("");
+}
+
+function mapLiveLayer(m, H, yard, Y) {
+  const p = [];
   // Tracked objects: footprint rotated to the object's yaw, a motion arrow (1 s ahead) when it
   // is moving, and its label. Objects past their expiry are dropped even between updates.
   const now = Date.now() / 1000 + state.clockSkew;
   state.objects = state.objects.filter((o) => o.expires_at > now);
-  for (const o of state.objects) {
+  const order = { truck: -1, forklift: 1, pallet: 2 };
+  const objs = [...state.objects].sort((a, b) => (order[a.label] || 0) - (order[b.label] || 0)).map((o) => {
+    const g = smoothPose(`o:${o.source}:${o.id}`, o.x, o.y, o.yaw);
+    return { ...o, x: g.x, y: g.y, yaw: g.a };
+  });
+  for (const o of objs) {
     const color = OBJECT_COLOR[o.label] || OBJECT_COLOR.default;
     const L = o.size.length, Wd = o.size.width, deg = -o.yaw * 180 / Math.PI;
     const cx = o.x, cy = Y(o.y);
-    p.push(`<g><title>${esc(o.label)} ${esc(o.id)} · ${(o.confidence * 100).toFixed(0)}% · ${esc(o.source)}</title>`);
+    const tip = `${esc(o.label)} ${esc(o.id)}${o.activity ? ` · ${esc(o.activity)}` : ""} · ${(o.confidence * 100).toFixed(0)}% · ${esc(o.source)}`;
+    if (o.label === "truck") {
+      const lx = o.x + o.size.width / 2 + 0.35;
+      p.push(`<g class="map-object"><title>${tip}</title>${truckGlyph(o, cx, cy, deg)}</g>`);
+      p.push(`<text class="map-label" x="${lx}" y="${-yard * 0.62}" fill="#1E3A8A" font-size="0.36" font-weight="700">${esc(o.id)}</text>`);
+      if (o.activity) p.push(`<text class="map-label" x="${lx}" y="${-yard * 0.3}" fill="#3F3F46" font-size="0.28">${esc(o.activity)}</text>`);
+      continue;
+    }
+    if (o.label === "forklift" || o.label === "pallet") {
+      p.push(`<g class="map-object"><title>${tip}</title>`);
+      p.push(o.label === "forklift" ? forkliftGlyph(o, cx, cy, deg) : palletGlyph(o, cx, cy, deg));
+      p.push(`</g>`);
+      continue;
+    }
+    p.push(`<g><title>${tip}</title>`);
     p.push(`<rect x="${cx - L / 2}" y="${cy - Wd / 2}" width="${L}" height="${Wd}" rx="0.06" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="0.045" transform="rotate(${deg} ${cx} ${cy})"/>`);
     p.push(`<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(o.yaw) * L / 2}" y2="${Y(o.y + Math.sin(o.yaw) * L / 2)}" stroke="${color}" stroke-width="0.04" opacity="0.7"/>`);
     if (Math.hypot(o.vx, o.vy) > 0.05) {
@@ -581,7 +773,8 @@ function renderMap() {
   // People on the floor: a faint ring marks the radius inside which robots slow down.
   const slowR = m.people_safety?.slow_radius_m ?? 2.0;
   for (const w of state.workers) {
-    const x = w.pose.x, y = Y(w.pose.y), off = w.status !== "on_shift";
+    const g = smoothPose(`w:${w.id}`, w.pose.x, w.pose.y);
+    const x = g.x, y = Y(g.y), off = w.status !== "on_shift";
     p.push(`<circle cx="${x}" cy="${y}" r="${slowR}" fill="#DB2777" opacity="${off ? 0.03 : 0.06}"/>`);
     p.push(`<path d="M ${x} ${y - 0.3} L ${x + 0.26} ${y} L ${x} ${y + 0.3} L ${x - 0.26} ${y} Z" fill="${off ? "#C4B5BD" : "#DB2777"}" stroke="#FFFFFF" stroke-width="0.05"/>`);
     p.push(`<text x="${x}" y="${y + 0.62}" fill="#DB2777" font-size="0.3" text-anchor="middle" opacity="${off ? 0.6 : 0.95}">${esc(workerName(w))}</text>`);
@@ -593,14 +786,20 @@ function renderMap() {
     p.push(`<text x="${rp.x}" y="${Y(rp.y) - 0.48}" fill="#B45309" font-size="0.32" text-anchor="middle">${esc(rp.id)}</text>`);
   }
 
-  const byId = Object.fromEntries(state.robots.map((r) => [r.id, r]));
+  const pose = {};
   for (const r of state.robots) {
-    const ex = r.pose_external, ins = r.pose_internal;
+    const e = smoothPose(`r:${r.id}`, r.pose_external.x, r.pose_external.y, r.pose_external.theta);
+    const i = smoothPose(`ri:${r.id}`, r.pose_internal.x, r.pose_internal.y);
+    pose[r.id] = { ex: { x: e.x, y: e.y, theta: e.a }, ins: { x: i.x, y: i.y } };
+  }
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 380);
+  for (const r of state.robots) {
+    const { ex, ins } = pose[r.id];
     const selected = r.id === state.selectedRobot;
     // Hand-off link: dashed amber line to the peer that received this robot's payload.
-    const partner = r.handoff_partner ? byId[r.handoff_partner] : null;
+    const partner = r.handoff_partner ? pose[r.handoff_partner] : null;
     if (partner) {
-      const pe = partner.pose_external;
+      const pe = partner.ex;
       p.push(`<line x1="${ex.x}" y1="${Y(ex.y)}" x2="${pe.x}" y2="${Y(pe.y)}" stroke="#D97706" stroke-width="0.05" stroke-dasharray="0.2 0.16" opacity="0.85"/>`);
       p.push(`<circle cx="${pe.x}" cy="${Y(pe.y)}" r="0.16" fill="#D97706" opacity="0.9"/>`);
     }
@@ -626,7 +825,7 @@ function renderMap() {
     if (selected) p.push(`<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.46" fill="none" stroke="#1D4ED8" stroke-width="0.07"/>`);
     const fill = ROBOT_FILL[r.state] || ROBOT_FILL.offline;
     const isLead = r.fleet_role === "lead";
-    const halo = r.state === "active" ? `<circle cx="${ex.x}" cy="${Y(ex.y)}" r="0.4" fill="${fill}" opacity="0.16" class="robot-pulse"/>` : "";
+    const halo = r.state === "active" ? `<circle cx="${ex.x}" cy="${Y(ex.y)}" r="${0.36 + 0.08 * pulse}" fill="${fill}" opacity="${0.1 + 0.1 * pulse}"/>` : "";
     p.push(`<g data-robot="${esc(r.id)}" style="cursor:pointer">`);
     p.push(halo);
     if (isLead) {
@@ -639,7 +838,7 @@ function renderMap() {
     p.push(`<text x="${ex.x + 0.34}" y="${Y(ex.y) - 0.26}" fill="${isLead ? "#B45309" : "#111418"}" font-size="0.36" font-weight="600" stroke="#FFFFFF" stroke-width="0.08" paint-order="stroke">${esc(label)}</text>`);
     p.push(`</g>`);
   }
-  svg.innerHTML = p.join("");
+  return p.join("");
 }
 
 // ── robot panel helpers ─────────────────────────────────────────────────────────
@@ -797,25 +996,30 @@ function wireMap() {
     if (e.key === "Enter") finishZoneDraft();
     else if (e.key === "Escape") cancelZoneDraft();
   });
+  // The map redraws many times a second, so a robot can be replaced by a fresh element between
+  // press and release and the browser then drops the click. Select on press instead.
+  let selectedOnPress = false;
+  svg.addEventListener("pointerdown", (e) => {
+    const id = state.zoneDraft ? null : e.target.closest("[data-robot]")?.getAttribute("data-robot");
+    selectedOnPress = !!id;
+    if (id) selectRobot(id);
+  });
   svg.addEventListener("click", (e) => {
     if (state.zoneDraft) {
       // A double-click fires two clicks first; ignore the second so it doesn't add a duplicate corner.
       if (e.detail > 1) return;
       const q = clickToWorld(e, svg);
-      state.zoneDraft.points.push({ x: +q.x.toFixed(2), y: +q.y.toFixed(2) });
+      state.zoneDraft.points.push({ x: +q.x.toFixed(2), y: +Math.min(q.y, state.map.height_m).toFixed(2) });
       const name = $("#zone-name")?.value, cap = $("#zone-cap")?.value;
       renderZoneBar(); renderMap();
       if (name && $("#zone-name")) $("#zone-name").value = name;
       if (cap && $("#zone-cap")) $("#zone-cap").value = cap;
       return;
     }
-    const hit = e.target.closest("[data-robot]");
-    if (hit) {
-      selectRobot(hit.getAttribute("data-robot"));
-      return;
-    }
+    if (selectedOnPress || e.target.closest("[data-robot]")) { selectedOnPress = false; return; }
     if (state.selectedRobot) {
       const p = clickToWorld(e, svg);
+      if (p.y > state.map.height_m) return;      // the truck yard is outside the floor
       setWaypoint(state.selectedRobot, +p.x.toFixed(2), +p.y.toFixed(2), e.shiftKey);
     }
   });
@@ -1209,7 +1413,7 @@ async function openOEM(oemId) {
   $("#modal-oem").classList.remove("hidden");
 }
 
-function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; state.workers = f.workers || state.workers; if (f.sequence) state.sequence = f.sequence; renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
+function loadFleetSoon() { getJSON("/api/dashboard/fleet").then((f) => { state.robots = f.robots; state.workers = f.workers || state.workers; if (f.sequence) state.sequence = f.sequence; if (f.kpis) { state.kpis = f.kpis; renderValueBar(); } renderFleet(); renderControlPanel(); renderSequence(); }).catch(() => {}); }
 
 // ── robot detail (business card) ───────────────────────────────────────────────
 async function openRobot(id) {
@@ -1424,7 +1628,9 @@ function connectWS() {
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === "fleet") {
+      noteLiveTick();
       state.robots = msg.robots; if (msg.workers) state.workers = msg.workers; if (msg.sequence) state.sequence = msg.sequence;
+      if (msg.kpis) { state.kpis = msg.kpis; renderValueBar(); }
       onFleetUpdate();
     }
     else if (msg.type === "workers") { state.workers = msg.workers; renderMap(); }
@@ -1844,6 +2050,7 @@ async function init() {
   state.industries = fleet.industries;
   state.vendors = fleet.vendors;
   state.robots = fleet.robots;
+  if (fleet.kpis) state.kpis = fleet.kpis;
   state.workers = fleet.workers || [];
   state.sequence = fleet.sequence || null;
   state.selectedRobot = (fleet.robots.find((r) => r.state !== "halted") || fleet.robots[0] || {}).id || null;
@@ -1857,6 +2064,7 @@ async function init() {
     renderTabs();
     renderFleet();
     renderStats();
+    renderValueBar();
     renderSequence();
     renderControlPanel();
   }

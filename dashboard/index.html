@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/tw.css?v=20261027a" />
-  <link rel="stylesheet" href="/styles.css?v=20261027a" />
+  <link rel="stylesheet" href="/tw.css?v=20261027c" />
+  <link rel="stylesheet" href="/styles.css?v=20261027c" />
 </head>
 <body class="console min-h-screen text-ink">
   <header class="topbar">
@@ -53,6 +53,7 @@
             <button id="btn-legend" class="tool-btn" aria-expanded="false">Legend</button>
           </div>
         </div>
+        <div id="value-bar" class="value-bar" aria-label="What the floor has delivered" hidden></div>
         <div id="zone-bar" class="zone-drawer" hidden></div>
         <div id="map-stage" class="map-stage">
           <svg id="map" class="select-none" style="touch-action: none;"></svg>
@@ -65,7 +66,11 @@
             <span><i class="lg-box" style="background:#C9CCC6;border-color:#8A8F88"></i>storage rack</span>
             <span><i class="lg-box dashed" style="border-color:#DC2626;background:#DC262622"></i>keep-out zone</span>
             <span><i class="lg-box dashed" style="border-color:#D97706;background:#D9770622"></i>slow zone</span>
-            <span><i class="lg-box" style="border-color:#CA8A04;background:#CA8A042e"></i>tracked object (pallet, cart, forklift)</span>
+            <span><i class="lg-box" style="border-color:#A16207;background:#FACC15"></i>forklift, labelled with what it's doing</span>
+            <span><i class="lg-box" style="border-color:#6B4423;background:#E8C48A"></i>pallet (green check = delivered, waiting for the truck)</span>
+            <span><i class="lg-box" style="border-color:#1D4ED8;background:#EEF2FF;border-style:dashed"></i>dock lane (outbound drop spot)</span>
+            <span><i class="lg-box" style="border-color:#52525B;background:#FAFAFA"></i>truck at the dock door, loading pallets</span>
+            <span><i class="lg-box" style="border-color:#0891B2;background:#0891B22e"></i>other tracked object (cart, …)</span>
             <span><i class="lg-box" style="border-color:#4A4F5780;background:#6B707852"></i>floor blocked, seen by cameras</span>
             <span><span style="color:#DB2777">◆</span>person · robots slow nearby, stop up close</span>
             <span><span class="mono" style="color:#6D28D9">◹</span>overhead camera</span>
@@ -175,6 +180,6 @@
   <div id="modal-sign-in" class="modal hidden"><div class="modal-card"></div></div>
   <div id="modal-wizard" class="modal hidden"><div class="modal-card modal-card-lg"></div></div>
 
-  <script src="/app.js?v=20261027a"></script>
+  <script src="/app.js?v=20261027c"></script>
 </body>
 </html>

@@ -84,8 +84,6 @@ body {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .flash { animation: flash 1s ease-out; }
 @keyframes flash { 0% { background: rgba(29,78,216,0.10); } 100% { background: transparent; } }
-.robot-pulse { transform-box: fill-box; transform-origin: center; animation: robotpulse 2.4s ease-in-out infinite; }
-@keyframes robotpulse { 0%,100% { opacity: 0.9; } 50% { opacity: 0.45; } }
 .data-flicker { animation: none; }
 
 /* Scrollbars */
@@ -266,7 +264,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ── Embed (?embed=1): the live floor map only ─────────────────────────────── */
 body.embed-mode .topbar, body.embed-mode .side, body.embed-mode #sec-map .panel-head,
-body.embed-mode .map-hint, body.embed-mode .zone-drawer { display: none !important; }
+body.embed-mode .map-hint, body.embed-mode .zone-drawer, body.embed-mode .value-bar { display: none !important; }
 body.embed-mode .console-main { padding: 0; max-width: none; }
 body.embed-mode .live-grid { grid-template-columns: minmax(0, 1fr); }
 body.embed-mode #sec-map { border: 0; }
@@ -327,7 +325,7 @@ button.stat.on .stat-val { color: #FFFFFF; }
 .zone-drawer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 14px; border-bottom: 1px solid var(--line-soft); background: var(--raised); }
 .zone-drawer[hidden] { display: none; }
 .map-stage { position: relative; padding: 12px; }
-.map-stage svg { display: block; width: 100%; max-height: calc(100vh - 230px); min-height: 280px; background: #FFFFFF; cursor: crosshair; }
+.map-stage svg { display: block; width: 100%; max-height: calc(100vh - 290px); min-height: 280px; background: #FFFFFF; cursor: crosshair; }
 .map-hint { padding: 0 14px 10px; font-size: 11.5px; color: var(--ink-dim); }
 .legend-pop { position: absolute; top: 4px; right: 12px; z-index: 5; width: 300px; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: #FFFFFF; border: 1px solid var(--ink); box-shadow: 0 10px 28px rgba(17,20,24,0.16); font-size: 11.5px; color: var(--ink-mut); }
 .legend-pop[hidden] { display: none; }
@@ -424,3 +422,18 @@ button.stat.on .stat-val { color: #FFFFFF; }
   .seq-objective { display: none; }
 }
 [data-view-panel][hidden] { display: none !important; }
+
+/* Map labels sit over racks and floor lines; a white halo keeps them readable. */
+.map-label { paint-order: stroke; stroke: #fff; stroke-width: 0.09px; stroke-linejoin: round; }
+
+/* Value bar: running totals above the live map. */
+.value-bar { display: flex; align-items: stretch; border-bottom: 1px solid var(--line-soft); overflow-x: auto; scrollbar-width: none; }
+.value-bar[hidden] { display: none; }
+.kpi { flex: 1 1 0; min-width: 132px; overflow: hidden; padding: 10px 14px; border-right: 1px solid var(--line-soft); }
+.kpi-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-mut); white-space: nowrap; }
+.kpi-val { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.kpi-val.bump { animation: kpibump .9s ease-out; }
+@keyframes kpibump { 0% { color: #16A34A; transform: translateY(-3px); } 100% { color: var(--ink); transform: none; } }
+.kpi-sub { font-size: 11px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-since { align-self: center; padding: 0 14px; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+@media (max-width: 640px) { .kpi { min-width: 120px; padding: 8px 10px; } .kpi-val { font-size: 18px; } .kpi-since { display: none; } }

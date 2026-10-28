@@ -115,6 +115,14 @@ WAREHOUSE: dict = {
     ],
     # Inbound/outbound dock.
     "dock": {"x": 12.0, "y": 15.2, "w": 6.0, "h": 0.8},
+    # Where forklifts set outbound pallets down for the truck, just inside the dock door.
+    "dock_lanes": [
+        {"id": "Dock lane 1", "x": 13.4, "y": 14.4},
+        {"id": "Dock lane 2", "x": 15.0, "y": 14.4},
+        {"id": "Dock lane 3", "x": 16.6, "y": 14.4},
+    ],
+    # Truck yard beyond the dock wall, drawn above the floor so trailers can be seen backing in.
+    "yard_m": 2.6,
     # Named work points the fleet shuttles payloads between. Missions reference these by
     # name ("Move tote: Aisle AB → Dock"), so the operator can read the goal off the map.
     "stations": [
