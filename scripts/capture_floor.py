@@ -271,7 +271,9 @@ async def capture(url: str, out: Path, *, duration: float, hz: float, poll: bool
             if poll:
                 await _poll(http, rec, hz, stop)
             else:
-                await _listen(url, rec, stop)
+                # Only the simulator streams fleet ticks; real telemetry updates the store without a
+                # broadcast, so robots and kpis come from REST on the frame clock.
+                await asyncio.gather(_listen(url, rec, stop), _refresh_fleet(http, rec, hz, stop))
         finally:
             meta = rec.finish(time.time())
     return meta
@@ -293,6 +295,20 @@ async def _poll(http, rec: FloorRecorder, hz: float, stop: asyncio.Event) -> Non
             await asyncio.wait_for(stop.wait(), timeout=gap)
         except asyncio.TimeoutError:
             pass
+
+
+async def _refresh_fleet(http, rec: FloorRecorder, hz: float, stop: asyncio.Event) -> None:
+    gap = 1.0 / hz if hz > 0 else 1.0
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=gap)
+        except asyncio.TimeoutError:
+            pass
+        if stop.is_set():
+            return
+        fleet = await _fetch_json(http, "/api/dashboard/fleet")
+        if fleet:
+            rec.on_message({"type": "fleet", **fleet}, time.time())
 
 
 async def _listen(url: str, rec: FloorRecorder, stop: asyncio.Event) -> None:
