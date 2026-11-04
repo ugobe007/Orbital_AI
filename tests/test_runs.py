@@ -202,3 +202,43 @@ def test_export_writes_lerobot_style_layout(tmp_path):
 
     assert export_dataset.main(["--input", str(src), "--out", str(tmp_path / "x"), "--task", "nope"]) == 1
     assert export_dataset.main(["--input", str(tmp_path / "missing.json"), "--out", str(tmp_path / "y")]) == 2
+
+
+def test_golden_runs_are_thinned_but_score_the_same():
+    long_line = [(2.0 + 0.05 * i, 5.0 + 0.3 * (i // 50 % 2)) for i in range(400)]
+    body = RunIn(**_run(points=long_line))
+    run = run_store.add(body)
+    run_store.set_golden(run.id)
+    golden = run_store.golden_for("Unitree", "Aisle AB → Dock")
+    assert len(golden.samples) <= runs._GOLDEN_MAX_SAMPLES
+    assert golden.samples[0] == run.samples[0] and golden.samples[-1] == run.samples[-1]
+    halting = run_store.add(RunIn(**_run(points=long_line, halts=(120, 121, 122, 300), task="T")))
+    run_store.set_golden(halting.id)
+    assert recoveries(run_store.golden_for("Unitree", "T").samples) == recoveries(halting.samples) == 2
+    again = score(body, golden)
+    assert again.verdict == "pass" and again.max_dev_m < runs.MAX_DEV_M / 2
+    assert again.cycle_ratio == 1.0
+
+
+def test_oversized_golden_runs_on_disk_are_thinned_at_boot(monkeypatch):
+    from orbital_cloud import persistence
+    from orbital_cloud.models import Run
+
+    fat = Run(**_run(points=[(2.0 + 0.02 * i, 5.0) for i in range(500)]), id="run-fat", facility_id=FAC)
+    saved = {}
+    monkeypatch.setattr(persistence, "load_golden_runs", lambda: [fat.model_dump_json()])
+    monkeypatch.setattr(persistence, "save_golden_run", lambda k, d: saved.__setitem__(k, d))
+    fresh = runs.RunStore()
+    g = fresh.golden_for("Unitree", "Aisle AB → Dock")
+    assert g is not None and len(g.samples) <= runs._GOLDEN_MAX_SAMPLES
+    assert len(Run.model_validate_json(saved["Unitree|Aisle AB → Dock"]).samples) == len(g.samples)
+
+
+def test_sim_stops_auto_promoting_golden_runs_past_the_cap(monkeypatch):
+    monkeypatch.setattr(runs, "_MAX_AUTO_GOLDEN", 3)
+    for i in range(6):
+        run_store.add(RunIn(**_run(task=f"S{i} → Dock")), auto_golden=True)
+    assert len(run_store.golden_runs()) == 3
+    extra = run_store.add(RunIn(**_run(task="S9 → Dock")))
+    run_store.set_golden(extra.id)                     # operators are not capped
+    assert len(run_store.golden_runs()) == 4

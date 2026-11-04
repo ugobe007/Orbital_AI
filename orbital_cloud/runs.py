@@ -28,11 +28,16 @@ from .models import Run, RunIn, RunOutcome, RunSample, RunScore, RunSummary
 MAX_DEV_M = float(os.getenv("ORBITAL_GOLDEN_MAX_DEV_M", "0.5") or "0.5")
 SLOW_RATIO = float(os.getenv("ORBITAL_GOLDEN_SLOW_RATIO", "1.25") or "1.25")
 _MAX_RUNS = int(os.getenv("ORBITAL_RUNS_MAX", "200") or "200")
-# A RunSample costs ~1 KB in memory; the cloud runs on a 256 MB machine, so recent runs share
+# A RunSample costs ~1.5 KB in memory; the cloud runs on a small Fly machine, so recent runs share
 # one sample budget and a single run (e.g. a robot latched by an E-Stop mid-leg) is capped.
 _MAX_SAMPLES = int(os.getenv("ORBITAL_RUN_MAX_SAMPLES", "1500") or "1500")
-_MAX_TOTAL_SAMPLES = int(os.getenv("ORBITAL_RUNS_MAX_TOTAL_SAMPLES", "40000") or "40000")
+_MAX_TOTAL_SAMPLES = int(os.getenv("ORBITAL_RUNS_MAX_TOTAL_SAMPLES", "20000") or "20000")
 _SAMPLE_EVERY_S = 0.2
+# Golden runs are kept (and persisted, and reloaded at boot) for every (vendor, task) pair the
+# floor ever ran — hundreds in the sim — so each is thinned to a path outline, and the sim stops
+# auto-promoting new ones past a cap. Operators can still set any run golden.
+_GOLDEN_MAX_SAMPLES = int(os.getenv("ORBITAL_GOLDEN_MAX_SAMPLES", "60") or "60")
+_MAX_AUTO_GOLDEN = int(os.getenv("ORBITAL_GOLDEN_MAX_AUTO", "200") or "200")
 
 
 def golden_key(vendor: str, task_key: str) -> str:
@@ -49,6 +54,20 @@ def recoveries(samples: Iterable[RunSample]) -> int:
             count += 1
         prev = s.state
     return count
+
+
+def thin_samples(samples: list[RunSample], limit: int) -> list[RunSample]:
+    """At most ``limit`` evenly spaced samples, always keeping the first, the last and every
+    change of state, so cycle time, the path outline and the recovery count are unchanged."""
+    if len(samples) <= limit:
+        return samples
+    keep = {0, len(samples) - 1}
+    keep |= {i for i in range(1, len(samples)) if samples[i].state != samples[i - 1].state}
+    room = max(0, limit - len(keep))
+    if room:
+        step = (len(samples) - 1) / (room + 1)
+        keep |= {round(step * k) for k in range(1, room + 1)}
+    return [samples[i] for i in sorted(keep)]
 
 
 def _seg_dist(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float:
@@ -131,7 +150,11 @@ class RunStore:
                 run = Run.model_validate_json(data)
             except Exception:  # noqa: BLE001 — skip a corrupt row rather than crash boot
                 continue
-            self._golden[golden_key(run.vendor, run.task_key)] = run
+            key = golden_key(run.vendor, run.task_key)
+            if len(run.samples) > _GOLDEN_MAX_SAMPLES:
+                run = self._thin(run)
+                persistence.save_golden_run(key, run.model_dump_json())
+            self._golden[key] = run
 
     def add(self, body: RunIn, facility_id: Optional[str] = None, *, auto_golden: bool = False) -> Run:
         run = Run(**body.model_dump(), id=f"run-{uuid.uuid4().hex[:10]}",
@@ -144,8 +167,8 @@ class RunStore:
                 _, old = self._runs.popitem(last=False)
                 self._sample_count -= len(old.samples)
             key = golden_key(run.vendor, run.task_key)
-            if (auto_golden and key not in self._golden and run.outcome == RunOutcome.COMPLETE
-                    and recoveries(run.samples) == 0):
+            if (auto_golden and key not in self._golden and len(self._golden) < _MAX_AUTO_GOLDEN
+                    and run.outcome == RunOutcome.COMPLETE and recoveries(run.samples) == 0):
                 self._set_golden(run)
             self.version += 1
         return run
@@ -165,8 +188,13 @@ class RunStore:
             self._set_golden(run)
             return run
 
+    @staticmethod
+    def _thin(run: Run) -> Run:
+        return run.model_copy(update={"samples": thin_samples(run.samples, _GOLDEN_MAX_SAMPLES)})
+
     def _set_golden(self, run: Run) -> None:
         key = golden_key(run.vendor, run.task_key)
+        run = self._thin(run)
         self._golden[key] = run
         self.version += 1
         persistence.save_golden_run(key, run.model_dump_json())
