@@ -4,7 +4,7 @@ Only the state an *operator* changes and expects to survive a restart is persist
   * OEM partners + their granted scopes (governance), and
   * per-robot visual-navigation waypoints, and
   * floor zones (keep-out / slow), and
-  * golden runs (the reference run per task that later runs are scored against).
+  * golden runs an operator pinned (the reference a task's later runs are scored against).
 
 Live fleet motion is simulator-driven and intentionally ephemeral — it re-seeds on start.
 
@@ -21,6 +21,10 @@ import threading
 from pathlib import Path
 
 _lock = threading.Lock()
+# One connection per database path, opened (and its tables created) on first use. Opening a
+# connection and re-asserting WAL on every call made a cold start pay for each row it touched.
+_conn: sqlite3.Connection | None = None
+_conn_path: str | None = None
 
 
 def db_path() -> str | None:
@@ -32,27 +36,39 @@ def enabled() -> bool:
 
 
 def _connect() -> sqlite3.Connection:
+    """The shared connection. Callers hold ``_lock``; ``with`` on it commits or rolls back."""
+    global _conn, _conn_path
     path = db_path()
     assert path is not None
+    if _conn is not None and _conn_path == path:
+        return _conn
+    if _conn is not None:
+        _conn.close()
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=5.0)
+    conn = sqlite3.connect(path, timeout=5.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
+    with conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS oem_partners (id TEXT PRIMARY KEY, key_hash TEXT, data TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS waypoints (robot_id TEXT PRIMARY KEY, data TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS zones (id TEXT PRIMARY KEY, data TEXT)")
+        # Only operator-pinned golden runs are stored. The old ``golden_runs`` table also held
+        # every run the simulator auto-promoted (hundreds, reloaded on every boot); drop it.
+        conn.execute("DROP TABLE IF EXISTS golden_runs")
+        conn.execute("CREATE TABLE IF NOT EXISTS pinned_golden_runs (key TEXT PRIMARY KEY, data TEXT)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS inbox ("
+            "id TEXT PRIMARY KEY, received_at TEXT, source TEXT, from_addr TEXT, "
+            "to_addr TEXT, subject TEXT, body TEXT, read INTEGER DEFAULT 0)"
+        )
+    _conn, _conn_path = conn, path
     return conn
 
 
 def init_db() -> None:
     if not enabled():
         return
-    with _lock, _connect() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS oem_partners (id TEXT PRIMARY KEY, key_hash TEXT, data TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS waypoints (robot_id TEXT PRIMARY KEY, data TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS zones (id TEXT PRIMARY KEY, data TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS golden_runs (key TEXT PRIMARY KEY, data TEXT)")
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS inbox ("
-            "id TEXT PRIMARY KEY, received_at TEXT, source TEXT, from_addr TEXT, "
-            "to_addr TEXT, subject TEXT, body TEXT, read INTEGER DEFAULT 0)"
-        )
+    with _lock:
+        _connect()
 
 
 # ── OEM partners ──────────────────────────────────────────────────────────────
@@ -129,21 +145,28 @@ def save_golden_run(key: str, data_json: str) -> None:
     if not enabled():
         return
     with _lock, _connect() as conn:
-        conn.execute("INSERT OR REPLACE INTO golden_runs (key, data) VALUES (?, ?)", (key, data_json))
+        conn.execute("INSERT OR REPLACE INTO pinned_golden_runs (key, data) VALUES (?, ?)", (key, data_json))
 
 
 def delete_golden_run(key: str) -> None:
     if not enabled():
         return
     with _lock, _connect() as conn:
-        conn.execute("DELETE FROM golden_runs WHERE key = ?", (key,))
+        conn.execute("DELETE FROM pinned_golden_runs WHERE key = ?", (key,))
+
+
+def clear_golden_runs() -> None:
+    if not enabled():
+        return
+    with _lock, _connect() as conn:
+        conn.execute("DELETE FROM pinned_golden_runs")
 
 
 def load_golden_runs() -> list[str]:
     if not enabled():
         return []
     with _lock, _connect() as conn:
-        return [row[0] for row in conn.execute("SELECT data FROM golden_runs").fetchall()]
+        return [row[0] for row in conn.execute("SELECT data FROM pinned_golden_runs").fetchall()]
 
 
 # ── Inbox (contact-form submissions + inbound email to @orbital-ai.io) ─────────
