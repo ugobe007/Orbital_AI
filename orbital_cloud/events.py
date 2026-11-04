@@ -11,6 +11,8 @@ from typing import Any
 
 from fastapi import WebSocket
 
+SEND_TIMEOUT_S = 2.0
+
 
 class EventHub:
     def __init__(self) -> None:
@@ -32,15 +34,17 @@ class EventHub:
         dead: list[WebSocket] = []
         for ws in clients:
             try:
-                await ws.send_json(message)
-            except Exception:  # noqa: BLE001 — client vanished mid-send
+                # A half-open connection (laptop asleep, phone off wifi) would otherwise block
+                # here and freeze the simulator loop for every dashboard.
+                await asyncio.wait_for(ws.send_json(message), SEND_TIMEOUT_S)
+            except Exception:  # noqa: BLE001 — client vanished mid-send or stopped reading
                 dead.append(ws)
         if dead:
             async with self._lock:
                 for ws in dead:
                     self._clients.discard(ws)
                     with contextlib.suppress(Exception):
-                        await ws.close()
+                        await asyncio.wait_for(ws.close(), SEND_TIMEOUT_S)
 
 
 hub = EventHub()
