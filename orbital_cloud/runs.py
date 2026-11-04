@@ -33,9 +33,9 @@ _MAX_RUNS = int(os.getenv("ORBITAL_RUNS_MAX", "200") or "200")
 _MAX_SAMPLES = int(os.getenv("ORBITAL_RUN_MAX_SAMPLES", "1500") or "1500")
 _MAX_TOTAL_SAMPLES = int(os.getenv("ORBITAL_RUNS_MAX_TOTAL_SAMPLES", "20000") or "20000")
 _SAMPLE_EVERY_S = 0.2
-# Golden runs are kept (and persisted, and reloaded at boot) for every (vendor, task) pair the
-# floor ever ran — hundreds in the sim — so each is thinned to a path outline, and the sim stops
-# auto-promoting new ones past a cap. Operators can still set any run golden.
+# The sim auto-promotes a golden run for every (vendor, task) pair the floor runs — hundreds — so
+# each golden is thinned to a path outline and auto-promotion stops at a cap. Operators can still
+# pin any run golden; only pinned ones are persisted.
 _GOLDEN_MAX_SAMPLES = int(os.getenv("ORBITAL_GOLDEN_MAX_SAMPLES", "60") or "60")
 _MAX_AUTO_GOLDEN = int(os.getenv("ORBITAL_GOLDEN_MAX_AUTO", "200") or "200")
 
@@ -139,22 +139,20 @@ class RunStore:
         self._lock = threading.RLock()
         self._runs: "OrderedDict[str, Run]" = OrderedDict()
         self._golden: dict[str, Run] = {}
+        self._pinned: set[str] = set()
         self._sample_count = 0
         self.version = 0
         self._load_golden()
 
     def _load_golden(self) -> None:
-        persistence.init_db()
         for data in persistence.load_golden_runs():
             try:
-                run = Run.model_validate_json(data)
+                run = self._thin(Run.model_validate_json(data))
             except Exception:  # noqa: BLE001 — skip a corrupt row rather than crash boot
                 continue
             key = golden_key(run.vendor, run.task_key)
-            if len(run.samples) > _GOLDEN_MAX_SAMPLES:
-                run = self._thin(run)
-                persistence.save_golden_run(key, run.model_dump_json())
             self._golden[key] = run
+            self._pinned.add(key)
 
     def add(self, body: RunIn, facility_id: Optional[str] = None, *, auto_golden: bool = False) -> Run:
         run = Run(**body.model_dump(), id=f"run-{uuid.uuid4().hex[:10]}",
@@ -169,7 +167,7 @@ class RunStore:
             key = golden_key(run.vendor, run.task_key)
             if (auto_golden and key not in self._golden and len(self._golden) < _MAX_AUTO_GOLDEN
                     and run.outcome == RunOutcome.COMPLETE and recoveries(run.samples) == 0):
-                self._set_golden(run)
+                self._set_golden(run, pin=False)
             self.version += 1
         return run
 
@@ -185,19 +183,23 @@ class RunStore:
             run = self.get(run_id)
             if run is None:
                 return None
-            self._set_golden(run)
+            self._set_golden(run, pin=True)
             return run
 
     @staticmethod
     def _thin(run: Run) -> Run:
         return run.model_copy(update={"samples": thin_samples(run.samples, _GOLDEN_MAX_SAMPLES)})
 
-    def _set_golden(self, run: Run) -> None:
+    def _set_golden(self, run: Run, *, pin: bool) -> None:
+        """``pin`` = an operator chose it, so it is stored and survives a restart. The sim's
+        auto-promoted references stay in memory and are re-derived after a restart."""
         key = golden_key(run.vendor, run.task_key)
         run = self._thin(run)
         self._golden[key] = run
         self.version += 1
-        persistence.save_golden_run(key, run.model_dump_json())
+        if pin:
+            self._pinned.add(key)
+            persistence.save_golden_run(key, run.model_dump_json())
 
     def clear_golden(self, vendor: str, task_key: str) -> bool:
         key = golden_key(vendor, task_key)
@@ -205,7 +207,10 @@ class RunStore:
             if self._golden.pop(key, None) is None:
                 return False
             self.version += 1
-        persistence.delete_golden_run(key)
+            pinned = key in self._pinned
+            self._pinned.discard(key)
+        if pinned:
+            persistence.delete_golden_run(key)
         return True
 
     def summary(self, run: Run) -> RunSummary:
@@ -239,8 +244,9 @@ class RunStore:
         with self._lock:
             self._runs.clear()
             self._sample_count = 0
-            for key in list(self._golden):
-                persistence.delete_golden_run(key)
+            if self._pinned:
+                persistence.clear_golden_runs()
+            self._pinned.clear()
             self._golden.clear()
             self.version += 1
 

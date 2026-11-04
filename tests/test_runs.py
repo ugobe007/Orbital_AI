@@ -220,18 +220,34 @@ def test_golden_runs_are_thinned_but_score_the_same():
     assert again.cycle_ratio == 1.0
 
 
-def test_oversized_golden_runs_on_disk_are_thinned_at_boot(monkeypatch):
-    from orbital_cloud import persistence
-    from orbital_cloud.models import Run
+def test_only_operator_pinned_golden_runs_are_stored(monkeypatch, tmp_path):
+    import sqlite3
 
-    fat = Run(**_run(points=[(2.0 + 0.02 * i, 5.0) for i in range(500)]), id="run-fat", facility_id=FAC)
-    saved = {}
-    monkeypatch.setattr(persistence, "load_golden_runs", lambda: [fat.model_dump_json()])
-    monkeypatch.setattr(persistence, "save_golden_run", lambda k, d: saved.__setitem__(k, d))
-    fresh = runs.RunStore()
-    g = fresh.golden_for("Unitree", "Aisle AB → Dock")
-    assert g is not None and len(g.samples) <= runs._GOLDEN_MAX_SAMPLES
-    assert len(Run.model_validate_json(saved["Unitree|Aisle AB → Dock"]).samples) == len(g.samples)
+    from orbital_cloud import persistence
+
+    db = tmp_path / "orbital.db"
+    old = sqlite3.connect(db)                         # the old layout: every auto golden on disk
+    old.execute("CREATE TABLE golden_runs (key TEXT PRIMARY KEY, data TEXT)")
+    old.executemany("INSERT INTO golden_runs VALUES (?, ?)", [(f"k{i}", "{}") for i in range(300)])
+    old.commit()
+    old.close()
+    monkeypatch.setenv("ORBITAL_DB_PATH", str(db))
+
+    store = runs.RunStore()
+    assert store.golden_runs() == []
+    store.add(RunIn(**_run(task="Auto → Dock")), auto_golden=True)
+    long_line = [(2.0 + 0.02 * i, 5.0) for i in range(500)]
+    pinned = store.add(RunIn(**_run(points=long_line, task="Pinned → Dock")))
+    store.set_golden(pinned.id)
+    assert len(store.golden_runs()) == 2
+
+    tables = {r[0] for r in persistence._connect().execute("SELECT name FROM sqlite_master")}
+    assert "golden_runs" not in tables
+    again = runs.RunStore()                           # restart
+    assert [g.task_key for g in again.golden_runs()] == ["Pinned → Dock"]
+    assert len(again.golden_runs()[0].samples) <= runs._GOLDEN_MAX_SAMPLES
+    again.clear()
+    assert runs.RunStore().golden_runs() == []
 
 
 def test_sim_stops_auto_promoting_golden_runs_past_the_cap(monkeypatch):
