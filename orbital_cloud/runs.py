@@ -140,6 +140,10 @@ class RunStore:
         self._runs: "OrderedDict[str, Run]" = OrderedDict()
         self._golden: dict[str, Run] = {}
         self._pinned: set[str] = set()
+        # A finished run's score only changes when its golden run does, and scoring is the
+        # costliest thing the cloud does (the dashboard re-lists the last 30 runs on every new
+        # one), so scores are cached per (run, golden).
+        self._scores: "OrderedDict[tuple[str, Optional[str]], RunSummary]" = OrderedDict()
         self._sample_count = 0
         self.version = 0
         self._load_golden()
@@ -215,16 +219,26 @@ class RunStore:
 
     def summary(self, run: Run) -> RunSummary:
         golden = self.golden_for(run.vendor, run.task_key)
+        key = (run.id, golden.id if golden is not None else None)
+        with self._lock:
+            cached = self._scores.get(key)
+        if cached is not None:
+            return cached
         is_golden = golden is not None and golden.id == run.id
         if is_golden:
             run_score = score(run, None).model_copy(update={"verdict": "golden", "reasons": []})
         else:
             run_score = score(run, golden)
-        return RunSummary(
+        out = RunSummary(
             id=run.id, robot_id=run.robot_id, vendor=run.vendor, task_key=run.task_key,
             started_at=run.started_at, ended_at=run.ended_at, outcome=run.outcome, source=run.source,
             samples=len(run.samples), golden=is_golden, score=run_score,
         )
+        with self._lock:
+            self._scores[key] = out
+            while len(self._scores) > 2 * _MAX_RUNS:
+                self._scores.popitem(last=False)
+        return out
 
     def list(self, *, limit: int = 50, task_key: Optional[str] = None, robot_id: Optional[str] = None,
              vendor: Optional[str] = None) -> list[Run]:
@@ -243,6 +257,7 @@ class RunStore:
     def clear(self) -> None:
         with self._lock:
             self._runs.clear()
+            self._scores.clear()
             self._sample_count = 0
             if self._pinned:
                 persistence.clear_golden_runs()

@@ -6,7 +6,7 @@ from orbital_cloud.events import EventHub
 
 
 class _Stuck:
-    async def send_json(self, message):
+    async def send_text(self, message):
         await asyncio.sleep(3600)
 
     async def close(self):
@@ -17,7 +17,7 @@ class _Ok:
     def __init__(self):
         self.got = []
 
-    async def send_json(self, message):
+    async def send_text(self, message):
         self.got.append(message)
 
     async def close(self):
@@ -36,3 +36,10 @@ def test_a_stalled_client_is_dropped_and_others_still_get_messages(monkeypatch):
     asyncio.run(go())
     assert stuck not in hub._clients
     assert len(ok.got) == 2
+
+
+def test_nothing_is_serialized_with_no_dashboard_connected(monkeypatch):
+    hub = EventHub()
+    monkeypatch.setattr(events.json, "dumps", lambda *a, **k: (_ for _ in ()).throw(AssertionError))
+    asyncio.run(hub.broadcast({"type": "fleet"}))
+    assert not hub.has_clients

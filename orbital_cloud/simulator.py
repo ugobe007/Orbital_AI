@@ -643,14 +643,18 @@ async def run() -> None:
         for a in alerts:
             saved = store.add_alert(a)
             await hub.broadcast({"type": "alert", "alert": saved.model_dump(mode="json")})
-        await hub.broadcast({
-            "type": "fleet",
-            "robots": [r.model_dump(mode="json") for r in store.fleet()],
-            "workers": [w.model_dump(mode="json") for w in worker_store.list()],
-            "sequence": store.sequence_public(),
-            "kpis": kpis.snapshot(),
-        })
-        if run_store.version != runs_seen:
+        # Building these messages costs real CPU on a shared-cpu machine; skip it while no
+        # dashboard is connected (a runs update stays pending until one is).
+        watching = hub.has_clients
+        if watching:
+            await hub.broadcast({
+                "type": "fleet",
+                "robots": [r.model_dump(mode="json") for r in store.fleet()],
+                "workers": [w.model_dump(mode="json") for w in worker_store.list()],
+                "sequence": store.sequence_public(),
+                "kpis": kpis.snapshot(),
+            })
+        if watching and run_store.version != runs_seen:
             runs_seen = run_store.version
             await hub.broadcast(runs_message())
         if settings.sim_objects:
@@ -658,5 +662,6 @@ async def run() -> None:
             robots = [(r.id, r.pose_external.x, r.pose_external.y) for r in store.robots.values()]
             object_store.ingest(settings.facility_id, sim_objects.batch(dt, people=people, robots=robots))
             kpis.pallets_shipped, kpis.trucks_loaded = sim_objects.shipped, sim_objects.trucks_loaded
-            await hub.broadcast(objects_message())
+            if watching:
+                await hub.broadcast(objects_message())
         await asyncio.sleep(dt)
