@@ -14,7 +14,6 @@ Runs come from the simulator's recorder or are uploaded by an edge
 from __future__ import annotations
 
 import math
-import os
 import threading
 import time
 import uuid
@@ -22,22 +21,22 @@ from collections import OrderedDict
 from typing import Iterable, Optional
 
 from . import persistence
-from .config import settings
+from .config import env_float, env_int, settings
 from .models import Run, RunIn, RunOutcome, RunSample, RunScore, RunSummary
 
-MAX_DEV_M = float(os.getenv("ORBITAL_GOLDEN_MAX_DEV_M", "0.5") or "0.5")
-SLOW_RATIO = float(os.getenv("ORBITAL_GOLDEN_SLOW_RATIO", "1.25") or "1.25")
-_MAX_RUNS = int(os.getenv("ORBITAL_RUNS_MAX", "200") or "200")
+MAX_DEV_M = env_float("ORBITAL_GOLDEN_MAX_DEV_M", 0.5)
+SLOW_RATIO = env_float("ORBITAL_GOLDEN_SLOW_RATIO", 1.25)
+_MAX_RUNS = env_int("ORBITAL_RUNS_MAX", 200)
 # A RunSample costs ~1.5 KB in memory; the cloud runs on a small Fly machine, so recent runs share
 # one sample budget and a single run (e.g. a robot latched by an E-Stop mid-leg) is capped.
-_MAX_SAMPLES = int(os.getenv("ORBITAL_RUN_MAX_SAMPLES", "1500") or "1500")
-_MAX_TOTAL_SAMPLES = int(os.getenv("ORBITAL_RUNS_MAX_TOTAL_SAMPLES", "20000") or "20000")
+_MAX_SAMPLES = env_int("ORBITAL_RUN_MAX_SAMPLES", 1500)
+_MAX_TOTAL_SAMPLES = env_int("ORBITAL_RUNS_MAX_TOTAL_SAMPLES", 20000)
 _SAMPLE_EVERY_S = 0.2
 # The sim auto-promotes a golden run for every (vendor, task) pair the floor runs — hundreds — so
 # each golden is thinned to a path outline and auto-promotion stops at a cap. Operators can still
 # pin any run golden; only pinned ones are persisted.
-_GOLDEN_MAX_SAMPLES = int(os.getenv("ORBITAL_GOLDEN_MAX_SAMPLES", "60") or "60")
-_MAX_AUTO_GOLDEN = int(os.getenv("ORBITAL_GOLDEN_MAX_AUTO", "200") or "200")
+_GOLDEN_MAX_SAMPLES = env_int("ORBITAL_GOLDEN_MAX_SAMPLES", 60)
+_MAX_AUTO_GOLDEN = env_int("ORBITAL_GOLDEN_MAX_AUTO", 200)
 
 
 def golden_key(vendor: str, task_key: str) -> str:
