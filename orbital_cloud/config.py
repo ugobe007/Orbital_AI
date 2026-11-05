@@ -5,8 +5,30 @@ cloud that only ingests from live edge nodes (set ORBITAL_SIMULATOR_ENABLED=0).
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
+
+
+def _env_number(name: str, default, cast):
+    """A numeric setting. Tolerates the quotes and spaces a dashboard paste tends to add; an
+    unparseable value falls back to the default with a warning instead of failing the boot."""
+    raw = (os.getenv(name) or "").strip().strip("\"'").strip()
+    if not raw:
+        return cast(default)
+    try:
+        return cast(raw)
+    except ValueError:
+        logging.getLogger(__name__).warning("%s=%r is not a number; using %r", name, raw, default)
+        return cast(default)
+
+
+def env_int(name: str, default: int) -> int:
+    return _env_number(name, default, int)
+
+
+def env_float(name: str, default: float) -> float:
+    return _env_number(name, default, float)
 
 
 def _flag(name: str, default: str = "1") -> bool:
@@ -16,13 +38,13 @@ def _flag(name: str, default: str = "1") -> bool:
 @dataclass(frozen=True)
 class Settings:
     host: str = os.getenv("ORBITAL_HOST", "0.0.0.0")
-    port: int = int(os.getenv("ORBITAL_PORT", "8090") or "8090")
+    port: int = env_int("ORBITAL_PORT", 8090)
 
     facility_id: str = os.getenv("ORBITAL_FACILITY_ID", "facility-sf-001")
     facility_name: str = os.getenv("ORBITAL_FACILITY_NAME", "StageGate SF Pilot")
 
     simulator_enabled: bool = _flag("ORBITAL_SIMULATOR_ENABLED", "1")
-    sim_tick_hz: float = float(os.getenv("ORBITAL_SIM_TICK_HZ", "5") or "5")
+    sim_tick_hz: float = env_float("ORBITAL_SIM_TICK_HZ", 5)
     # Simulated tracked objects (a pallet, a forklift, a cart) so the object layer is visible
     # in the demo; real edges publish to POST /api/v1/objects/{facility}.
     sim_objects: bool = _flag("ORBITAL_SIM_OBJECTS", "1")
@@ -30,28 +52,28 @@ class Settings:
     # testdata/, so those dashboard features are visible without a real rig uploading.
     sim_rig: bool = _flag("ORBITAL_SIM_RIG", "1")
     # A tracked object that is not re-reported within this many seconds drops off the map.
-    object_ttl_s: float = float(os.getenv("ORBITAL_OBJECT_TTL_S", "10") or "10")
+    object_ttl_s: float = env_float("ORBITAL_OBJECT_TTL_S", 10)
 
-    drift_degraded_m: float = float(os.getenv("ORBITAL_DRIFT_DEGRADED_M", "0.1") or "0.1")
-    halt_threshold_m: float = float(os.getenv("ORBITAL_HALT_THRESHOLD_M", "0.5") or "0.5")
+    drift_degraded_m: float = env_float("ORBITAL_DRIFT_DEGRADED_M", 0.1)
+    halt_threshold_m: float = env_float("ORBITAL_HALT_THRESHOLD_M", 0.5)
 
     # Operator drive controls: default patrol/nav speed and the ceiling an operator can set.
-    base_speed_mps: float = float(os.getenv("ORBITAL_BASE_SPEED_MPS", "0.6") or "0.6")
-    max_speed_mps: float = float(os.getenv("ORBITAL_MAX_SPEED_MPS", "2.5") or "2.5")
+    base_speed_mps: float = env_float("ORBITAL_BASE_SPEED_MPS", 0.6)
+    max_speed_mps: float = env_float("ORBITAL_MAX_SPEED_MPS", 2.5)
 
     # Autonomy layer: the orchestrator supervises the fleet on this cadence and can
     # take safety-first actions (auto E-Stop, proactive charge dispatch). The LLM
     # narrative is advisory only and never gates a safety action.
     orchestrator_enabled: bool = _flag("ORBITAL_ORCHESTRATOR_ENABLED", "1")
-    orchestrator_interval_s: float = float(os.getenv("ORBITAL_ORCHESTRATOR_INTERVAL_S", "5") or "5")
-    low_battery_pct: float = float(os.getenv("ORBITAL_LOW_BATTERY_PCT", "25") or "25")
+    orchestrator_interval_s: float = env_float("ORBITAL_ORCHESTRATOR_INTERVAL_S", 5)
+    low_battery_pct: float = env_float("ORBITAL_LOW_BATTERY_PCT", 25)
     # An orchestrator/drift auto-halt re-converges and resumes after this cooldown (ARIA
     # recovers on its own). A human-issued E-Stop is NOT auto-recovered — it waits for an operator.
-    auto_recover_s: float = float(os.getenv("ORBITAL_AUTO_RECOVER_S", "12") or "12")
+    auto_recover_s: float = env_float("ORBITAL_AUTO_RECOVER_S", 12)
     # Autonomous task cycle: after finishing a task a robot hands off to a peer and pauses
     # (shown red) for this long before picking up its next task (shown green) — makes the
     # start/stop rhythm of the fleet visibly legible.
-    task_pause_s: float = float(os.getenv("ORBITAL_TASK_PAUSE_S", "10") or "10")
+    task_pause_s: float = env_float("ORBITAL_TASK_PAUSE_S", 10)
     llm_enabled: bool = _flag("ORBITAL_LLM_ENABLED", "0")
     llm_model: str = os.getenv("ORBITAL_LLM_MODEL", "gpt-4o-mini")
 
@@ -62,11 +84,11 @@ class Settings:
     # People on the floor (Sprint G5–G7). A robot within the slow radius of a worker is
     # capped at human_slow_speed_mps; within the stop radius it halts until the person moves
     # away. Check-ins older than worker_stale_s drop off the map and out of the safety check.
-    sim_workers: int = int(os.getenv("ORBITAL_SIM_WORKERS", "3") or "3")
-    human_slow_radius_m: float = float(os.getenv("ORBITAL_HUMAN_SLOW_RADIUS_M", "2.0") or "2.0")
-    human_stop_radius_m: float = float(os.getenv("ORBITAL_HUMAN_STOP_RADIUS_M", "0.8") or "0.8")
-    human_slow_speed_mps: float = float(os.getenv("ORBITAL_HUMAN_SLOW_SPEED_MPS", "0.3") or "0.3")
-    worker_stale_s: float = float(os.getenv("ORBITAL_WORKER_STALE_S", "30") or "30")
+    sim_workers: int = env_int("ORBITAL_SIM_WORKERS", 3)
+    human_slow_radius_m: float = env_float("ORBITAL_HUMAN_SLOW_RADIUS_M", 2.0)
+    human_stop_radius_m: float = env_float("ORBITAL_HUMAN_STOP_RADIUS_M", 0.8)
+    human_slow_speed_mps: float = env_float("ORBITAL_HUMAN_SLOW_SPEED_MPS", 0.3)
+    worker_stale_s: float = env_float("ORBITAL_WORKER_STALE_S", 30)
 
 
 settings = Settings()
@@ -151,9 +173,9 @@ WAREHOUSE: dict = {
 # Fleet mission choreography. Every SEQUENCE_PERIOD_S the whole fleet adopts a new theme
 # and each robot gets a fresh pick→drop assignment, so the floor never looks stale. Each
 # theme names a verb, an objective sentence, and which stations are sources vs. destinations.
-SEQUENCE_PERIOD_S: float = float(os.getenv("ORBITAL_SEQUENCE_PERIOD_S", "30") or "30")
+SEQUENCE_PERIOD_S: float = env_float("ORBITAL_SEQUENCE_PERIOD_S", 30)
 # Fleet sim: how many lead robots publish relay waypoints (others shuttle between them).
-LEAD_COUNT: int = max(2, min(5, int(os.getenv("ORBITAL_LEAD_COUNT", "3") or "3")))
+LEAD_COUNT: int = max(2, min(5, env_int("ORBITAL_LEAD_COUNT", 3)))
 SEQUENCE_THEMES: list[dict] = [
     {
         "id": "inbound",
