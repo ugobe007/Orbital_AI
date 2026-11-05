@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from typing import Any
 
 from fastapi import WebSocket
@@ -28,15 +29,22 @@ class EventHub:
         async with self._lock:
             self._clients.discard(ws)
 
+    @property
+    def has_clients(self) -> bool:
+        return bool(self._clients)
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         async with self._lock:
             clients = list(self._clients)
+        if not clients:
+            return
+        text = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
         dead: list[WebSocket] = []
         for ws in clients:
             try:
                 # A half-open connection (laptop asleep, phone off wifi) would otherwise block
                 # here and freeze the simulator loop for every dashboard.
-                await asyncio.wait_for(ws.send_json(message), SEND_TIMEOUT_S)
+                await asyncio.wait_for(ws.send_text(text), SEND_TIMEOUT_S)
             except Exception:  # noqa: BLE001 — client vanished mid-send or stopped reading
                 dead.append(ws)
         if dead:

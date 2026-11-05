@@ -258,3 +258,21 @@ def test_sim_stops_auto_promoting_golden_runs_past_the_cap(monkeypatch):
     extra = run_store.add(RunIn(**_run(task="S9 → Dock")))
     run_store.set_golden(extra.id)                     # operators are not capped
     assert len(run_store.golden_runs()) == 4
+
+
+def test_a_finished_run_is_scored_once_until_its_golden_changes(monkeypatch):
+    calls = []
+    real = runs.score
+    monkeypatch.setattr(runs, "score", lambda r, g: calls.append(r) or real(r, g))
+    first = run_store.add(RunIn(**_run()))
+    run_store.set_golden(first.id)
+    later = run_store.add(RunIn(**_run(dt=0.7)))
+    for _ in range(5):
+        runs.runs_message()
+    assert len(calls) == 2                            # one per run, not one per message
+    assert run_store.summary(later).score.verdict == "slow"
+    newer = run_store.add(RunIn(**_run()))
+    run_store.set_golden(newer.id)                    # a new golden → rescored against it
+    calls.clear()
+    runs.runs_message()
+    assert len(calls) == 3
