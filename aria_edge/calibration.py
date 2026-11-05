@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import json
 import math
-import os
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
-DEFAULT_RESIDUAL_M = float(os.getenv("ORBITAL_CALIB_RESIDUAL_M", "0.05") or "0.05")
+from .config import env_float
+
+DEFAULT_RESIDUAL_M = env_float("ORBITAL_CALIB_RESIDUAL_M", 0.05)
 _MAX_ITER = 30
 _MAX_REJECTIONS = 25
 _CONVERGED_M = 1e-7
